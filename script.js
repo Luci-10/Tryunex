@@ -365,7 +365,8 @@ async function sendOtp(email) {
 }
 
 async function verifyOtp(otp) {
-  // Backend verifies our 6-digit OTP and returns a raw Supabase magic-link token.
+  // Backend verifies the 6-digit OTP and returns a ready session (access + refresh token).
+  // Session is established server-side — no token is passed to the browser for verification.
   const res = await fetch("/.netlify/functions/verify-otp", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -374,12 +375,10 @@ async function verifyOtp(otp) {
   const json = await res.json();
   if (!res.ok) { setMessage(json.error || "Invalid code. Try again.", "error"); return; }
 
-  // Establish Supabase session using the raw token from the magic-link action_link URL.
-  // type: "magiclink" + raw token (not hashed_token) is what Supabase expects.
-  const { error } = await db.auth.verifyOtp({
-    email: json.email,
-    token: json.token,
-    type: "magiclink",
+  // Set the Supabase session directly — bypasses verifyOtp token format issues entirely
+  const { error } = await db.auth.setSession({
+    access_token: json.access_token,
+    refresh_token: json.refresh_token,
   });
   if (error) { setMessage(error.message, "error"); return; }
 

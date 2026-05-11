@@ -1,3 +1,4 @@
+const https = require("https");
 const { createClient } = require("@supabase/supabase-js");
 
 const db = createClient(
@@ -40,31 +41,49 @@ exports.handler = async (event) => {
   // Single-use — delete immediately
   await db.from("otp_tokens").delete().eq("email", email);
 
-  // Generate a fresh Supabase magic link (creates auth user if new)
+  // Generate a Supabase magic link server-side
   const { data: linkData, error: linkError } = await db.auth.admin.generateLink({
     type: "magiclink",
     email,
     options: { redirectTo: "https://tryunex.in" },
   });
 
-  if (linkError) {
+  if (linkError || !linkData?.properties?.action_link) {
     console.error("generateLink error:", linkError);
     return respond(500, { error: "Authentication failed. Try again." });
   }
 
-  // Extract the raw token from the action_link URL.
-  // verifyOtp on the client expects the raw token (Supabase hashes it internally).
-  // Do NOT use hashed_token — that causes "token expired" because it gets double-hashed.
-  const actionLink = linkData.properties?.action_link;
-  const rawToken = actionLink ? new URL(actionLink).searchParams.get("token") : null;
-
-  if (!rawToken) {
+  // Verify the magic link server-side by calling the action_link URL directly.
+  // GoTrue responds with a 302 redirect to tryunex.in#access_token=...&refresh_token=...
+  // We read the Location header to extract the session — no browser redirect needed.
+  let location;
+  try {
+    location = await fetchRedirectLocation(linkData.properties.action_link);
+  } catch (err) {
+    console.error("redirect fetch error:", err);
     return respond(500, { error: "Authentication failed. Try again." });
   }
 
-  const userId = linkData.user?.id;
+  if (!location) {
+    return respond(500, { error: "Authentication failed. Try again." });
+  }
 
-  // Check if this user already has a profile
+  // Parse access_token and refresh_token from the URL fragment or query string
+  const fragment = location.includes("#")
+    ? location.split("#")[1]
+    : location.includes("?") ? location.split("?")[1] : "";
+
+  const params = new URLSearchParams(fragment);
+  const access_token = params.get("access_token");
+  const refresh_token = params.get("refresh_token");
+
+  if (!access_token || !refresh_token) {
+    console.error("No session in redirect:", location);
+    return respond(500, { error: "Authentication failed. Try again." });
+  }
+
+  // Check if this is a new user (no profile row yet)
+  const userId = linkData.user?.id;
   const { data: existingProfile } = await db
     .from("profiles")
     .select("id")
@@ -73,11 +92,33 @@ exports.handler = async (event) => {
 
   return respond(200, {
     ok: true,
-    token: rawToken,
+    access_token,
+    refresh_token,
     email,
     isNewUser: !existingProfile,
   });
 };
+
+// Makes a GET request to the Supabase verify URL without following redirects,
+// then returns the Location header value (which contains the session tokens).
+function fetchRedirectLocation(url) {
+  return new Promise((resolve, reject) => {
+    const parsed = new URL(url);
+    const req = https.request(
+      {
+        hostname: parsed.hostname,
+        path: parsed.pathname + parsed.search,
+        method: "GET",
+      },
+      (res) => {
+        resolve(res.headers["location"] || "");
+        res.resume(); // discard body
+      }
+    );
+    req.on("error", reject);
+    req.end();
+  });
+}
 
 function corsHeaders() {
   return {
