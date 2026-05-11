@@ -1,4 +1,4 @@
-const https = require("https");
+const crypto = require("crypto");
 const { createClient } = require("@supabase/supabase-js");
 
 const db = createClient(
@@ -25,7 +25,7 @@ exports.handler = async (event) => {
     return respond(400, { error: "Email and code are required" });
   }
 
-  // Verify our 6-digit OTP
+  // Verify our 6-digit OTP from the table
   const { data: tokenRow, error: lookupError } = await db
     .from("otp_tokens")
     .select("*")
@@ -38,43 +38,40 @@ exports.handler = async (event) => {
     return respond(401, { error: "Invalid code. Try again." });
   }
 
+  // Single-use — delete immediately
   await db.from("otp_tokens").delete().eq("email", email);
 
-  // Generate a Supabase magic link to get the raw OTP token
+  // generateLink creates the Supabase auth user if new, or finds them if existing.
+  // We only need this to reliably get the user's UUID.
   const { data: linkData, error: linkError } = await db.auth.admin.generateLink({
     type: "magiclink",
     email,
     options: { redirectTo: "https://tryunex.in" },
   });
 
-  if (linkError || !linkData?.properties?.action_link) {
+  if (linkError || !linkData?.user?.id) {
     console.error("generateLink error:", linkError);
     return respond(500, { error: "Authentication failed. Try again." });
   }
 
-  // Extract the raw token from the action_link URL
-  const rawToken = new URL(linkData.properties.action_link).searchParams.get("token");
-  if (!rawToken) {
-    console.error("No token in action_link:", linkData.properties.action_link);
+  const userId = linkData.user.id;
+
+  // Set a one-time random password on the user.
+  // signInWithPassword is the most reliable Supabase sign-in method — no token
+  // format issues. The password is 64 random hex chars, completely unguessable.
+  const tempPassword = crypto.randomBytes(32).toString("hex");
+
+  const { error: updateError } = await db.auth.admin.updateUserById(userId, {
+    password: tempPassword,
+    email_confirm: true,
+  });
+
+  if (updateError) {
+    console.error("updateUserById error:", updateError);
     return respond(500, { error: "Authentication failed. Try again." });
   }
 
-  // POST directly to GoTrue's /verify endpoint — returns session JSON, no redirects
-  const verifyResult = await httpsPost(
-    `${process.env.SUPABASE_URL}/auth/v1/verify`,
-    { type: "magiclink", token: rawToken },
-    { apikey: process.env.SUPABASE_SERVICE_KEY }
-  );
-
-  if (verifyResult.status !== 200 || !verifyResult.data.access_token) {
-    console.error("GoTrue verify failed:", verifyResult.status, verifyResult.data);
-    return respond(500, { error: "Authentication failed. Try again." });
-  }
-
-  const { access_token, refresh_token } = verifyResult.data;
-  const userId = linkData.user?.id;
-
-  // Check if this user already has a profile
+  // Check whether this user already has a profile
   const { data: existingProfile } = await db
     .from("profiles")
     .select("id")
@@ -83,47 +80,11 @@ exports.handler = async (event) => {
 
   return respond(200, {
     ok: true,
-    access_token,
-    refresh_token,
     email,
+    password: tempPassword,
     isNewUser: !existingProfile,
   });
 };
-
-// Makes a POST request using Node's built-in https module (always available in Lambda).
-function httpsPost(urlStr, body, extraHeaders) {
-  return new Promise((resolve, reject) => {
-    const url = new URL(urlStr);
-    const payload = JSON.stringify(body);
-    const req = https.request(
-      {
-        hostname: url.hostname,
-        port: 443,
-        path: url.pathname + url.search,
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Content-Length": Buffer.byteLength(payload),
-          ...extraHeaders,
-        },
-      },
-      (res) => {
-        let raw = "";
-        res.on("data", (chunk) => { raw += chunk; });
-        res.on("end", () => {
-          try {
-            resolve({ status: res.statusCode, data: JSON.parse(raw) });
-          } catch {
-            resolve({ status: res.statusCode, data: {} });
-          }
-        });
-      }
-    );
-    req.on("error", reject);
-    req.write(payload);
-    req.end();
-  });
-}
 
 function corsHeaders() {
   return {

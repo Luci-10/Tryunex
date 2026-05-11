@@ -375,10 +375,10 @@ async function verifyOtp(otp) {
   const json = await res.json();
   if (!res.ok) { setMessage(json.error || "Invalid code. Try again.", "error"); return; }
 
-  // Set the Supabase session directly — bypasses verifyOtp token format issues entirely
-  const { error } = await db.auth.setSession({
-    access_token: json.access_token,
-    refresh_token: json.refresh_token,
+  // Sign in with the one-time password set by the backend — most reliable Supabase method
+  const { error } = await db.auth.signInWithPassword({
+    email: json.email,
+    password: json.password,
   });
   if (error) { setMessage(error.message, "error"); return; }
 
