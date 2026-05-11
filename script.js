@@ -246,7 +246,7 @@ async function loadUserData() {
     return;
   }
 
-  const { data: profile } = await supabase
+  const { data: profile } = await db
     .from("profiles")
     .select("*")
     .eq("id", user.id)
@@ -259,7 +259,7 @@ async function loadUserData() {
     profileImage: profile?.profile_image_url || "",
   };
 
-  const { data: memberships } = await supabase
+  const { data: memberships } = await db
     .from("closet_members")
     .select("closet_id")
     .eq("user_id", user.id);
@@ -271,7 +271,7 @@ async function loadUserData() {
   }
 
   const closetIds = memberships.map((m) => m.closet_id);
-  const { data: closetRows } = await supabase
+  const { data: closetRows } = await db
     .from("closets")
     .select("*")
     .in("id", closetIds);
@@ -281,16 +281,16 @@ async function loadUserData() {
   const normalized = await Promise.all(
     (closetRows || []).map(async (closet) => {
       const [{ data: memberRows }, { data: itemRows }, { data: outfitRows }] = await Promise.all([
-        supabase
+        db
           .from("closet_members")
           .select("user_id, profiles(id, name, email, profile_image_url)")
           .eq("closet_id", closet.id),
-        supabase
+        db
           .from("items")
           .select("*")
           .eq("closet_id", closet.id)
           .order("created_at", { ascending: false }),
-        supabase
+        db
           .from("outfits")
           .select("*")
           .eq("closet_id", closet.id)
@@ -382,7 +382,7 @@ async function signup(name, email, password) {
   await db.from("profiles").insert({ id: userId, name: name.trim(), email });
 
   const shareCode = makeShareCode();
-  const { data: closet } = await supabase
+  const { data: closet } = await db
     .from("closets")
     .insert({
       owner_id: userId,
@@ -563,7 +563,7 @@ async function handleJoin(event) {
   const formData = new FormData(joinForm);
   const code = String(formData.get("shareCode")).trim().toUpperCase();
 
-  const { data: closet } = await supabase
+  const { data: closet } = await db
     .from("closets")
     .select("*")
     .eq("share_code", code)
