@@ -1,6 +1,7 @@
 [build]
-  command = "mkdir -p dist && cp index.html script.js styles.css supabase-client.js dist/"
+  command = "npm install && mkdir -p dist && cp index.html script.js styles.css supabase-client.js dist/"
   publish = "dist"
+  functions = "netlify/functions"
 
 [[redirects]]
   from = "https://www.tryunex.in/*"

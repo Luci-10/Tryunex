@@ -345,42 +345,34 @@ let pendingOtpEmail = "";
 let pendingOtpName = "";
 
 async function sendOtp(email, name) {
-  const { error } = await db.auth.signInWithOtp({
-    email,
-    options: { shouldCreateUser: true },
+  const res = await fetch("/.netlify/functions/send-otp", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, name }),
   });
-  if (error) { setMessage(error.message, "error"); return false; }
+  const json = await res.json();
+  if (!res.ok) { setMessage(json.error || "Could not send code. Try again.", "error"); return false; }
   pendingOtpEmail = email;
   pendingOtpName = name;
   return true;
 }
 
 async function verifyOtp(otp) {
-  const { data, error } = await db.auth.verifyOtp({
-    email: pendingOtpEmail,
-    token: otp,
-    type: "email",
+  const res = await fetch("/.netlify/functions/verify-otp", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email: pendingOtpEmail, otp }),
+  });
+  const json = await res.json();
+  if (!res.ok) { setMessage(json.error || "Invalid code. Try again.", "error"); return; }
+
+  // Exchange the server-generated token for a Supabase session client-side
+  const { error } = await db.auth.verifyOtp({
+    email: json.email,
+    token: json.token,
+    type: "magiclink",
   });
   if (error) { setMessage(error.message, "error"); return; }
-
-  const userId = data.user?.id;
-  if (!userId) { setMessage("Verification failed. Try again.", "error"); return; }
-
-  // First-time user — create profile + wardrobe
-  const { data: existing } = await db.from("profiles").select("id").eq("id", userId).single();
-  if (!existing) {
-    const name = pendingOtpName.trim() || pendingOtpEmail.split("@")[0];
-    await db.from("profiles").insert({ id: userId, name, email: pendingOtpEmail });
-    const { data: closet } = await db.from("closets").insert({
-      owner_id: userId,
-      name: `${name}'s Wardrobe`,
-      share_code: makeShareCode(),
-      last_laundry_reset: mostRecentSundayKey(),
-    }).select().single();
-    if (closet) {
-      await db.from("closet_members").insert({ closet_id: closet.id, user_id: userId });
-    }
-  }
 
   pendingOtpEmail = "";
   pendingOtpName = "";
