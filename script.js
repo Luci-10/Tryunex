@@ -332,6 +332,9 @@ async function ensureWeeklyReset() {
       supabase.from("closets").update({ last_laundry_reset: currentSunday }).eq("id", closet.id),
       supabase.from("items").update({ status: "available" }).eq("closet_id", closet.id),
     ]);
+    // Patch local state so UI reflects reset immediately without a second fetch
+    closet.lastLaundryReset = currentSunday;
+    closet.items.forEach((item) => { item.status = "available"; });
   }
 }
 
@@ -1093,6 +1096,21 @@ document.addEventListener("keydown", (event) => {
 async function init() {
   summarizeReset();
   setAuthMode(initialAuthMode);
+
+  // Keep UI in sync when session changes (other tab login, token refresh, expiry)
+  supabase.auth.onAuthStateChange(async (event, session) => {
+    if (event === "SIGNED_OUT") {
+      currentUser = null;
+      closets = [];
+      membersCache = {};
+      selectedClosetId = null;
+      renderApp();
+    } else if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED") {
+      await loadUserData();
+      renderApp();
+    }
+  });
+
   await loadUserData();
   renderApp();
 }

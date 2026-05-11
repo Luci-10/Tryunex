@@ -1,5 +1,4 @@
-import "react-native-url-polyfill/auto";
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Alert,
   Image,
@@ -337,18 +336,23 @@ function App() {
       })
     );
 
-    // Weekly reset check
+    // Weekly reset — update DB and patch local state so UI shows fresh immediately
     const currentSunday = mostRecentSundayKey();
-    await Promise.all(
-      normalizedClosets
-        .filter((c) => c.lastLaundryReset !== currentSunday)
-        .map((c) =>
+    const closetsNeedingReset = normalizedClosets.filter((c) => c.lastLaundryReset !== currentSunday);
+    if (closetsNeedingReset.length) {
+      await Promise.all(
+        closetsNeedingReset.map((c) =>
           Promise.all([
             supabase.from("closets").update({ last_laundry_reset: currentSunday }).eq("id", c.id),
             supabase.from("items").update({ status: "available" }).eq("closet_id", c.id),
           ])
         )
-    );
+      );
+      closetsNeedingReset.forEach((c) => {
+        c.lastLaundryReset = currentSunday;
+        c.items.forEach((item) => { item.status = "available"; });
+      });
+    }
 
     setUsers(Object.values(profilesCache));
     setClosets(normalizedClosets);
