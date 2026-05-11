@@ -1,6 +1,6 @@
 [build]
-  command = ""
-  publish = "."
+  command = "mkdir -p dist && cp index.html script.js styles.css supabase-client.js dist/"
+  publish = "dist"
 
 [[redirects]]
   from = "https://www.tryunex.in/*"
