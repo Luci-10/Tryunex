@@ -33,22 +33,19 @@ exports.handler = async (event) => {
     return respond(400, { error: "A valid email is required" });
   }
 
-  // Ask Supabase to generate the OTP internally — same token signInWithOtp would send.
-  // email_otp is the 6-digit code; Supabase stores and owns it, so verifyOtp works natively.
-  const { data: linkData, error: linkError } = await db.auth.admin.generateLink({
-    type: "magiclink",
-    email,
-    options: { redirectTo: "https://tryunex.in" },
-  });
+  // Generate our own 6-digit OTP (guaranteed length)
+  const otp = String(Math.floor(100000 + Math.random() * 900000));
 
-  if (linkError) {
-    console.error("generateLink error:", linkError);
-    return respond(500, { error: "Could not generate code. Try again." });
-  }
+  // 24-hour expiry — does not expire until user requests a resend
+  const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
 
-  const otp = linkData.properties?.email_otp;
-  if (!otp) {
-    return respond(500, { error: "Could not generate code. Try again." });
+  const { error: dbError } = await db
+    .from("otp_tokens")
+    .upsert({ email, otp, expires_at: expiresAt }, { onConflict: "email" });
+
+  if (dbError) {
+    console.error("DB error storing OTP:", dbError);
+    return respond(500, { error: "Could not store code. Try again." });
   }
 
   try {
@@ -56,15 +53,15 @@ exports.handler = async (event) => {
       from: `Tryunex <${process.env.GMAIL_USER}>`,
       to: email,
       subject: "Your Tryunex login code",
-      text: `Your Tryunex login code is: ${otp}\n\nThis code expires in 60 minutes.\n\nIf you didn't request this, ignore this email.`,
+      text: `Your Tryunex login code is: ${otp}\n\nIf you didn't request this, ignore this email.`,
       html: `
         <div style="font-family:sans-serif;max-width:420px;margin:0 auto;padding:32px 24px;background:#f9f9f7;border-radius:12px">
           <h2 style="color:#1a1a1a;margin:0 0 8px">Your Tryunex login code</h2>
-          <p style="color:#555;margin:0 0 24px;font-size:14px">Enter this code to sign in or create your account.</p>
+          <p style="color:#555;margin:0 0 24px;font-size:14px">Enter this 6-digit code to sign in or create your account.</p>
           <div style="background:#fff;border-radius:8px;padding:24px;text-align:center;margin-bottom:24px">
-            <span style="font-size:36px;font-weight:700;letter-spacing:10px;color:#1a1a1a">${otp}</span>
+            <span style="font-size:40px;font-weight:700;letter-spacing:12px;color:#1a1a1a">${otp}</span>
           </div>
-          <p style="color:#888;font-size:13px;margin:0">Expires in 60 minutes. If you didn't request this, ignore this email.</p>
+          <p style="color:#888;font-size:13px;margin:0">If you didn't request this, ignore this email.</p>
         </div>
       `,
     });

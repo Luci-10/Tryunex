@@ -365,31 +365,33 @@ async function sendOtp(email) {
 }
 
 async function verifyOtp(otp) {
-  // Supabase owns the OTP (generated via admin.generateLink in send-otp function).
-  // Verify directly — no backend round-trip, no token expiry on our side.
-  const { data, error } = await db.auth.verifyOtp({
-    email: pendingOtpEmail,
-    token: otp,
-    type: "email",
+  // Backend verifies our 6-digit OTP and returns a raw Supabase magic-link token.
+  const res = await fetch("/.netlify/functions/verify-otp", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email: pendingOtpEmail, otp }),
+  });
+  const json = await res.json();
+  if (!res.ok) { setMessage(json.error || "Invalid code. Try again.", "error"); return; }
+
+  // Establish Supabase session using the raw token from the magic-link action_link URL.
+  // type: "magiclink" + raw token (not hashed_token) is what Supabase expects.
+  const { error } = await db.auth.verifyOtp({
+    email: json.email,
+    token: json.token,
+    type: "magiclink",
   });
   if (error) { setMessage(error.message, "error"); return; }
-
-  const userId = data.user?.id;
-  if (!userId) { setMessage("Verification failed. Try again.", "error"); return; }
 
   setMessage("");
   showOtpStep(false);
 
-  // Check if this user already has a profile
-  const { data: profile } = await db.from("profiles").select("id").eq("id", userId).single();
-  if (!profile) {
-    // First time — show onboarding (user is already authenticated at this point)
+  if (json.isNewUser) {
     authPanel.classList.add("hidden");
     onboardingPanel.classList.remove("hidden");
     return;
   }
 
-  // Returning user — go straight to the app
   pendingOtpEmail = "";
   await loadUserData();
   renderApp();
