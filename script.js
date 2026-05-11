@@ -417,7 +417,7 @@ async function handleOnboardingSubmit(event) {
     return;
   }
 
-  await db.from("profiles").insert({
+  const { error: profileError } = await db.from("profiles").insert({
     id: user.id,
     name,
     email: user.email,
@@ -425,15 +425,37 @@ async function handleOnboardingSubmit(event) {
     gender,
   });
 
-  const { data: closet } = await db.from("closets").insert({
+  if (profileError) {
+    onboardingMessage.textContent = profileError.message || "Failed to save profile. Try again.";
+    onboardingSubmitButton.disabled = false;
+    onboardingSubmitButton.textContent = "Create my wardrobe";
+    return;
+  }
+
+  const { data: closet, error: closetError } = await db.from("closets").insert({
     owner_id: user.id,
     name: `${name}'s Wardrobe`,
     share_code: makeShareCode(),
     last_laundry_reset: mostRecentSundayKey(),
   }).select().single();
 
+  if (closetError) {
+    onboardingMessage.textContent = closetError.message || "Failed to create wardrobe. Try again.";
+    onboardingSubmitButton.disabled = false;
+    onboardingSubmitButton.textContent = "Create my wardrobe";
+    return;
+  }
+
   if (closet) {
-    await db.from("closet_members").insert({ closet_id: closet.id, user_id: user.id });
+    const { error: memberError } = await db
+      .from("closet_members")
+      .insert({ closet_id: closet.id, user_id: user.id });
+    if (memberError) {
+      onboardingMessage.textContent = memberError.message || "Failed to join wardrobe. Try again.";
+      onboardingSubmitButton.disabled = false;
+      onboardingSubmitButton.textContent = "Create my wardrobe";
+      return;
+    }
   }
 
   pendingOtpEmail = "";
