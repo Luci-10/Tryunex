@@ -6,15 +6,22 @@ node_modules/
 dist/
 web-build/
 
-# Environment / secrets — NEVER commit these
-supabase-client.js
-lib/supabaseClient.js
-
 # OS
 .DS_Store
 Thumbs.db
 
+# Editor swap files
+*.swp
+*.swf
+*.swh
+*.swi
+*.swj
+*.swk
+*.swl
+*.swm
+*.swn
+*.swo
+
 # Logs
 *.log
 npm-debug.log*
-node_modules
