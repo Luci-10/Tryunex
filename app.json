@@ -1,0 +1,16 @@
+{
+  "expo": {
+    "name": "Tryunex",
+    "slug": "tryunex",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "platforms": ["android", "web"],
+    "userInterfaceStyle": "light",
+    "web": {
+      "bundler": "metro"
+    },
+    "android": {
+      "package": "com.tryunex.app"
+    }
+  }
+}
