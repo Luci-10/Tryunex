@@ -1,3 +1,4 @@
+import "react-native-url-polyfill/auto";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
