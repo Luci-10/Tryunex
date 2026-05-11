@@ -1041,14 +1041,23 @@ authToggle.addEventListener("click", (event) => {
   if (button) setAuthMode(button.dataset.mode);
 });
 
-authForm.addEventListener("submit", (event) => {
+authForm.addEventListener("submit", async (event) => {
   event.preventDefault();
-  const email = authEmail.value.trim();
-  const password = authPassword.value;
-  if (authMode === "login") {
-    login(email, password);
-  } else {
-    signup(authName.value.trim(), email, password);
+  authSubmit.disabled = true;
+  authSubmit.textContent = "Please wait...";
+  try {
+    const email = authEmail.value.trim();
+    const password = authPassword.value;
+    if (authMode === "login") {
+      await login(email, password);
+    } else {
+      await signup(authName.value.trim(), email, password);
+    }
+  } catch (err) {
+    setMessage(err.message || "Something went wrong. Please try again.", "error");
+  } finally {
+    authSubmit.disabled = false;
+    authSubmit.textContent = authMode === "login" ? "Login" : "Create account";
   }
 });
 
@@ -1124,4 +1133,7 @@ async function init() {
   renderApp();
 }
 
-init();
+init().catch((err) => {
+  console.error("Tryunex init error:", err);
+  setMessage("Failed to load. Please refresh the page.", "error");
+});
