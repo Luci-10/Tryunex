@@ -1,0 +1,8 @@
+[build]
+  publish = "."
+
+[[redirects]]
+  from = "https://www.tryunex.in/*"
+  to   = "https://tryunex.in/:splat"
+  status = 301
+  force  = true
