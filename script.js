@@ -2,14 +2,15 @@
 // DOM REFERENCES
 // ─────────────────────────────────────────────────────────────────────────────
 const authPanel = document.querySelector("#authPanel");
-const authForm = document.querySelector("#authForm");
 const authMessage = document.querySelector("#authMessage");
-const authSubmit = document.querySelector("#authSubmit");
-const authToggle = document.querySelector("#authToggle");
-const nameField = document.querySelector("#nameField");
+const otpRequestForm = document.querySelector("#otpRequestForm");
+const otpVerifyForm = document.querySelector("#otpVerifyForm");
+const sendOtpButton = document.querySelector("#sendOtpButton");
+const verifyOtpButton = document.querySelector("#verifyOtpButton");
+const backToEmailButton = document.querySelector("#backToEmailButton");
 const authName = document.querySelector("#authName");
 const authEmail = document.querySelector("#authEmail");
-const authPassword = document.querySelector("#authPassword");
+const authOtp = document.querySelector("#authOtp");
 const workspace = document.querySelector("#workspace");
 const workspaceTitle = document.querySelector("#workspaceTitle");
 const workspaceMessage = document.querySelector("#workspaceMessage");
@@ -66,8 +67,6 @@ let closets = [];             // normalized closet objects
 let membersCache = {};        // userId → { id, name, email, profileImage }
 
 // UI-only state
-const initialAuthMode = "login";
-let authMode = initialAuthMode;
 let activeFilter = "all";
 let notificationSentForClosetId = "";
 let latestAiSuggestion = null;
@@ -340,67 +339,61 @@ async function ensureWeeklyReset() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// AUTH
+// AUTH  (OTP — no passwords)
 // ─────────────────────────────────────────────────────────────────────────────
-async function login(email, password) {
-  const { error } = await db.auth.signInWithPassword({ email, password });
-  if (error) {
-    setMessage(error.message, "error");
-    return;
+let pendingOtpEmail = "";
+let pendingOtpName = "";
+
+async function sendOtp(email, name) {
+  const { error } = await db.auth.signInWithOtp({
+    email,
+    options: { shouldCreateUser: true },
+  });
+  if (error) { setMessage(error.message, "error"); return false; }
+  pendingOtpEmail = email;
+  pendingOtpName = name;
+  return true;
+}
+
+async function verifyOtp(otp) {
+  const { data, error } = await db.auth.verifyOtp({
+    email: pendingOtpEmail,
+    token: otp,
+    type: "email",
+  });
+  if (error) { setMessage(error.message, "error"); return; }
+
+  const userId = data.user?.id;
+  if (!userId) { setMessage("Verification failed. Try again.", "error"); return; }
+
+  // First-time user — create profile + wardrobe
+  const { data: existing } = await db.from("profiles").select("id").eq("id", userId).single();
+  if (!existing) {
+    const name = pendingOtpName.trim() || pendingOtpEmail.split("@")[0];
+    await db.from("profiles").insert({ id: userId, name, email: pendingOtpEmail });
+    const { data: closet } = await db.from("closets").insert({
+      owner_id: userId,
+      name: `${name}'s Wardrobe`,
+      share_code: makeShareCode(),
+      last_laundry_reset: mostRecentSundayKey(),
+    }).select().single();
+    if (closet) {
+      await db.from("closet_members").insert({ closet_id: closet.id, user_id: userId });
+    }
   }
-  authForm.reset();
+
+  pendingOtpEmail = "";
+  pendingOtpName = "";
   setMessage("");
+  showOtpStep(false);
   await loadUserData();
   renderApp();
 }
 
-async function signup(name, email, password) {
-  if (!name.trim()) {
-    setMessage("Add your name to create the wardrobe.", "error");
-    return;
-  }
-  const { data, error } = await db.auth.signUp({ email, password });
-  if (error) {
-    setMessage(error.message, "error");
-    return;
-  }
-
-  const userId = data.user?.id;
-  if (!userId) {
-    setMessage("Signup failed. Please try again.", "error");
-    return;
-  }
-
-  // Email confirmation is on — session is null until user clicks the link
-  if (!data.session) {
-    authForm.reset();
-    setMessage("Almost there! Check your email and click the confirmation link, then log in here.", "");
-    return;
-  }
-
-  // Session exists (email confirmation is off) — create profile + wardrobe now
-  await db.from("profiles").insert({ id: userId, name: name.trim(), email });
-
-  const shareCode = makeShareCode();
-  const { data: closet } = await db
-    .from("closets")
-    .insert({
-      owner_id: userId,
-      name: `${name.trim()}'s Wardrobe`,
-      share_code: shareCode,
-      last_laundry_reset: mostRecentSundayKey(),
-    })
-    .select()
-    .single();
-
-  if (closet) {
-    await db.from("closet_members").insert({ closet_id: closet.id, user_id: userId });
-  }
-
-  authForm.reset();
-  setMessage("");
-  await loadUserData();
-  renderApp();
+function showOtpStep(show) {
+  otpRequestForm.classList.toggle("hidden", show);
+  otpVerifyForm.classList.toggle("hidden", !show);
+  if (!show) authOtp.value = "";
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -421,17 +414,6 @@ function setWorkspaceMessage(message, type = "") {
       workspaceMessage.className = "workspace-message";
     }, 4000);
   }
-}
-
-function setAuthMode(mode) {
-  authMode = mode;
-  authSubmit.textContent = mode === "login" ? "Login" : "Create account";
-  nameField.classList.toggle("hidden", mode !== "signup");
-  [...authToggle.querySelectorAll(".toggle-button")].forEach((btn) => {
-    btn.classList.toggle("active", btn.dataset.mode === mode);
-  });
-  authName.required = mode === "signup";
-  setMessage("");
 }
 
 function summarizeReset() {
@@ -1037,29 +1019,45 @@ function renderApp() {
 // ─────────────────────────────────────────────────────────────────────────────
 // EVENT LISTENERS
 // ─────────────────────────────────────────────────────────────────────────────
-authToggle.addEventListener("click", (event) => {
-  const button = event.target.closest(".toggle-button");
-  if (button) setAuthMode(button.dataset.mode);
-});
-
-authForm.addEventListener("submit", async (event) => {
+otpRequestForm.addEventListener("submit", async (event) => {
   event.preventDefault();
-  authSubmit.disabled = true;
-  authSubmit.textContent = "Please wait...";
+  const email = authEmail.value.trim();
+  if (!email) { setMessage("Enter your email first.", "error"); return; }
+  sendOtpButton.disabled = true;
+  sendOtpButton.textContent = "Sending...";
   try {
-    const email = authEmail.value.trim();
-    const password = authPassword.value;
-    if (authMode === "login") {
-      await login(email, password);
-    } else {
-      await signup(authName.value.trim(), email, password);
+    const ok = await sendOtp(email, authName.value.trim());
+    if (ok) {
+      setMessage(`Code sent to ${email}. Check your inbox.`, "");
+      showOtpStep(true);
     }
   } catch (err) {
-    setMessage(err.message || "Something went wrong. Please try again.", "error");
+    setMessage(err.message || "Could not send code. Try again.", "error");
   } finally {
-    authSubmit.disabled = false;
-    authSubmit.textContent = authMode === "login" ? "Login" : "Create account";
+    sendOtpButton.disabled = false;
+    sendOtpButton.textContent = "Send code to my email";
   }
+});
+
+otpVerifyForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const otp = authOtp.value.trim();
+  if (otp.length !== 6) { setMessage("Enter the 6-digit code.", "error"); return; }
+  verifyOtpButton.disabled = true;
+  verifyOtpButton.textContent = "Verifying...";
+  try {
+    await verifyOtp(otp);
+  } catch (err) {
+    setMessage(err.message || "Verification failed. Try again.", "error");
+  } finally {
+    verifyOtpButton.disabled = false;
+    verifyOtpButton.textContent = "Verify code";
+  }
+});
+
+backToEmailButton.addEventListener("click", () => {
+  showOtpStep(false);
+  setMessage("");
 });
 
 itemForm.addEventListener("submit", handleItemSubmit);
@@ -1114,7 +1112,6 @@ document.addEventListener("keydown", (event) => {
 // ─────────────────────────────────────────────────────────────────────────────
 async function init() {
   summarizeReset();
-  setAuthMode(initialAuthMode);
 
   // Keep UI in sync when session changes (other tab login, token refresh, expiry)
   db.auth.onAuthStateChange(async (event, session) => {
