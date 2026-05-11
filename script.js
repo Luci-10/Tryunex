@@ -54,7 +54,8 @@ const dayPill = document.querySelector("#dayPill");
 // ─────────────────────────────────────────────────────────────────────────────
 // SUPABASE CLIENT
 // ─────────────────────────────────────────────────────────────────────────────
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const { createClient } = window.supabase;
+const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // APP STATE  (replaces localStorage state — populated from Supabase)
@@ -237,7 +238,7 @@ function normalizeCloset(row, memberRows, itemRows, outfitRows) {
 // DATA LOADING  (fetches everything from Supabase into local cache)
 // ─────────────────────────────────────────────────────────────────────────────
 async function loadUserData() {
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: { user } } = await db.auth.getUser();
   if (!user) {
     currentUser = null;
     closets = [];
@@ -329,8 +330,8 @@ async function ensureWeeklyReset() {
   for (const closet of closets) {
     if (closet.lastLaundryReset === currentSunday) continue;
     await Promise.all([
-      supabase.from("closets").update({ last_laundry_reset: currentSunday }).eq("id", closet.id),
-      supabase.from("items").update({ status: "available" }).eq("closet_id", closet.id),
+      db.from("closets").update({ last_laundry_reset: currentSunday }).eq("id", closet.id),
+      db.from("items").update({ status: "available" }).eq("closet_id", closet.id),
     ]);
     // Patch local state so UI reflects reset immediately without a second fetch
     closet.lastLaundryReset = currentSunday;
@@ -342,7 +343,7 @@ async function ensureWeeklyReset() {
 // AUTH
 // ─────────────────────────────────────────────────────────────────────────────
 async function login(email, password) {
-  const { error } = await supabase.auth.signInWithPassword({ email, password });
+  const { error } = await db.auth.signInWithPassword({ email, password });
   if (error) {
     setMessage(error.message, "error");
     return;
@@ -358,7 +359,7 @@ async function signup(name, email, password) {
     setMessage("Add your name to create the wardrobe.", "error");
     return;
   }
-  const { data, error } = await supabase.auth.signUp({ email, password });
+  const { data, error } = await db.auth.signUp({ email, password });
   if (error) {
     setMessage(error.message, "error");
     return;
@@ -378,7 +379,7 @@ async function signup(name, email, password) {
   }
 
   // Session exists (email confirmation is off) — create profile + wardrobe now
-  await supabase.from("profiles").insert({ id: userId, name: name.trim(), email });
+  await db.from("profiles").insert({ id: userId, name: name.trim(), email });
 
   const shareCode = makeShareCode();
   const { data: closet } = await supabase
@@ -393,7 +394,7 @@ async function signup(name, email, password) {
     .single();
 
   if (closet) {
-    await supabase.from("closet_members").insert({ closet_id: closet.id, user_id: userId });
+    await db.from("closet_members").insert({ closet_id: closet.id, user_id: userId });
   }
 
   authForm.reset();
@@ -445,7 +446,7 @@ async function toggleItemStatus(closetId, itemId) {
   const item = closet?.items.find((i) => i.id === itemId);
   if (!item) return;
   const newStatus = item.status === "available" ? "worn" : "available";
-  await supabase.from("items").update({
+  await db.from("items").update({
     status: newStatus,
     last_worn_on: newStatus === "worn" ? todayKey() : (item.lastWornOn || null),
   }).eq("id", itemId);
@@ -455,7 +456,7 @@ async function toggleItemStatus(closetId, itemId) {
 
 async function deleteItem(closetId, itemId, itemName) {
   if (!confirm(`Remove "${itemName}" from your wardrobe?`)) return;
-  await supabase.from("items").delete().eq("id", itemId);
+  await db.from("items").delete().eq("id", itemId);
   setWorkspaceMessage("Item removed from your wardrobe.", "success");
   await loadUserData();
   renderApp();
@@ -465,8 +466,8 @@ async function handleManualReset() {
   const closet = getSelectedCloset();
   if (!closet) return;
   await Promise.all([
-    supabase.from("closets").update({ last_laundry_reset: mostRecentSundayKey() }).eq("id", closet.id),
-    supabase.from("items").update({ status: "available" }).eq("closet_id", closet.id),
+    db.from("closets").update({ last_laundry_reset: mostRecentSundayKey() }).eq("id", closet.id),
+    db.from("items").update({ status: "available" }).eq("closet_id", closet.id),
   ]);
   setWorkspaceMessage("All clothes were moved back to available.", "success");
   await loadUserData();
@@ -485,14 +486,14 @@ async function handleItemSubmit(event) {
   if (file instanceof File && file.size) {
     const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
     const path = `items/${crypto.randomUUID()}.${ext}`;
-    const { data: upload } = await supabase.storage.from("wardrobe").upload(path, file);
+    const { data: upload } = await db.storage.from("wardrobe").upload(path, file);
     if (upload) {
-      const { data: { publicUrl } } = supabase.storage.from("wardrobe").getPublicUrl(upload.path);
+      const { data: { publicUrl } } = db.storage.from("wardrobe").getPublicUrl(upload.path);
       imageUrl = publicUrl;
     }
   }
 
-  await supabase.from("items").insert({
+  await db.from("items").insert({
     closet_id: closet.id,
     name: String(formData.get("name")).trim(),
     type: formData.get("type"),
@@ -514,11 +515,11 @@ async function handleProfilePhotoUpload() {
 
   const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
   const path = `profiles/${currentUser.id}.${ext}`;
-  const { data: upload } = await supabase.storage.from("wardrobe").upload(path, file, { upsert: true });
+  const { data: upload } = await db.storage.from("wardrobe").upload(path, file, { upsert: true });
   if (!upload) return;
 
-  const { data: { publicUrl } } = supabase.storage.from("wardrobe").getPublicUrl(upload.path);
-  await supabase.from("profiles").update({ profile_image_url: publicUrl }).eq("id", currentUser.id);
+  const { data: { publicUrl } } = db.storage.from("wardrobe").getPublicUrl(upload.path);
+  await db.from("profiles").update({ profile_image_url: publicUrl }).eq("id", currentUser.id);
   setWorkspaceMessage("Your photo was added for try-on preview.", "success");
   await loadUserData();
   renderApp();
@@ -540,14 +541,14 @@ async function handleOutfitSubmit(event) {
   }
 
   await Promise.all([
-    supabase.from("outfits").insert({
+    db.from("outfits").insert({
       closet_id: closet.id,
       occasion: String(formData.get("occasion")).trim(),
       comment: String(formData.get("comment")).trim(),
       chosen_by_user_id: currentUser.id,
       item_ids: itemIds,
     }),
-    supabase.from("items").update({ status: "worn", last_worn_on: todayKey() }).in("id", itemIds),
+    db.from("items").update({ status: "worn", last_worn_on: todayKey() }).in("id", itemIds),
   ]);
 
   outfitForm.reset();
@@ -578,7 +579,7 @@ async function handleJoin(event) {
     return;
   }
 
-  await supabase.from("closet_members").insert({ closet_id: closet.id, user_id: currentUser.id });
+  await db.from("closet_members").insert({ closet_id: closet.id, user_id: currentUser.id });
   selectedClosetId = closet.id;
   joinForm.reset();
   setWorkspaceMessage("Shared wardrobe joined successfully.", "success");
@@ -645,7 +646,7 @@ function renderSession() {
   button.className = "ghost-button";
   button.textContent = "Logout";
   button.addEventListener("click", async () => {
-    await supabase.auth.signOut();
+    await db.auth.signOut();
     currentUser = null;
     closets = [];
     membersCache = {};
@@ -1116,7 +1117,7 @@ async function init() {
   setAuthMode(initialAuthMode);
 
   // Keep UI in sync when session changes (other tab login, token refresh, expiry)
-  supabase.auth.onAuthStateChange(async (event, session) => {
+  db.auth.onAuthStateChange(async (event, session) => {
     if (event === "SIGNED_OUT") {
       currentUser = null;
       closets = [];
