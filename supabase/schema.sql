@@ -1,5 +1,5 @@
 -- ============================================================
--- Sunday Loop — Supabase Schema
+-- Tryunex — Supabase Schema
 -- Run this in: Supabase Dashboard → SQL Editor → New Query
 -- ============================================================
 
