@@ -22,9 +22,9 @@ exports.handler = async (event) => {
     return respond(405, { error: "Method not allowed" });
   }
 
-  let email, name;
+  let email;
   try {
-    ({ email, name } = JSON.parse(event.body || "{}"));
+    ({ email } = JSON.parse(event.body || "{}"));
   } catch {
     return respond(400, { error: "Invalid request body" });
   }
@@ -33,19 +33,22 @@ exports.handler = async (event) => {
     return respond(400, { error: "A valid email is required" });
   }
 
-  const otp = String(Math.floor(100000 + Math.random() * 900000));
-  const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+  // Ask Supabase to generate the OTP internally — same token signInWithOtp would send.
+  // email_otp is the 6-digit code; Supabase stores and owns it, so verifyOtp works natively.
+  const { data: linkData, error: linkError } = await db.auth.admin.generateLink({
+    type: "magiclink",
+    email,
+    options: { redirectTo: "https://tryunex.in" },
+  });
 
-  const { error: dbError } = await db
-    .from("otp_tokens")
-    .upsert(
-      { email, otp, name: name || "", expires_at: expiresAt },
-      { onConflict: "email" }
-    );
+  if (linkError) {
+    console.error("generateLink error:", linkError);
+    return respond(500, { error: "Could not generate code. Try again." });
+  }
 
-  if (dbError) {
-    console.error("DB error storing OTP:", dbError);
-    return respond(500, { error: "Could not store code. Try again." });
+  const otp = linkData.properties?.email_otp;
+  if (!otp) {
+    return respond(500, { error: "Could not generate code. Try again." });
   }
 
   try {
@@ -53,7 +56,7 @@ exports.handler = async (event) => {
       from: `Tryunex <${process.env.GMAIL_USER}>`,
       to: email,
       subject: "Your Tryunex login code",
-      text: `Your Tryunex login code is: ${otp}\n\nThis code expires in 10 minutes.\n\nIf you didn't request this, ignore this email.`,
+      text: `Your Tryunex login code is: ${otp}\n\nThis code expires in 60 minutes.\n\nIf you didn't request this, ignore this email.`,
       html: `
         <div style="font-family:sans-serif;max-width:420px;margin:0 auto;padding:32px 24px;background:#f9f9f7;border-radius:12px">
           <h2 style="color:#1a1a1a;margin:0 0 8px">Your Tryunex login code</h2>
@@ -61,7 +64,7 @@ exports.handler = async (event) => {
           <div style="background:#fff;border-radius:8px;padding:24px;text-align:center;margin-bottom:24px">
             <span style="font-size:36px;font-weight:700;letter-spacing:10px;color:#1a1a1a">${otp}</span>
           </div>
-          <p style="color:#888;font-size:13px;margin:0">Expires in 10 minutes. If you didn't request this, ignore this email.</p>
+          <p style="color:#888;font-size:13px;margin:0">Expires in 60 minutes. If you didn't request this, ignore this email.</p>
         </div>
       `,
     });

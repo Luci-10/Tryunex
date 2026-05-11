@@ -8,6 +8,8 @@ const otpVerifyForm = document.querySelector("#otpVerifyForm");
 const sendOtpButton = document.querySelector("#sendOtpButton");
 const verifyOtpButton = document.querySelector("#verifyOtpButton");
 const backToEmailButton = document.querySelector("#backToEmailButton");
+const resendOtpButton = document.querySelector("#resendOtpButton");
+const resendCountdown = document.querySelector("#resendCountdown");
 const authEmail = document.querySelector("#authEmail");
 const authOtp = document.querySelector("#authOtp");
 const onboardingPanel = document.querySelector("#onboardingPanel");
@@ -73,8 +75,6 @@ let closets = [];             // normalized closet objects
 let membersCache = {};        // userId → { id, name, email, profileImage }
 
 // UI-only state
-let pendingNewUserToken = "";
-let pendingNewUserEmail = "";
 let activeFilter = "all";
 let notificationSentForClosetId = "";
 let latestAiSuggestion = null;
@@ -350,6 +350,7 @@ async function ensureWeeklyReset() {
 // AUTH  (OTP — no passwords)
 // ─────────────────────────────────────────────────────────────────────────────
 let pendingOtpEmail = "";
+let resendTimer = null;
 
 async function sendOtp(email) {
   const res = await fetch("/.netlify/functions/send-otp", {
@@ -364,35 +365,32 @@ async function sendOtp(email) {
 }
 
 async function verifyOtp(otp) {
-  const res = await fetch("/.netlify/functions/verify-otp", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email: pendingOtpEmail, otp }),
+  // Supabase owns the OTP (generated via admin.generateLink in send-otp function).
+  // Verify directly — no backend round-trip, no token expiry on our side.
+  const { data, error } = await db.auth.verifyOtp({
+    email: pendingOtpEmail,
+    token: otp,
+    type: "email",
   });
-  const json = await res.json();
-  if (!res.ok) { setMessage(json.error || "Invalid code. Try again.", "error"); return; }
+  if (error) { setMessage(error.message, "error"); return; }
 
-  pendingOtpEmail = "";
+  const userId = data.user?.id;
+  if (!userId) { setMessage("Verification failed. Try again.", "error"); return; }
+
   setMessage("");
   showOtpStep(false);
 
-  if (json.isNewUser) {
-    // New user — save token and show onboarding form
-    pendingNewUserToken = json.token;
-    pendingNewUserEmail = json.email;
+  // Check if this user already has a profile
+  const { data: profile } = await db.from("profiles").select("id").eq("id", userId).single();
+  if (!profile) {
+    // First time — show onboarding (user is already authenticated at this point)
     authPanel.classList.add("hidden");
     onboardingPanel.classList.remove("hidden");
     return;
   }
 
-  // Existing user — establish session and go straight to the app
-  const { error } = await db.auth.verifyOtp({
-    email: json.email,
-    token: json.token,
-    type: "magiclink",
-  });
-  if (error) { setMessage(error.message, "error"); authPanel.classList.remove("hidden"); return; }
-
+  // Returning user — go straight to the app
+  pendingOtpEmail = "";
   await loadUserData();
   renderApp();
 }
@@ -407,54 +405,37 @@ async function handleOnboardingSubmit(event) {
   onboardingSubmitButton.textContent = "Creating wardrobe...";
   onboardingMessage.textContent = "";
 
-  // Establish Supabase session from the token saved after OTP verify
-  const { data, error: sessionError } = await db.auth.verifyOtp({
-    email: pendingNewUserEmail,
-    token: pendingNewUserToken,
-    type: "magiclink",
-  });
-
-  if (sessionError) {
-    // Token expired — send them back to request a fresh code
+  // User is already authenticated from verifyOtp — just get their ID
+  const { data: { user }, error: userError } = await db.auth.getUser();
+  if (userError || !user) {
     onboardingPanel.classList.add("hidden");
     authPanel.classList.remove("hidden");
     setMessage("Session expired. Please request a new code.", "error");
-    pendingNewUserToken = "";
-    pendingNewUserEmail = "";
-    onboardingSubmitButton.disabled = false;
-    onboardingSubmitButton.textContent = "Create my wardrobe";
-    return;
-  }
-
-  const userId = data.user?.id;
-  if (!userId) {
-    onboardingMessage.textContent = "Something went wrong. Please try again.";
     onboardingSubmitButton.disabled = false;
     onboardingSubmitButton.textContent = "Create my wardrobe";
     return;
   }
 
   await db.from("profiles").insert({
-    id: userId,
+    id: user.id,
     name,
-    email: pendingNewUserEmail,
+    email: user.email,
     age,
     gender,
   });
 
   const { data: closet } = await db.from("closets").insert({
-    owner_id: userId,
+    owner_id: user.id,
     name: `${name}'s Wardrobe`,
     share_code: makeShareCode(),
     last_laundry_reset: mostRecentSundayKey(),
   }).select().single();
 
   if (closet) {
-    await db.from("closet_members").insert({ closet_id: closet.id, user_id: userId });
+    await db.from("closet_members").insert({ closet_id: closet.id, user_id: user.id });
   }
 
-  pendingNewUserToken = "";
-  pendingNewUserEmail = "";
+  pendingOtpEmail = "";
   onboardingPanel.classList.add("hidden");
   onboardingForm.reset();
   onboardingSubmitButton.disabled = false;
@@ -464,10 +445,34 @@ async function handleOnboardingSubmit(event) {
   renderApp();
 }
 
+function startResendCountdown() {
+  resendOtpButton.disabled = true;
+  let seconds = 10;
+  resendCountdown.textContent = seconds;
+  clearInterval(resendTimer);
+  resendTimer = setInterval(() => {
+    seconds -= 1;
+    if (resendCountdown) resendCountdown.textContent = seconds;
+    if (seconds <= 0) {
+      clearInterval(resendTimer);
+      resendOtpButton.disabled = false;
+      resendOtpButton.textContent = "Resend code";
+    }
+  }, 1000);
+}
+
 function showOtpStep(show) {
   otpRequestForm.classList.toggle("hidden", show);
   otpVerifyForm.classList.toggle("hidden", !show);
-  if (!show) authOtp.value = "";
+  if (show) {
+    startResendCountdown();
+    authOtp.focus();
+  } else {
+    authOtp.value = "";
+    clearInterval(resendTimer);
+    resendOtpButton.disabled = true;
+    resendOtpButton.innerHTML = `Resend code in <span id="resendCountdown">10</span>s`;
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1049,10 +1054,12 @@ function renderWorkspace() {
   if (!user || !closet) {
     workspace.classList.add("hidden");
     authPanel.classList.remove("hidden");
+    onboardingPanel.classList.add("hidden");
     return;
   }
 
   authPanel.classList.add("hidden");
+  onboardingPanel.classList.add("hidden");
   workspace.classList.remove("hidden");
   workspaceTitle.textContent = `${closet.name} for ${user.name}`;
   shareCodeValue.textContent = closet.shareCode;
@@ -1132,6 +1139,18 @@ otpVerifyForm.addEventListener("submit", async (event) => {
 backToEmailButton.addEventListener("click", () => {
   showOtpStep(false);
   setMessage("");
+});
+
+resendOtpButton.addEventListener("click", async () => {
+  if (!pendingOtpEmail) return;
+  resendOtpButton.disabled = true;
+  setMessage("Sending new code…", "");
+  const ok = await sendOtp(pendingOtpEmail);
+  if (ok) {
+    setMessage(`New code sent to ${pendingOtpEmail}.`, "");
+    authOtp.value = "";
+    startResendCountdown();
+  }
 });
 
 onboardingForm.addEventListener("submit", handleOnboardingSubmit);
