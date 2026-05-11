@@ -363,12 +363,21 @@ async function signup(name, email, password) {
     setMessage(error.message, "error");
     return;
   }
+
   const userId = data.user?.id;
   if (!userId) {
     setMessage("Signup failed. Please try again.", "error");
     return;
   }
 
+  // Email confirmation is on — session is null until user clicks the link
+  if (!data.session) {
+    authForm.reset();
+    setMessage("Almost there! Check your email and click the confirmation link, then log in here.", "");
+    return;
+  }
+
+  // Session exists (email confirmation is off) — create profile + wardrobe now
   await supabase.from("profiles").insert({ id: userId, name: name.trim(), email });
 
   const shareCode = makeShareCode();

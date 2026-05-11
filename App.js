@@ -489,6 +489,13 @@ function App() {
     const userId = data.user?.id;
     if (!userId) { setAuthMessage("Signup failed. Please try again."); return; }
 
+    // Email confirmation on — tell user to check email
+    if (!data.session) {
+      setAuthName(""); setAuthEmail(""); setAuthPassword("");
+      setAuthMessage("Check your email and click the confirmation link, then log in here.");
+      return;
+    }
+
     const shareCode = makeShareCode();
     await supabase.from("profiles").insert({ id: userId, name: authName.trim(), email: authEmail.trim() });
     const { data: closet } = await supabase.from("closets").insert({
