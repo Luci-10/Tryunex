@@ -37,10 +37,10 @@ exports.handler = async (event) => {
     return respond(401, { error: "Invalid or expired code. Request a new one." });
   }
 
-  // Single-use — delete it immediately
+  // Single-use — delete immediately
   await db.from("otp_tokens").delete().eq("email", email);
 
-  // Generate a Supabase magic-link token (creates auth user if new, or re-uses existing)
+  // Generate a Supabase magic-link token (creates auth user if new)
   const { data: linkData, error: linkError } = await db.auth.admin.generateLink({
     type: "magiclink",
     email,
@@ -59,43 +59,16 @@ exports.handler = async (event) => {
     return respond(500, { error: "Authentication failed. Try again." });
   }
 
-  // Create profile + wardrobe for first-time users
+  // Check if this is a new user (no profile yet)
   const { data: existingProfile } = await db
     .from("profiles")
     .select("id")
     .eq("id", userId)
     .single();
 
-  if (!existingProfile) {
-    const name = (tokenRow.name || "").trim() || email.split("@")[0];
+  const isNewUser = !existingProfile;
 
-    await db.from("profiles").insert({ id: userId, name, email });
-
-    const shareCode = Math.random().toString(36).slice(2, 8).toUpperCase();
-    const sunday = new Date();
-    sunday.setDate(sunday.getDate() - sunday.getDay());
-    sunday.setHours(12, 0, 0, 0);
-    const sundayKey = sunday.toISOString().slice(0, 10);
-
-    const { data: closet } = await db
-      .from("closets")
-      .insert({
-        owner_id: userId,
-        name: `${name}'s Wardrobe`,
-        share_code: shareCode,
-        last_laundry_reset: sundayKey,
-      })
-      .select()
-      .single();
-
-    if (closet) {
-      await db
-        .from("closet_members")
-        .insert({ closet_id: closet.id, user_id: userId });
-    }
-  }
-
-  return respond(200, { ok: true, token: hashedToken, email });
+  return respond(200, { ok: true, token: hashedToken, email, isNewUser });
 };
 
 function corsHeaders() {

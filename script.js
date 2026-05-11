@@ -8,9 +8,15 @@ const otpVerifyForm = document.querySelector("#otpVerifyForm");
 const sendOtpButton = document.querySelector("#sendOtpButton");
 const verifyOtpButton = document.querySelector("#verifyOtpButton");
 const backToEmailButton = document.querySelector("#backToEmailButton");
-const authName = document.querySelector("#authName");
 const authEmail = document.querySelector("#authEmail");
 const authOtp = document.querySelector("#authOtp");
+const onboardingPanel = document.querySelector("#onboardingPanel");
+const onboardingForm = document.querySelector("#onboardingForm");
+const onboardingName = document.querySelector("#onboardingName");
+const onboardingAge = document.querySelector("#onboardingAge");
+const onboardingGender = document.querySelector("#onboardingGender");
+const onboardingSubmitButton = document.querySelector("#onboardingSubmitButton");
+const onboardingMessage = document.querySelector("#onboardingMessage");
 const workspace = document.querySelector("#workspace");
 const workspaceTitle = document.querySelector("#workspaceTitle");
 const workspaceMessage = document.querySelector("#workspaceMessage");
@@ -67,6 +73,8 @@ let closets = [];             // normalized closet objects
 let membersCache = {};        // userId → { id, name, email, profileImage }
 
 // UI-only state
+let pendingNewUserToken = "";
+let pendingNewUserEmail = "";
 let activeFilter = "all";
 let notificationSentForClosetId = "";
 let latestAiSuggestion = null;
@@ -342,18 +350,16 @@ async function ensureWeeklyReset() {
 // AUTH  (OTP — no passwords)
 // ─────────────────────────────────────────────────────────────────────────────
 let pendingOtpEmail = "";
-let pendingOtpName = "";
 
-async function sendOtp(email, name) {
+async function sendOtp(email) {
   const res = await fetch("/.netlify/functions/send-otp", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, name }),
+    body: JSON.stringify({ email }),
   });
   const json = await res.json();
   if (!res.ok) { setMessage(json.error || "Could not send code. Try again.", "error"); return false; }
   pendingOtpEmail = email;
-  pendingOtpName = name;
   return true;
 }
 
@@ -366,18 +372,94 @@ async function verifyOtp(otp) {
   const json = await res.json();
   if (!res.ok) { setMessage(json.error || "Invalid code. Try again.", "error"); return; }
 
-  // Exchange the server-generated token for a Supabase session client-side
+  pendingOtpEmail = "";
+  setMessage("");
+  showOtpStep(false);
+
+  if (json.isNewUser) {
+    // New user — save token and show onboarding form
+    pendingNewUserToken = json.token;
+    pendingNewUserEmail = json.email;
+    authPanel.classList.add("hidden");
+    onboardingPanel.classList.remove("hidden");
+    return;
+  }
+
+  // Existing user — establish session and go straight to the app
   const { error } = await db.auth.verifyOtp({
     email: json.email,
     token: json.token,
     type: "magiclink",
   });
-  if (error) { setMessage(error.message, "error"); return; }
+  if (error) { setMessage(error.message, "error"); authPanel.classList.remove("hidden"); return; }
 
-  pendingOtpEmail = "";
-  pendingOtpName = "";
-  setMessage("");
-  showOtpStep(false);
+  await loadUserData();
+  renderApp();
+}
+
+async function handleOnboardingSubmit(event) {
+  event.preventDefault();
+  const name = onboardingName.value.trim();
+  const age = parseInt(onboardingAge.value, 10);
+  const gender = onboardingGender.value;
+
+  onboardingSubmitButton.disabled = true;
+  onboardingSubmitButton.textContent = "Creating wardrobe...";
+  onboardingMessage.textContent = "";
+
+  // Establish Supabase session from the token saved after OTP verify
+  const { data, error: sessionError } = await db.auth.verifyOtp({
+    email: pendingNewUserEmail,
+    token: pendingNewUserToken,
+    type: "magiclink",
+  });
+
+  if (sessionError) {
+    // Token expired — send them back to request a fresh code
+    onboardingPanel.classList.add("hidden");
+    authPanel.classList.remove("hidden");
+    setMessage("Session expired. Please request a new code.", "error");
+    pendingNewUserToken = "";
+    pendingNewUserEmail = "";
+    onboardingSubmitButton.disabled = false;
+    onboardingSubmitButton.textContent = "Create my wardrobe";
+    return;
+  }
+
+  const userId = data.user?.id;
+  if (!userId) {
+    onboardingMessage.textContent = "Something went wrong. Please try again.";
+    onboardingSubmitButton.disabled = false;
+    onboardingSubmitButton.textContent = "Create my wardrobe";
+    return;
+  }
+
+  await db.from("profiles").insert({
+    id: userId,
+    name,
+    email: pendingNewUserEmail,
+    age,
+    gender,
+  });
+
+  const { data: closet } = await db.from("closets").insert({
+    owner_id: userId,
+    name: `${name}'s Wardrobe`,
+    share_code: makeShareCode(),
+    last_laundry_reset: mostRecentSundayKey(),
+  }).select().single();
+
+  if (closet) {
+    await db.from("closet_members").insert({ closet_id: closet.id, user_id: userId });
+  }
+
+  pendingNewUserToken = "";
+  pendingNewUserEmail = "";
+  onboardingPanel.classList.add("hidden");
+  onboardingForm.reset();
+  onboardingSubmitButton.disabled = false;
+  onboardingSubmitButton.textContent = "Create my wardrobe";
+
   await loadUserData();
   renderApp();
 }
@@ -1018,7 +1100,7 @@ otpRequestForm.addEventListener("submit", async (event) => {
   sendOtpButton.disabled = true;
   sendOtpButton.textContent = "Sending...";
   try {
-    const ok = await sendOtp(email, authName.value.trim());
+    const ok = await sendOtp(email);
     if (ok) {
       setMessage(`Code sent to ${email}. Check your inbox.`, "");
       showOtpStep(true);
@@ -1051,6 +1133,8 @@ backToEmailButton.addEventListener("click", () => {
   showOtpStep(false);
   setMessage("");
 });
+
+onboardingForm.addEventListener("submit", handleOnboardingSubmit);
 
 itemForm.addEventListener("submit", handleItemSubmit);
 outfitForm.addEventListener("submit", handleOutfitSubmit);

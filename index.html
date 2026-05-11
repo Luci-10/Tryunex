@@ -71,19 +71,15 @@
           <aside class="auth-panel" id="authPanel">
             <div class="panel-head">
               <p class="eyebrow">Get started</p>
-              <h2>Login or create account</h2>
+              <h2>Sign in to your wardrobe</h2>
             </div>
 
             <div class="demo-box">
-              <p>Enter your email to receive a one-time code. Works for both new and existing accounts — no password needed.</p>
+              <p>Enter your email to receive a one-time code. New here? We'll set up your account after you verify.</p>
             </div>
 
             <!-- Step 1: email -->
             <form class="auth-form" id="otpRequestForm">
-              <label class="field" id="nameField">
-                <span>Your name <small style="font-weight:400;color:#888">(new users only)</small></span>
-                <input id="authName" name="name" type="text" placeholder="Arjun" />
-              </label>
               <label class="field">
                 <span>Email</span>
                 <input id="authEmail" name="email" type="email" placeholder="you@example.com" required />
@@ -102,6 +98,47 @@
             </form>
 
             <p class="auth-message" id="authMessage" aria-live="polite"></p>
+          </aside>
+
+          <!-- Onboarding: shown only for first-time users after OTP verify -->
+          <aside class="auth-panel hidden" id="onboardingPanel">
+            <div class="panel-head">
+              <p class="eyebrow">Welcome to Tryunex</p>
+              <h2>Set up your profile</h2>
+            </div>
+
+            <div class="demo-box">
+              <p>You're new here. Fill in a few details and we'll create your wardrobe.</p>
+            </div>
+
+            <form class="auth-form" id="onboardingForm">
+              <label class="field">
+                <span>Your name</span>
+                <input id="onboardingName" name="name" type="text" placeholder="Arjun" required />
+              </label>
+
+              <div class="split">
+                <label class="field">
+                  <span>Age</span>
+                  <input id="onboardingAge" name="age" type="number" min="10" max="120" placeholder="24" required />
+                </label>
+
+                <label class="field">
+                  <span>Gender</span>
+                  <select id="onboardingGender" name="gender" required>
+                    <option value="">Select</option>
+                    <option value="male">Male</option>
+                    <option value="female">Female</option>
+                    <option value="non-binary">Non-binary</option>
+                    <option value="prefer-not-to-say">Prefer not to say</option>
+                  </select>
+                </label>
+              </div>
+
+              <button class="primary-button wide" id="onboardingSubmitButton" type="submit">Create my wardrobe</button>
+            </form>
+
+            <p class="auth-message" id="onboardingMessage" aria-live="polite"></p>
           </aside>
         </section>
 
