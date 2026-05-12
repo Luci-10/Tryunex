@@ -350,6 +350,7 @@ async function ensureWeeklyReset() {
 // AUTH  (OTP — no passwords)
 // ─────────────────────────────────────────────────────────────────────────────
 let pendingOtpEmail = "";
+let pendingOtpToken = "";
 let resendTimer = null;
 let onboardingInProgress = false;
 
@@ -362,6 +363,7 @@ async function sendOtp(email) {
   const json = await res.json();
   if (!res.ok) { setMessage(json.error || "Could not send code. Try again.", "error"); return false; }
   pendingOtpEmail = email;
+  pendingOtpToken = json.token || "";
   return true;
 }
 
@@ -371,7 +373,7 @@ async function verifyOtp(otp) {
   const res = await fetch("/.netlify/functions/verify-otp", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email: pendingOtpEmail, otp }),
+    body: JSON.stringify({ email: pendingOtpEmail, otp, token: pendingOtpToken }),
   });
   const json = await res.json();
   if (!res.ok) { setMessage(json.error || "Invalid code. Try again.", "error"); return; }

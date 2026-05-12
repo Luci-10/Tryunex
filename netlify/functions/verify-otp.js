@@ -1,10 +1,45 @@
 const crypto = require("crypto");
 const { createClient } = require("@supabase/supabase-js");
 
+const OTP_SECRET = process.env.OTP_SECRET || process.env.SUPABASE_SERVICE_KEY;
+
 const db = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_SERVICE_KEY
 );
+
+// Returns true if the token is valid for this email + otp, false otherwise.
+function verifyToken(token, email, otp) {
+  if (!token || !email || !otp) return false;
+  const dotIdx = token.lastIndexOf(".");
+  if (dotIdx < 0) return false;
+
+  const payload = token.slice(0, dotIdx);
+  const mac = token.slice(dotIdx + 1);
+
+  // Recompute the expected MAC and compare in constant time
+  const expectedMac = crypto
+    .createHmac("sha256", OTP_SECRET)
+    .update(`${payload}.${otp}`)
+    .digest("hex");
+
+  const macBuf = Buffer.from(mac, "hex");
+  const expectedBuf = Buffer.from(expectedMac, "hex");
+  if (macBuf.length !== expectedBuf.length) return false;
+  if (!crypto.timingSafeEqual(macBuf, expectedBuf)) return false;
+
+  let data;
+  try {
+    data = JSON.parse(Buffer.from(payload, "base64url").toString());
+  } catch {
+    return false;
+  }
+
+  if (data.email !== email) return false;
+  if (Date.now() > data.exp) return false;
+
+  return true;
+}
 
 exports.handler = async (event) => {
   if (event.httpMethod === "OPTIONS") {
@@ -14,34 +49,24 @@ exports.handler = async (event) => {
     return respond(405, { error: "Method not allowed" });
   }
 
-  let email, otp;
+  let email, otp, token;
   try {
-    ({ email, otp } = JSON.parse(event.body || "{}"));
+    ({ email, otp, token } = JSON.parse(event.body || "{}"));
   } catch {
     return respond(400, { error: "Invalid request body" });
   }
 
-  if (!email || !otp) {
-    return respond(400, { error: "Email and code are required" });
+  if (!email || !otp || !token) {
+    return respond(400, { error: "Email, code, and token are required" });
   }
 
-  // Verify AND delete OTP in a single query — saves one round trip
-  const { data: deletedRows, error: otpError } = await db
-    .from("otp_tokens")
-    .delete()
-    .eq("email", email)
-    .eq("otp", String(otp).trim())
-    .gt("expires_at", new Date().toISOString())
-    .select();
-
-  if (otpError || !deletedRows?.length) {
-    return respond(401, { error: "Invalid code. Try again." });
+  if (!verifyToken(token, email, String(otp).trim())) {
+    return respond(401, { error: "Invalid or expired code. Try again." });
   }
 
   const tempPassword = crypto.randomBytes(32).toString("hex");
 
   // Check profile first — if it exists we already have the user UUID
-  // and can skip the expensive generateLink call entirely
   const { data: existingProfile } = await db
     .from("profiles")
     .select("id")
@@ -49,7 +74,6 @@ exports.handler = async (event) => {
     .single();
 
   if (existingProfile?.id) {
-    // Returning user: just update the password
     const { error: updateError } = await db.auth.admin.updateUserById(existingProfile.id, {
       password: tempPassword,
       email_confirm: true,
@@ -61,7 +85,7 @@ exports.handler = async (event) => {
     return respond(200, { ok: true, email, password: tempPassword, isNewUser: false });
   }
 
-  // No profile — try to create the auth user with password already set (one call)
+  // No profile — try to create the auth user with password already set
   const { data: createdData, error: createError } = await db.auth.admin.createUser({
     email,
     password: tempPassword,
@@ -69,12 +93,10 @@ exports.handler = async (event) => {
   });
 
   if (!createError && createdData?.user?.id) {
-    // Brand-new user — no profile yet
     return respond(200, { ok: true, email, password: tempPassword, isNewUser: true });
   }
 
-  // Edge case: auth user exists but never finished onboarding (no profile)
-  // Fall back to generateLink to get their UUID, then update password
+  // Edge case: auth user exists but has no profile (incomplete onboarding)
   const { data: linkData, error: linkError } = await db.auth.admin.generateLink({
     type: "magiclink",
     email,

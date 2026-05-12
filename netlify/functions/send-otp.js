@@ -1,10 +1,7 @@
+const crypto = require("crypto");
 const nodemailer = require("nodemailer");
-const { createClient } = require("@supabase/supabase-js");
 
-const db = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY
-);
+const OTP_SECRET = process.env.OTP_SECRET || process.env.SUPABASE_SERVICE_KEY;
 
 const transport = nodemailer.createTransport({
   service: "gmail",
@@ -13,6 +10,15 @@ const transport = nodemailer.createTransport({
     pass: process.env.GMAIL_APP_PASSWORD,
   },
 });
+
+// Creates a signed token: base64url(payload).hmac
+// The HMAC covers both the payload and the raw OTP so the token is useless without the OTP.
+function createToken(email, otp) {
+  const exp = Date.now() + 15 * 60 * 1000; // 15 minutes
+  const payload = Buffer.from(JSON.stringify({ email, exp })).toString("base64url");
+  const mac = crypto.createHmac("sha256", OTP_SECRET).update(`${payload}.${otp}`).digest("hex");
+  return `${payload}.${mac}`;
+}
 
 exports.handler = async (event) => {
   if (event.httpMethod === "OPTIONS") {
@@ -33,20 +39,8 @@ exports.handler = async (event) => {
     return respond(400, { error: "A valid email is required" });
   }
 
-  // Generate our own 6-digit OTP (guaranteed length)
   const otp = String(Math.floor(100000 + Math.random() * 900000));
-
-  // 24-hour expiry — does not expire until user requests a resend
-  const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
-
-  const { error: dbError } = await db
-    .from("otp_tokens")
-    .upsert({ email, otp, expires_at: expiresAt }, { onConflict: "email" });
-
-  if (dbError) {
-    console.error("DB error storing OTP:", dbError);
-    return respond(500, { error: "Could not store code. Try again." });
-  }
+  const token = createToken(email, otp);
 
   try {
     await transport.sendMail({
@@ -70,7 +64,7 @@ exports.handler = async (event) => {
     return respond(500, { error: "Could not send email. Try again." });
   }
 
-  return respond(200, { ok: true });
+  return respond(200, { ok: true, token });
 };
 
 function corsHeaders() {
