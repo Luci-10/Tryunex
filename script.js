@@ -351,6 +351,7 @@ async function ensureWeeklyReset() {
 // ─────────────────────────────────────────────────────────────────────────────
 let pendingOtpEmail = "";
 let resendTimer = null;
+let onboardingInProgress = false;
 
 async function sendOtp(email) {
   const res = await fetch("/.netlify/functions/send-otp", {
@@ -386,6 +387,7 @@ async function verifyOtp(otp) {
   showOtpStep(false);
 
   if (json.isNewUser) {
+    onboardingInProgress = true;
     authPanel.classList.add("hidden");
     onboardingPanel.classList.remove("hidden");
     return;
@@ -458,6 +460,7 @@ async function handleOnboardingSubmit(event) {
     }
   }
 
+  onboardingInProgress = false;
   pendingOtpEmail = "";
   onboardingPanel.classList.add("hidden");
   onboardingForm.reset();
@@ -1238,8 +1241,10 @@ async function init() {
       closets = [];
       membersCache = {};
       selectedClosetId = null;
+      onboardingInProgress = false;
       renderApp();
     } else if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED") {
+      if (onboardingInProgress) return;
       await loadUserData();
       renderApp();
     }

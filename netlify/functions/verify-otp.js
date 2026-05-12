@@ -25,24 +25,56 @@ exports.handler = async (event) => {
     return respond(400, { error: "Email and code are required" });
   }
 
-  // Verify our 6-digit OTP from the table
-  const { data: tokenRow, error: lookupError } = await db
+  // Verify AND delete OTP in a single query — saves one round trip
+  const { data: deletedRows, error: otpError } = await db
     .from("otp_tokens")
-    .select("*")
+    .delete()
     .eq("email", email)
     .eq("otp", String(otp).trim())
     .gt("expires_at", new Date().toISOString())
-    .single();
+    .select();
 
-  if (lookupError || !tokenRow) {
+  if (otpError || !deletedRows?.length) {
     return respond(401, { error: "Invalid code. Try again." });
   }
 
-  // Single-use — delete immediately
-  await db.from("otp_tokens").delete().eq("email", email);
+  const tempPassword = crypto.randomBytes(32).toString("hex");
 
-  // generateLink creates the Supabase auth user if new, or finds them if existing.
-  // We only need this to reliably get the user's UUID.
+  // Check profile first — if it exists we already have the user UUID
+  // and can skip the expensive generateLink call entirely
+  const { data: existingProfile } = await db
+    .from("profiles")
+    .select("id")
+    .eq("email", email)
+    .single();
+
+  if (existingProfile?.id) {
+    // Returning user: just update the password
+    const { error: updateError } = await db.auth.admin.updateUserById(existingProfile.id, {
+      password: tempPassword,
+      email_confirm: true,
+    });
+    if (updateError) {
+      console.error("updateUserById error:", updateError);
+      return respond(500, { error: "Authentication failed. Try again." });
+    }
+    return respond(200, { ok: true, email, password: tempPassword, isNewUser: false });
+  }
+
+  // No profile — try to create the auth user with password already set (one call)
+  const { data: createdData, error: createError } = await db.auth.admin.createUser({
+    email,
+    password: tempPassword,
+    email_confirm: true,
+  });
+
+  if (!createError && createdData?.user?.id) {
+    // Brand-new user — no profile yet
+    return respond(200, { ok: true, email, password: tempPassword, isNewUser: true });
+  }
+
+  // Edge case: auth user exists but never finished onboarding (no profile)
+  // Fall back to generateLink to get their UUID, then update password
   const { data: linkData, error: linkError } = await db.auth.admin.generateLink({
     type: "magiclink",
     email,
@@ -54,14 +86,7 @@ exports.handler = async (event) => {
     return respond(500, { error: "Authentication failed. Try again." });
   }
 
-  const userId = linkData.user.id;
-
-  // Set a one-time random password on the user.
-  // signInWithPassword is the most reliable Supabase sign-in method — no token
-  // format issues. The password is 64 random hex chars, completely unguessable.
-  const tempPassword = crypto.randomBytes(32).toString("hex");
-
-  const { error: updateError } = await db.auth.admin.updateUserById(userId, {
+  const { error: updateError } = await db.auth.admin.updateUserById(linkData.user.id, {
     password: tempPassword,
     email_confirm: true,
   });
@@ -71,19 +96,7 @@ exports.handler = async (event) => {
     return respond(500, { error: "Authentication failed. Try again." });
   }
 
-  // Check whether this user already has a profile
-  const { data: existingProfile } = await db
-    .from("profiles")
-    .select("id")
-    .eq("id", userId)
-    .single();
-
-  return respond(200, {
-    ok: true,
-    email,
-    password: tempPassword,
-    isNewUser: !existingProfile,
-  });
+  return respond(200, { ok: true, email, password: tempPassword, isNewUser: true });
 };
 
 function corsHeaders() {
