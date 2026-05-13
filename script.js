@@ -1079,10 +1079,18 @@ function renderWorkspace() {
   const closet = getSelectedCloset();
   const user = getCurrentUser();
 
-  if (!user || !closet) {
+  if (!user) {
     workspace.classList.add("hidden");
     authPanel.classList.remove("hidden");
     onboardingPanel.classList.add("hidden");
+    return;
+  }
+
+  if (!closet) {
+    // Authenticated but no wardrobe yet — complete onboarding
+    workspace.classList.add("hidden");
+    authPanel.classList.add("hidden");
+    onboardingPanel.classList.remove("hidden");
     return;
   }
 
