@@ -1,27 +1,5 @@
-# Dependencies
 node_modules/
-
-# Expo
-.expo/
 dist/
-web-build/
-
-# OS
+.env
 .DS_Store
-Thumbs.db
-
-# Editor swap files
-*.swp
-*.swf
-*.swh
-*.swi
-*.swj
-*.swk
-*.swl
-*.swm
-*.swn
-*.swo
-
-# Logs
 *.log
-npm-debug.log*
