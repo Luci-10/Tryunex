@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import * as api from "../lib/api";
+import { completeOnboarding } from "../lib/api";
 
 export default function Auth() {
   const navigate = useNavigate();
@@ -92,53 +93,25 @@ export default function Auth() {
     setError("");
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
         setError("Session expired. Please sign in again.");
         setStep("email");
         return;
       }
 
-      const name   = e.target.fullName.value.trim();
-      const dob    = e.target.dob.value;
-      const gender = e.target.gender.value;
-      const phone  = e.target.phone.value.trim();
-      const shareCode = Math.random().toString(36).slice(2, 8).toUpperCase();
-
-      // Create profile
-      const { error: profileErr } = await supabase.from("profiles").insert({
-        id: user.id,
-        name,
-        email: user.email,
-        dob,
-        gender,
-        phone: phone || null,
+      const data = await completeOnboarding(session.access_token, {
+        name:   e.target.fullName.value.trim(),
+        dob:    e.target.dob.value,
+        gender: e.target.gender.value,
+        phone:  e.target.phone.value.trim(),
       });
-      if (profileErr) { setError(profileErr.message); return; }
 
-      // Create default wardrobe
-      const { data: closet, error: closetErr } = await supabase
-        .from("closets")
-        .insert({
-          owner_id: user.id,
-          name: `${name}'s Wardrobe`,
-          share_code: shareCode,
-          last_laundry_reset: new Date().toISOString().slice(0, 10),
-        })
-        .select()
-        .single();
-      if (closetErr) { setError(closetErr.message); return; }
+      if (!data.ok) { setError(data.error || "Something went wrong. Try again."); return; }
 
-      // Add user as member of their own wardrobe
-      const { error: memberErr } = await supabase
-        .from("closet_members")
-        .insert({ closet_id: closet.id, user_id: user.id });
-      if (memberErr) { setError(memberErr.message); return; }
-
-      // All done — go to dashboard
       navigate("/", { replace: true });
     } catch (err) {
-      setError(err.message || "Something went wrong. Try again.");
+      setError(err.message || "Cannot reach server. Try again.");
     } finally {
       setLoading(false);
     }

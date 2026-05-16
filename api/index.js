@@ -102,6 +102,58 @@ app.post("/api/auth/verify-otp", async (req, res) => {
   return res.json({ ok: true, email, password: tempPassword, isNewUser: true });
 });
 
+// -- Onboarding route --
+app.post("/api/auth/complete-onboarding", async (req, res) => {
+  const jwt = req.headers.authorization?.replace("Bearer ", "");
+  if (!jwt) return res.status(401).json({ error: "Not authenticated" });
+
+  const { data: { user }, error: userErr } = await db.auth.getUser(jwt);
+  if (userErr || !user) return res.status(401).json({ error: "Invalid session" });
+
+  const { name, dob, gender, phone } = req.body;
+  if (!name || !dob || !gender) return res.status(400).json({ error: "name, dob, and gender are required" });
+
+  const shareCode = Math.random().toString(36).slice(2, 8).toUpperCase();
+
+  const { error: profileErr } = await db.from("profiles").insert({
+    id: user.id,
+    name,
+    email: user.email,
+    dob,
+    gender,
+    phone: phone || null,
+  });
+  if (profileErr) {
+    console.error("profile insert error:", profileErr);
+    return res.status(500).json({ error: profileErr.message });
+  }
+
+  const { data: closet, error: closetErr } = await db
+    .from("closets")
+    .insert({
+      owner_id: user.id,
+      name: `${name}'s Wardrobe`,
+      share_code: shareCode,
+      last_laundry_reset: new Date().toISOString().slice(0, 10),
+    })
+    .select()
+    .single();
+  if (closetErr) {
+    console.error("closet insert error:", closetErr);
+    return res.status(500).json({ error: closetErr.message });
+  }
+
+  const { error: memberErr } = await db
+    .from("closet_members")
+    .insert({ closet_id: closet.id, user_id: user.id });
+  if (memberErr) {
+    console.error("member insert error:", memberErr);
+    return res.status(500).json({ error: memberErr.message });
+  }
+
+  res.json({ ok: true });
+});
+
 // -- AI route --
 app.post("/api/ai/suggest", async (req, res) => {
   const { occasion, items } = req.body;

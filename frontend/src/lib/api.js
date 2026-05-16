@@ -13,3 +13,11 @@ export const verifyOtp = (email, otp, token) => post(`${API_BASE}/api/auth/verif
 export const suggestOutfit = (occasion, items) => post(`${API_BASE}/api/ai/suggest`, { occasion, items });
 export const generateTryOn = (personImage, garmentImage, description) =>
   post(`${TRYON_BASE}/tryon/generate`, { personImage, garmentImage, description });
+
+export function completeOnboarding(accessToken, profile) {
+  return fetch(`${API_BASE}/api/auth/complete-onboarding`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+    body: JSON.stringify(profile),
+  }).then((r) => r.json());
+}
