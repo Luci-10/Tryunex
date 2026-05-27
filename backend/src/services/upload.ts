@@ -42,6 +42,15 @@ export async function saveUpload(file: Express.Multer.File): Promise<string> {
     return blob.url;
   }
 
+  // Vercel's working directory is read-only; only Blob storage works in prod.
+  if (IS_VERCEL) {
+    const err = new Error(
+      "Image storage is not configured. Set BLOB_READ_WRITE_TOKEN in Vercel (Project → Storage → Create Blob store).",
+    ) as Error & { status?: number };
+    err.status = 503;
+    throw err;
+  }
+
   // Dev fallback: write to local disk; backend serves /uploads/* statically.
   writeFileSync(path.join(LOCAL_DIR, filename), file.buffer);
   return `/uploads/${filename}`;
