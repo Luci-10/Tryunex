@@ -127,6 +127,20 @@ export function createApp() {
     res.json({ log });
   });
 
+  // TEMPORARY: wipe all clothes rows. Use to reset state during upload debugging.
+  app.get("/api/_debug/wipe-clothes", async (_req, res) => {
+    const { neon } = await import("@neondatabase/serverless");
+    const sql = neon(process.env.DATABASE_URL!);
+    try {
+      const before = await sql`SELECT COUNT(*)::int AS n FROM clothes`;
+      await sql`DELETE FROM clothes`;
+      const after = await sql`SELECT COUNT(*)::int AS n FROM clothes`;
+      res.json({ before, after });
+    } catch (e: any) {
+      res.status(500).json({ error: e?.message });
+    }
+  });
+
   // TEMPORARY: diagnose schema mismatches behind upload/list hangs. Remove
   // once /api/clothes is confirmed working.
   app.get("/api/_debug/db", async (_req, res) => {
