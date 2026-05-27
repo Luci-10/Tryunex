@@ -1,45 +1,34 @@
 import { Router } from "express";
 import { z } from "zod";
+import { randomBytes } from "node:crypto";
 import { db } from "../db/client.js";
 import { clothes, wearEvents } from "../db/schema.js";
 import { and, count, desc, eq, inArray, max } from "drizzle-orm";
 import { requireAuth } from "../services/auth.js";
-import { handleUpload, type HandleUploadBody } from "@vercel/blob/client";
+import { presignPut, r2PublicBase } from "../services/r2.js";
 
 const router = Router();
 router.use(requireAuth);
 
-// Signed-token endpoint for direct browser-to-Blob uploads.
-// The client (AddClothModal) calls @vercel/blob/client's upload(), which
-// POSTs here to get a short-lived token, then uploads the file straight to
-// Blob storage. Bypasses Vercel's 4.5MB function body limit.
-router.post("/upload-token", async (req, res) => {
-  const userId = req.userId!;
-  const fakeReq = new Request(
-    new URL(req.originalUrl, `https://${req.get("host") ?? "x"}`),
-    { method: req.method, headers: new Headers(req.headers as Record<string, string>) },
-  );
+// Hand the client a presigned R2 PUT URL scoped to the user's folder, plus
+// the public URL the uploaded object will live at. The browser PUTs the file
+// straight to R2 — Vercel functions are never in the upload path.
+router.post("/upload-url", async (req, res) => {
+  const parse = z
+    .object({
+      contentType: z.enum(["image/jpeg", "image/png", "image/webp"]).default("image/jpeg"),
+      ext: z.enum(["jpg", "png", "webp"]).default("jpg"),
+    })
+    .safeParse(req.body ?? {});
+  if (!parse.success) return res.status(400).json({ error: "Invalid input" });
+
+  const rand = randomBytes(6).toString("hex");
+  const key = `clothes/${req.userId}/${Date.now()}-${rand}.${parse.data.ext}`;
   try {
-    const json = await handleUpload({
-      body: req.body as HandleUploadBody,
-      request: fakeReq,
-      onBeforeGenerateToken: async (pathname) => {
-        if (!pathname.startsWith(`clothes/${userId}/`)) {
-          throw new Error("Pathname must be inside your folder");
-        }
-        return {
-          allowedContentTypes: ["image/jpeg", "image/png", "image/webp"],
-          maximumSizeInBytes: 8_000_000,
-          addRandomSuffix: false,
-        };
-      },
-      onUploadCompleted: async () => {
-        // No-op. Client POSTs metadata to / after the upload finishes.
-      },
-    });
-    res.json(json);
+    const { uploadUrl, publicUrl } = await presignPut(key, parse.data.contentType);
+    res.json({ uploadUrl, publicUrl, key });
   } catch (e: any) {
-    res.status(400).json({ error: e?.message ?? "upload-token failed" });
+    res.status(500).json({ error: e?.message ?? "presign failed" });
   }
 });
 
@@ -54,8 +43,7 @@ router.get("/", async (req, res) => {
 });
 
 // POST /clothes  json: { imageUrl, name, category }
-// imageUrl must be a Vercel Blob URL the client just uploaded to via
-// /upload-token (which scopes pathnames to clothes/<userId>/).
+// imageUrl must point at our R2 bucket, in the user's clothes/<userId>/ folder.
 router.post("/", async (req, res) => {
   const parse = z
     .object({
@@ -66,12 +54,9 @@ router.post("/", async (req, res) => {
     .safeParse(req.body);
   if (!parse.success) return res.status(400).json({ error: "Invalid input" });
 
-  const url = new URL(parse.data.imageUrl);
-  if (!url.hostname.endsWith(".blob.vercel-storage.com")) {
-    return res.status(400).json({ error: "imageUrl must be a Vercel Blob URL" });
-  }
-  if (!url.pathname.startsWith(`/clothes/${req.userId}/`)) {
-    return res.status(403).json({ error: "imageUrl is not in your folder" });
+  const expectedPrefix = `${r2PublicBase()}/clothes/${req.userId}/`;
+  if (!parse.data.imageUrl.startsWith(expectedPrefix)) {
+    return res.status(403).json({ error: "imageUrl is not in your R2 folder" });
   }
 
   const [row] = await db
