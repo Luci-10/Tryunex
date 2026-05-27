@@ -70,22 +70,28 @@ export default function AddClothModal({
 
     setBusy(true);
     try {
+      console.log("[upload] resizing", { size: file.size, type: file.type, name: file.name });
       const resized = await resizeImage(file);
+      console.log("[upload] resized", { size: resized.size, type: resized.type });
       const rand = Math.random().toString(36).slice(2, 8);
       const pathname = `clothes/${user.id}/${Date.now()}-${rand}.jpg`;
+      console.log("[upload] uploading to blob", { pathname });
       const blob = await upload(pathname, resized, {
         access: "public",
         contentType: "image/jpeg",
         handleUploadUrl: "/api/clothes/upload-token",
       });
+      console.log("[upload] blob done", { url: blob.url });
       const r = await api.post<{ cloth: Cloth }>("/clothes", {
         imageUrl: blob.url,
         name,
         category,
       });
+      console.log("[upload] metadata saved", r.cloth);
       onAdded(r.cloth);
       close();
     } catch (err: any) {
+      console.error("[upload] failed", err);
       setError(err.message ?? "Upload failed");
     } finally {
       setBusy(false);
