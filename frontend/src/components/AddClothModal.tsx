@@ -4,6 +4,30 @@ import Modal from "./Modal";
 
 const CATEGORIES = ["top", "bottom", "dress", "outerwear", "shoes", "accessory", "other"];
 
+// Phone camera photos are routinely 3-8 MB, but Vercel functions cap request
+// bodies at 4.5 MB. Re-encode to ≤1280px JPEG so the upload stays under the
+// limit and matches the resolution actually rendered in the wardrobe grid.
+async function resizeImage(file: File, maxSide = 1280, quality = 0.85): Promise<Blob> {
+  const bitmap = await createImageBitmap(file);
+  const scale = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));
+  const w = Math.round(bitmap.width * scale);
+  const h = Math.round(bitmap.height * scale);
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Canvas not supported");
+  ctx.drawImage(bitmap, 0, 0, w, h);
+  bitmap.close();
+  return await new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob(
+      (blob) => (blob ? resolve(blob) : reject(new Error("Failed to encode image"))),
+      "image/jpeg",
+      quality,
+    );
+  });
+}
+
 export default function AddClothModal({
   open,
   onClose,
@@ -29,6 +53,16 @@ export default function AddClothModal({
     e.preventDefault();
     setError(null);
     const fd = new FormData(e.currentTarget);
+    const file = fd.get("image");
+    if (file instanceof File && file.size > 0) {
+      try {
+        const resized = await resizeImage(file);
+        fd.set("image", resized, file.name.replace(/\.[^.]+$/, "") + ".jpg");
+      } catch (err: any) {
+        setError(err.message ?? "Could not process image");
+        return;
+      }
+    }
     setBusy(true);
     try {
       const r = await api.postForm<{ cloth: Cloth }>("/clothes", fd);
