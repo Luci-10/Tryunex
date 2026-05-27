@@ -5,9 +5,13 @@ import { randomBytes } from "node:crypto";
 import { put } from "@vercel/blob";
 
 const USE_BLOB = Boolean(process.env.BLOB_READ_WRITE_TOKEN);
+// On Vercel the working directory is read-only — only /tmp is writable, and
+// mkdirSync would throw at module load. Skip the local upload dir there;
+// uploads in production must go through Vercel Blob (BLOB_READ_WRITE_TOKEN).
+const IS_VERCEL = Boolean(process.env.VERCEL);
 
 const LOCAL_DIR = path.resolve(process.cwd(), "uploads");
-if (!USE_BLOB) mkdirSync(LOCAL_DIR, { recursive: true });
+if (!USE_BLOB && !IS_VERCEL) mkdirSync(LOCAL_DIR, { recursive: true });
 
 // Always parse to memory — works on serverless (no writable FS) and lets us
 // hand the buffer off to either Vercel Blob or local disk.

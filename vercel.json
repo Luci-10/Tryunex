@@ -5,11 +5,11 @@
   "outputDirectory": "frontend/dist",
   "framework": null,
   "rewrites": [
+    { "source": "/api/(.*)", "destination": "/api?_path=$1" },
     { "source": "/:path((?!api(?:/|$)).*)", "destination": "/index.html" }
   ],
   "functions": {
-    "api/[...path].ts": {
-      "memory": 512,
+    "api/index.ts": {
       "maxDuration": 30
     }
   }
