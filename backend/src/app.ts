@@ -127,6 +127,31 @@ export function createApp() {
     res.json({ log });
   });
 
+  // TEMPORARY: check which R2 env vars the function can see. Reports only
+  // names + lengths, never values, so it's safe to leave on briefly.
+  app.get("/api/_debug/env", (_req, res) => {
+    const keys = [
+      "R2_ACCOUNT_ID",
+      "R2_ACCESS_KEY_ID",
+      "R2_SECRET_ACCESS_KEY",
+      "R2_BUCKET",
+      "R2_PUBLIC_BASE_URL",
+    ];
+    const report: Record<string, { set: boolean; length: number; preview?: string }> = {};
+    for (const k of keys) {
+      const v = process.env[k];
+      report[k] = v
+        ? {
+            set: true,
+            length: v.length,
+            // Show first 4 + last 2 chars for sanity check, never the full secret.
+            preview: k.includes("SECRET") ? undefined : `${v.slice(0, 4)}…${v.slice(-2)}`,
+          }
+        : { set: false, length: 0 };
+    }
+    res.json({ deploymentId: process.env.VERCEL_DEPLOYMENT_ID, env: report });
+  });
+
   // TEMPORARY: dump actual rows from users + clothes so the user can verify
   // their Neon dashboard is pointed at the same database the app is using.
   app.get("/api/_debug/data", async (_req, res) => {
