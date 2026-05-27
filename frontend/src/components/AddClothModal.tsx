@@ -1,24 +1,8 @@
 import { useRef, useState } from "react";
+import { upload } from "@vercel/blob/client";
 import { api, type Cloth } from "../api";
 import { useAuth } from "../auth";
 import Modal from "./Modal";
-
-function putWithProgress(url: string, body: Blob, contentType: string, onProgress: (pct: number) => void): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    xhr.open("PUT", url);
-    xhr.setRequestHeader("Content-Type", contentType);
-    xhr.upload.onprogress = (e) => {
-      if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
-    };
-    xhr.onload = () =>
-      xhr.status >= 200 && xhr.status < 300
-        ? resolve()
-        : reject(new Error(`Upload failed: HTTP ${xhr.status}`));
-    xhr.onerror = () => reject(new Error("Network error during upload"));
-    xhr.send(body);
-  });
-}
 
 const CATEGORIES = ["top", "bottom", "dress", "outerwear", "shoes", "accessory", "other"];
 
@@ -88,18 +72,26 @@ export default function AddClothModal({
 
     setBusy(true);
     try {
+      console.log("[upload] resizing", { size: file.size, type: file.type, name: file.name });
       const resized = await resizeImage(file);
-      const { uploadUrl, publicUrl } = await api.post<{ uploadUrl: string; publicUrl: string }>(
-        "/clothes/upload-url",
-        { contentType: "image/jpeg", ext: "jpg" },
-      );
-      await putWithProgress(uploadUrl, resized, "image/jpeg", setProgress);
+      console.log("[upload] resized", { size: resized.size, type: resized.type });
+      const rand = Math.random().toString(36).slice(2, 8);
+      const pathname = `clothes/${user.id}/${Date.now()}-${rand}.jpg`;
+      console.log("[upload] uploading to blob", { pathname });
+      const blob = await upload(pathname, resized, {
+        access: "public",
+        contentType: "image/jpeg",
+        handleUploadUrl: "/api/clothes/upload-token",
+        onUploadProgress: (e) => setProgress(Math.round(e.percentage)),
+      });
       setProgress(null);
+      console.log("[upload] blob done", { url: blob.url });
       const r = await api.post<{ cloth: Cloth }>("/clothes", {
-        imageUrl: publicUrl,
+        imageUrl: blob.url,
         name,
         category,
       });
+      console.log("[upload] metadata saved", r.cloth);
       onAdded(r.cloth);
       close();
     } catch (err: any) {
