@@ -31,6 +31,29 @@ export function createApp() {
 
   app.get("/api/health", (_req, res) => res.json({ ok: true }));
 
+  // TEMPORARY: diagnose schema mismatches behind upload/list hangs. Remove
+  // once /api/clothes is confirmed working.
+  app.get("/api/_debug/db", async (_req, res) => {
+    const { neon } = await import("@neondatabase/serverless");
+    const sql = neon(process.env.DATABASE_URL!);
+    const out: Record<string, unknown> = {};
+    try {
+      out.tables = await sql`SELECT table_name FROM information_schema.tables WHERE table_schema='public' ORDER BY table_name`;
+      out.users_columns = await sql`SELECT column_name, data_type, udt_name FROM information_schema.columns WHERE table_schema='public' AND table_name='users' ORDER BY ordinal_position`;
+      out.clothes_columns = await sql`SELECT column_name, data_type, udt_name FROM information_schema.columns WHERE table_schema='public' AND table_name='clothes' ORDER BY ordinal_position`;
+      try {
+        const t0 = Date.now();
+        const c = await sql`SELECT COUNT(*)::int AS n FROM clothes`;
+        out.clothes_count = { rows: c, ms: Date.now() - t0 };
+      } catch (e: any) {
+        out.clothes_count_error = { message: e?.message, code: e?.code };
+      }
+    } catch (e: any) {
+      out.error = { message: e?.message, code: e?.code };
+    }
+    res.json(out);
+  });
+
   app.use("/api/auth", authRoutes);
   app.use("/api/clothes", clothesRoutes);
   app.use("/api/history", historyRoutes);
