@@ -4,10 +4,44 @@ import { db } from "../db/client.js";
 import { clothes, wearEvents } from "../db/schema.js";
 import { and, count, desc, eq, inArray, max } from "drizzle-orm";
 import { requireAuth } from "../services/auth.js";
-import { upload, saveUpload } from "../services/upload.js";
+import { handleUpload, type HandleUploadBody } from "@vercel/blob/client";
 
 const router = Router();
 router.use(requireAuth);
+
+// Signed-token endpoint for direct browser-to-Blob uploads.
+// The client (AddClothModal) calls @vercel/blob/client's upload(), which
+// POSTs here to get a short-lived token, then uploads the file straight to
+// Blob storage. Bypasses Vercel's 4.5MB function body limit.
+router.post("/upload-token", async (req, res) => {
+  const userId = req.userId!;
+  const fakeReq = new Request(
+    new URL(req.originalUrl, `https://${req.get("host") ?? "x"}`),
+    { method: req.method, headers: new Headers(req.headers as Record<string, string>) },
+  );
+  try {
+    const json = await handleUpload({
+      body: req.body as HandleUploadBody,
+      request: fakeReq,
+      onBeforeGenerateToken: async (pathname) => {
+        if (!pathname.startsWith(`clothes/${userId}/`)) {
+          throw new Error("Pathname must be inside your folder");
+        }
+        return {
+          allowedContentTypes: ["image/jpeg", "image/png", "image/webp"],
+          maximumSizeInBytes: 8_000_000,
+          addRandomSuffix: false,
+        };
+      },
+      onUploadCompleted: async () => {
+        // No-op. Client POSTs metadata to / after the upload finishes.
+      },
+    });
+    res.json(json);
+  } catch (e: any) {
+    res.status(400).json({ error: e?.message ?? "upload-token failed" });
+  }
+});
 
 // GET /clothes?status=clean|worn
 router.get("/", async (req, res) => {
@@ -19,15 +53,35 @@ router.get("/", async (req, res) => {
   res.json({ clothes: rows });
 });
 
-// POST /clothes  multipart: image, name, category
-router.post("/", upload.single("image"), async (req, res) => {
-  if (!req.file) return res.status(400).json({ error: "Image required" });
-  const name = String(req.body.name ?? "").trim() || "Untitled";
-  const category = String(req.body.category ?? "other").trim() || "other";
-  const imageUrl = await saveUpload(req.file);
+// POST /clothes  json: { imageUrl, name, category }
+// imageUrl must be a Vercel Blob URL the client just uploaded to via
+// /upload-token (which scopes pathnames to clothes/<userId>/).
+router.post("/", async (req, res) => {
+  const parse = z
+    .object({
+      imageUrl: z.string().url(),
+      name: z.string().trim().min(1).max(80).default("Untitled"),
+      category: z.string().trim().min(1).max(40).default("other"),
+    })
+    .safeParse(req.body);
+  if (!parse.success) return res.status(400).json({ error: "Invalid input" });
+
+  const url = new URL(parse.data.imageUrl);
+  if (!url.hostname.endsWith(".blob.vercel-storage.com")) {
+    return res.status(400).json({ error: "imageUrl must be a Vercel Blob URL" });
+  }
+  if (!url.pathname.startsWith(`/clothes/${req.userId}/`)) {
+    return res.status(403).json({ error: "imageUrl is not in your folder" });
+  }
+
   const [row] = await db
     .insert(clothes)
-    .values({ userId: req.userId!, name, category, imageUrl })
+    .values({
+      userId: req.userId! as unknown as number,
+      name: parse.data.name,
+      category: parse.data.category,
+      imageUrl: parse.data.imageUrl,
+    })
     .returning();
   res.json({ cloth: row });
 });

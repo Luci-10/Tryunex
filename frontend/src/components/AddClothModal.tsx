@@ -1,5 +1,7 @@
 import { useRef, useState } from "react";
+import { upload } from "@vercel/blob/client";
 import { api, type Cloth } from "../api";
+import { useAuth } from "../auth";
 import Modal from "./Modal";
 
 const CATEGORIES = ["top", "bottom", "dress", "outerwear", "shoes", "accessory", "other"];
@@ -37,6 +39,7 @@ export default function AddClothModal({
   onClose: () => void;
   onAdded: (c: Cloth) => void;
 }) {
+  const { user } = useAuth();
   const formRef = useRef<HTMLFormElement>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -52,20 +55,34 @@ export default function AddClothModal({
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
+    if (!user) {
+      setError("Not signed in");
+      return;
+    }
     const fd = new FormData(e.currentTarget);
     const file = fd.get("image");
-    if (file instanceof File && file.size > 0) {
-      try {
-        const resized = await resizeImage(file);
-        fd.set("image", resized, file.name.replace(/\.[^.]+$/, "") + ".jpg");
-      } catch (err: any) {
-        setError(err.message ?? "Could not process image");
-        return;
-      }
+    if (!(file instanceof File) || file.size === 0) {
+      setError("Choose a photo");
+      return;
     }
+    const name = String(fd.get("name") ?? "").trim() || "Untitled";
+    const category = String(fd.get("category") ?? "other");
+
     setBusy(true);
     try {
-      const r = await api.postForm<{ cloth: Cloth }>("/clothes", fd);
+      const resized = await resizeImage(file);
+      const rand = Math.random().toString(36).slice(2, 8);
+      const pathname = `clothes/${user.id}/${Date.now()}-${rand}.jpg`;
+      const blob = await upload(pathname, resized, {
+        access: "public",
+        contentType: "image/jpeg",
+        handleUploadUrl: "/api/clothes/upload-token",
+      });
+      const r = await api.post<{ cloth: Cloth }>("/clothes", {
+        imageUrl: blob.url,
+        name,
+        category,
+      });
       onAdded(r.cloth);
       close();
     } catch (err: any) {
