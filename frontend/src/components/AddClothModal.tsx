@@ -6,10 +6,10 @@ import Modal from "./Modal";
 
 const CATEGORIES = ["top", "bottom", "dress", "outerwear", "shoes", "accessory", "other"];
 
-// Phone camera photos are routinely 3-8 MB, but Vercel functions cap request
-// bodies at 4.5 MB. Re-encode to ≤1280px JPEG so the upload stays under the
-// limit and matches the resolution actually rendered in the wardrobe grid.
-async function resizeImage(file: File, maxSide = 1280, quality = 0.85): Promise<Blob> {
+// 800px is plenty for the wardrobe grid (cards render ~200-400px wide) and
+// keeps uploads small for users on slower connections — Vercel Blob lives in
+// the US, so a smaller payload meaningfully cuts upload time from India.
+async function resizeImage(file: File, maxSide = 800, quality = 0.78): Promise<Blob> {
   const bitmap = await createImageBitmap(file);
   const scale = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));
   const w = Math.round(bitmap.width * scale);
@@ -43,11 +43,13 @@ export default function AddClothModal({
   const formRef = useRef<HTMLFormElement>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [progress, setProgress] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   function close() {
     formRef.current?.reset();
     setPreview(null);
+    setProgress(null);
     setError(null);
     onClose();
   }
@@ -80,7 +82,9 @@ export default function AddClothModal({
         access: "public",
         contentType: "image/jpeg",
         handleUploadUrl: "/api/clothes/upload-token",
+        onUploadProgress: (e) => setProgress(Math.round(e.percentage)),
       });
+      setProgress(null);
       console.log("[upload] blob done", { url: blob.url });
       const r = await api.post<{ cloth: Cloth }>("/clothes", {
         imageUrl: blob.url,
@@ -95,6 +99,7 @@ export default function AddClothModal({
       setError(err.message ?? "Upload failed");
     } finally {
       setBusy(false);
+      setProgress(null);
     }
   }
 
@@ -137,7 +142,11 @@ export default function AddClothModal({
           disabled={busy}
           className="w-full bg-brand-600 text-white rounded-lg py-2 font-medium disabled:opacity-60"
         >
-          {busy ? "Adding…" : "Add to wardrobe"}
+          {busy
+            ? progress !== null
+              ? `Uploading ${progress}%`
+              : "Adding…"
+            : "Add to wardrobe"}
         </button>
         {error && <p className="text-sm text-red-600">{error}</p>}
       </form>
