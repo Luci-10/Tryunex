@@ -2,11 +2,15 @@ node_modules
 .env
 .env.local
 .DS_Store
+._*
+.claude/
 *.log
 
 # build outputs
 dist
+**/dist
 .next
+*.tsbuildinfo
 
 # uploads
 backend/uploads/*
