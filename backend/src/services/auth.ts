@@ -13,7 +13,7 @@ function secret() {
   return new TextEncoder().encode(s);
 }
 
-export async function signSessionToken(userId: number) {
+export async function signSessionToken(userId: string | number) {
   return new SignJWT({ sub: String(userId), kind: "session" })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
@@ -53,13 +53,16 @@ export function clearPendingCookie(res: Response) {
   res.clearCookie(PENDING_COOKIE, { ...baseCookieOpts });
 }
 
-export async function getUserIdFromSession(req: Request): Promise<number | null> {
+// JWT sub is always a string. The deployed DB uses UUIDs for user IDs even
+// though the schema declares `serial` — keep the value as-is and let drizzle
+// pass it through to Postgres.
+export async function getUserIdFromSession(req: Request): Promise<string | null> {
   const token = req.cookies?.[SESSION_COOKIE];
   if (!token) return null;
   try {
     const { payload } = await jwtVerify(token, secret());
-    if (payload.kind !== "session") return null;
-    return Number(payload.sub);
+    if (payload.kind !== "session" || typeof payload.sub !== "string" || !payload.sub) return null;
+    return payload.sub;
   } catch {
     return null;
   }
@@ -81,7 +84,7 @@ declare global {
   // eslint-disable-next-line @typescript-eslint/no-namespace
   namespace Express {
     interface Request {
-      userId?: number;
+      userId?: string;
     }
   }
 }
@@ -96,7 +99,11 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
   next();
 }
 
-export async function loadUser(userId: number) {
-  const rows = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+export async function loadUser(userId: string) {
+  const rows = await db
+    .select()
+    .from(users)
+    .where(eq(users.id, userId as unknown as number))
+    .limit(1);
   return rows[0] ?? null;
 }
