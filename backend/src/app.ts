@@ -127,6 +127,21 @@ export function createApp() {
     res.json({ log });
   });
 
+  // TEMPORARY: dump actual rows from users + clothes so the user can verify
+  // their Neon dashboard is pointed at the same database the app is using.
+  app.get("/api/_debug/data", async (_req, res) => {
+    const { neon } = await import("@neondatabase/serverless");
+    const sql = neon(process.env.DATABASE_URL!);
+    try {
+      const dbInfo = await sql`SELECT current_database() AS db, current_user AS role, inet_server_addr() AS host`;
+      const users = await sql`SELECT id, email, name, created_at FROM users ORDER BY created_at`;
+      const clothes = await sql`SELECT id, user_id, name, category, image_url, status, created_at FROM clothes ORDER BY created_at`;
+      res.json({ dbInfo, users, clothes });
+    } catch (e: any) {
+      res.status(500).json({ error: e?.message });
+    }
+  });
+
   // TEMPORARY: wipe all clothes rows. Use to reset state during upload debugging.
   app.get("/api/_debug/wipe-clothes", async (_req, res) => {
     const { neon } = await import("@neondatabase/serverless");
