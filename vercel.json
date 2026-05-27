@@ -8,7 +8,7 @@
     { "source": "/:path((?!api(?:/|$)).*)", "destination": "/index.html" }
   ],
   "functions": {
-    "api/[[...path]].ts": {
+    "api/[...path].ts": {
       "memory": 512,
       "maxDuration": 30
     }
