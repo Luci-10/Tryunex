@@ -59,8 +59,8 @@ export async function issueOtpCookie(res: Response, email: string, otp: string) 
     .sign(secret());
   res.cookie(OTP_COOKIE, token, {
     httpOnly: true,
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
+    sameSite: "none",
+    secure: true,
     path: "/",
     maxAge: TTL_SECONDS * 1000,
   });
@@ -135,8 +135,8 @@ export async function verifyOtpFromCookie(
     .sign(secret());
   res.cookie(OTP_COOKIE, newToken, {
     httpOnly: true,
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
+    sameSite: "none",
+    secure: true,
     path: "/",
     maxAge: remainingSec * 1000,
   });

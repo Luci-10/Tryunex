@@ -1,6 +1,11 @@
-// Same-origin requests — Vite dev server proxies /api/* to the backend.
-// In production on Vercel, /api/* hits the serverless function on the same origin.
-const BASE = "/api";
+// On the web (dev + prod), the frontend and API share the same origin so
+// `/api/*` works directly. Inside the Capacitor Android/iOS app, the page is
+// served from https://localhost — `/api` would hit the WebView's local
+// bundle, not our backend. So when Capacitor is present we point at the
+// production API explicitly.
+const BASE = (typeof window !== "undefined" && (window as any).Capacitor)
+  ? "https://www.tryunex.in/api"
+  : "/api";
 
 export type ApiError = { error: string } & Record<string, unknown>;
 

@@ -12,12 +12,26 @@ import historyRoutes from "./routes/history.js";
 export function createApp() {
   const app = express();
 
-  // CORS only matters in dev when frontend runs on a different origin.
-  // On Vercel (single project) the request is same-origin and CORS is a no-op.
-  const allowedOrigin = process.env.FRONTEND_ORIGIN;
-  if (allowedOrigin) {
-    app.use(cors({ origin: allowedOrigin, credentials: true }));
-  }
+  // CORS allowlist. Web is same-origin (no-op) but the Capacitor app runs
+  // from https://localhost on Android and capacitor://localhost on iOS, so
+  // those need to be explicitly allowed for cookie-bearing requests.
+  const allowedOrigins = new Set<string>([
+    "https://localhost",
+    "capacitor://localhost",
+    "https://www.tryunex.in",
+    process.env.FRONTEND_ORIGIN ?? "http://localhost:5173",
+  ]);
+  app.use(
+    cors({
+      origin: (origin, cb) => {
+        // Same-origin / curl / server-to-server have no Origin header.
+        if (!origin) return cb(null, true);
+        if (allowedOrigins.has(origin)) return cb(null, true);
+        cb(new Error(`CORS: origin not allowed: ${origin}`));
+      },
+      credentials: true,
+    }),
+  );
 
   app.use(express.json({ limit: "1mb" }));
   app.use(cookieParser());

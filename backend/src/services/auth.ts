@@ -30,10 +30,14 @@ export async function signPendingToken(email: string) {
     .sign(secret());
 }
 
+// SameSite=None+Secure so the Capacitor Android app (origin
+// https://localhost) can read/send these cookies against www.tryunex.in.
+// Lax would block them on cross-origin requests. Modern browsers handle
+// None+Secure correctly; Safari < 13.1 doesn't (rounding-error market share).
 const baseCookieOpts = {
   httpOnly: true,
-  sameSite: "lax" as const,
-  secure: process.env.NODE_ENV === "production",
+  sameSite: "none" as const,
+  secure: true,
   path: "/",
 };
 
