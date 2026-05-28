@@ -127,6 +127,20 @@ export function createApp() {
     res.json({ log });
   });
 
+  // TEMPORARY: dump current state of share_codes + shares for debugging.
+  app.get("/api/_debug/shares", async (_req, res) => {
+    try {
+      const { neon } = await import("@neondatabase/serverless");
+      const sql = neon(process.env.DATABASE_URL!);
+      const codes = await sql`SELECT id, owner_id, code, permission, used, created_at FROM share_codes ORDER BY created_at DESC LIMIT 20`;
+      const shares = await sql`SELECT id, owner_id, viewer_id, permission, created_at FROM shares ORDER BY created_at DESC LIMIT 20`;
+      const users = await sql`SELECT id, email, name FROM users ORDER BY created_at LIMIT 20`;
+      res.json({ codes, shares, users });
+    } catch (e: any) {
+      res.status(500).json({ error: e?.message });
+    }
+  });
+
   // TEMPORARY: time a user-by-email lookup like /auth/verify does, with no
   // cookies or auth involved. Lets us isolate whether the DB query is what's
   // hanging during OTP verification.

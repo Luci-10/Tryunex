@@ -46,11 +46,14 @@ router.delete("/share/codes/:id", async (req, res) => {
 // --- Viewer: redeem ---
 
 router.post("/share/redeem", async (req, res) => {
+  const t0 = Date.now();
+  const lap = (s: string) => console.log(`[redeem] +${Date.now() - t0}ms ${s}`);
   const parse = z.object({ code: z.string().min(1) }).safeParse(req.body);
   if (!parse.success) return res.status(400).json({ error: "Invalid code" });
   const code = parse.data.code.trim().toUpperCase();
 
   const rows = await db.select().from(shareCodes).where(eq(shareCodes.code, code)).limit(1);
+  lap("shareCodes select");
   const sc = rows[0];
   if (!sc) return res.status(404).json({ error: "Code not found" });
   if (sc.used) return res.status(400).json({ error: "Code already used" });
@@ -61,14 +64,18 @@ router.post("/share/redeem", async (req, res) => {
     .from(shares)
     .where(and(eq(shares.ownerId, sc.ownerId), eq(shares.viewerId, req.userId!)))
     .limit(1);
+  lap("shares select");
   if (existing[0]) {
     await db.update(shares).set({ permission: sc.permission }).where(eq(shares.id, existing[0].id));
+    lap("shares update");
   } else {
     await db
       .insert(shares)
       .values({ ownerId: sc.ownerId, viewerId: req.userId!, permission: sc.permission });
+    lap("shares insert");
   }
   await db.update(shareCodes).set({ used: true }).where(eq(shareCodes.id, sc.id));
+  lap("shareCodes update");
   res.json({ ok: true, ownerId: sc.ownerId });
 });
 
