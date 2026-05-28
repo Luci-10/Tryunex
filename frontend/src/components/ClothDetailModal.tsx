@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import Modal from "./Modal";
+import Lightbox from "./Lightbox";
 import { api, type Cloth } from "../api";
 
 const CATEGORIES = ["top", "bottom", "dress", "outerwear", "shoes", "accessory", "other"];
@@ -26,6 +27,7 @@ export default function ClothDetailModal({
   const [category, setCategory] = useState("other");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [zoom, setZoom] = useState(false);
 
   useEffect(() => {
     if (!open || !clothId) return;
@@ -86,12 +88,17 @@ export default function ClothDetailModal({
   }
 
   return (
+    <>
+    <Lightbox src={zoom && data ? data.cloth.imageUrl : null} alt={data?.cloth.name} onClose={() => setZoom(false)} />
     <Modal open={open} onClose={onClose} title="Edit piece">
       {!data ? (
         <p className="text-gray-500 text-sm">{error ?? "Loading…"}</p>
       ) : (
         <div className="space-y-4">
-          <div className="aspect-square bg-gray-100 rounded-xl overflow-hidden">
+          <div
+            onClick={() => setZoom(true)}
+            className="aspect-square bg-gray-100 rounded-xl overflow-hidden cursor-zoom-in"
+          >
             <img src={data.cloth.imageUrl} alt={data.cloth.name} className="w-full h-full object-cover" />
           </div>
 
@@ -160,5 +167,6 @@ export default function ClothDetailModal({
         </div>
       )}
     </Modal>
+    </>
   );
 }

@@ -2,9 +2,14 @@ import { Router } from "express";
 import { z } from "zod";
 import { db } from "../db/client.js";
 import { clothes, shareCodes, shares, suggestions, users, wearEvents } from "../db/schema.js";
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray } from "drizzle-orm";
 import { requireAuth } from "../services/auth.js";
+import { settlePastPlans } from "../services/plans.js";
 import { randomBytes } from "node:crypto";
+
+function todayStr() {
+  return new Date().toISOString().slice(0, 10);
+}
 
 // Mount at root: this router owns /share/*, /friends/*, /suggestions/*.
 const router = Router();
@@ -132,6 +137,9 @@ router.get("/friends/:ownerId/wardrobe", async (req, res) => {
   const share = shareRows[0];
   if (!share) return res.status(403).json({ error: "No access" });
 
+  // Owner doesn't need to log in for their past plans to take effect.
+  await settlePastPlans(ownerId);
+
   const ownerRows = await db.select().from(users).where(eq(users.id, ownerId)).limit(1);
   const owner = ownerRows[0];
   if (!owner) return res.status(404).json({ error: "Not found" });
@@ -141,10 +149,35 @@ router.get("/friends/:ownerId/wardrobe", async (req, res) => {
     .from(clothes)
     .where(and(eq(clothes.userId, ownerId), eq(clothes.status, "clean")))
     .orderBy(desc(clothes.createdAt));
+
+  const plans = await db
+    .select({
+      id: wearEvents.id,
+      wornOn: wearEvents.wornOn,
+      cloth: {
+        id: clothes.id,
+        name: clothes.name,
+        category: clothes.category,
+        imageUrl: clothes.imageUrl,
+        status: clothes.status,
+      },
+    })
+    .from(wearEvents)
+    .innerJoin(clothes, eq(clothes.id, wearEvents.clothId))
+    .where(
+      and(
+        eq(wearEvents.userId, ownerId),
+        gte(wearEvents.wornOn, todayStr()),
+        eq(wearEvents.settled, false),
+      ),
+    )
+    .orderBy(asc(wearEvents.wornOn));
+
   res.json({
     permission: share.permission,
     owner: { id: owner.id, name: owner.name },
     clothes: items,
+    plans,
   });
 });
 
@@ -181,7 +214,11 @@ router.post("/friends/:ownerId/suggest", async (req, res) => {
   res.json({ ok: true });
 });
 
-router.post("/friends/:ownerId/wear", async (req, res) => {
+// Editor permission can SCHEDULE outfits on the owner's behalf (not mark
+// directly worn — owner decides when/if to actually flip them). Inserts
+// wear_events under the owner's userId; settle helper flips status when
+// the date passes.
+router.post("/friends/:ownerId/plan", async (req, res) => {
   const ownerId = req.params.ownerId;
   if (!ownerId) return res.status(400).json({ error: "Bad id" });
 
@@ -192,6 +229,9 @@ router.post("/friends/:ownerId/wear", async (req, res) => {
     })
     .safeParse(req.body);
   if (!parse.success) return res.status(400).json({ error: "Invalid input" });
+  if (parse.data.date < todayStr()) {
+    return res.status(400).json({ error: "Can't plan for a past date" });
+  }
 
   const shareRows = await db
     .select()
@@ -201,13 +241,14 @@ router.post("/friends/:ownerId/wear", async (req, res) => {
   const share = shareRows[0];
   if (!share || share.permission !== "edit") return res.status(403).json({ error: "Not allowed" });
 
-  await db
-    .update(clothes)
-    .set({ status: "worn" })
-    .where(and(eq(clothes.userId, ownerId), inArray(clothes.id, parse.data.ids)));
-  await db
-    .insert(wearEvents)
-    .values(parse.data.ids.map((cid) => ({ clothId: cid, userId: ownerId, wornOn: parse.data.date })));
+  await db.insert(wearEvents).values(
+    parse.data.ids.map((cid) => ({
+      clothId: cid,
+      userId: ownerId,
+      wornOn: parse.data.date,
+      settled: false,
+    })),
+  );
   res.json({ ok: true });
 });
 

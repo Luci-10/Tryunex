@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Nav from "../components/Nav";
 import ClothCard from "../components/ClothCard";
+import WardrobeSwitcher from "../components/WardrobeSwitcher";
 import { api, type Cloth } from "../api";
 
 type PlanEntry = {
@@ -75,6 +76,7 @@ export default function Plan() {
     <>
       <Nav />
       <main className="max-w-5xl mx-auto px-4 py-6 space-y-6">
+        <WardrobeSwitcher current="mine" />
         <div>
           <h1 className="text-xl font-bold">Plan outfits</h1>
           <p className="text-sm text-gray-600">

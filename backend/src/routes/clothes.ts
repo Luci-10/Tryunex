@@ -7,45 +7,13 @@ import { clothes, wearEvents } from "../db/schema.js";
 import { and, asc, count, desc, eq, gte, inArray, lt, max } from "drizzle-orm";
 import { requireAuth } from "../services/auth.js";
 import { presignPut, r2PublicBase } from "../services/r2.js";
+import { settlePastPlans } from "../services/plans.js";
 
 const router = Router();
 router.use(requireAuth);
 
 function todayStr() {
   return new Date().toISOString().slice(0, 10);
-}
-
-// For each cloth the user planned for a day that has passed without being
-// processed, mark the cloth worn and flag the wear_event as settled. Runs
-// at the start of /clothes reads so the wardrobe view is always current.
-async function settlePastPlans(userId: string) {
-  const today = todayStr();
-  const past = await db
-    .select({ clothId: wearEvents.clothId })
-    .from(wearEvents)
-    .where(
-      and(
-        eq(wearEvents.userId, userId),
-        lt(wearEvents.wornOn, today),
-        eq(wearEvents.settled, false),
-      ),
-    );
-  if (past.length === 0) return;
-  const clothIds = Array.from(new Set(past.map((p) => p.clothId)));
-  await db
-    .update(clothes)
-    .set({ status: "worn" })
-    .where(and(eq(clothes.userId, userId), inArray(clothes.id, clothIds)));
-  await db
-    .update(wearEvents)
-    .set({ settled: true })
-    .where(
-      and(
-        eq(wearEvents.userId, userId),
-        lt(wearEvents.wornOn, today),
-        eq(wearEvents.settled, false),
-      ),
-    );
 }
 
 // Hand the client a presigned R2 PUT URL scoped to the user's folder, plus
