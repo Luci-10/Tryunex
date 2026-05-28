@@ -56,7 +56,7 @@ export default function Login() {
     <div className="min-h-screen flex items-center justify-center p-4">
       <div className="w-full max-w-sm bg-white rounded-2xl shadow p-6 space-y-4">
         <div>
-          <h1 className="text-2xl font-bold text-brand-700">Wordrobe</h1>
+          <h1 className="text-2xl font-bold text-brand-700">Tryunex</h1>
           <p className="text-sm text-gray-600">Sign in with your email — we'll send you a 6-digit code.</p>
         </div>
 

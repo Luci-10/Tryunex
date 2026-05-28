@@ -40,7 +40,7 @@ export default function Register() {
     <div className="min-h-screen flex items-center justify-center p-4">
       <form onSubmit={submit} className="w-full max-w-sm bg-white rounded-2xl shadow p-6 space-y-4">
         <div>
-          <h1 className="text-2xl font-bold text-brand-700">Welcome to Wordrobe</h1>
+          <h1 className="text-2xl font-bold text-brand-700">Welcome to Tryunex</h1>
           <p className="text-sm text-gray-600">A few details to set up your account.</p>
         </div>
 
@@ -85,7 +85,7 @@ export default function Register() {
           disabled={busy || !name.trim()}
           className="w-full bg-brand-600 text-white rounded-lg py-2 font-medium disabled:opacity-60"
         >
-          {busy ? "Saving…" : "Enter Wordrobe"}
+          {busy ? "Saving…" : "Enter Tryunex"}
         </button>
         {error && <p className="text-sm text-red-600">{error}</p>}
       </form>

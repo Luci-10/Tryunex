@@ -14,7 +14,7 @@ import { SignJWT, jwtVerify, type JWTPayload } from "jose";
 import { createHmac, randomInt, timingSafeEqual } from "node:crypto";
 import type { Request, Response } from "express";
 
-export const OTP_COOKIE = "wordrobe_otp";
+export const OTP_COOKIE = "tryunex_otp";
 const TTL_SECONDS = 10 * 60;
 const MAX_ATTEMPTS = 5;
 

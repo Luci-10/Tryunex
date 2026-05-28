@@ -15,7 +15,7 @@ export default function Nav() {
   return (
     <header className="sticky top-0 z-10 bg-white/80 backdrop-blur border-b">
       <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
-        <NavLink to="/" className="font-bold text-brand-700 text-lg">Wordrobe</NavLink>
+        <NavLink to="/" className="font-bold text-brand-700 text-lg">Tryunex</NavLink>
         {user && <span className="text-sm text-gray-600 hidden sm:block">Hi, {user.name}</span>}
       </div>
       <nav className="max-w-5xl mx-auto px-2 pb-2 flex gap-1 overflow-x-auto text-sm">

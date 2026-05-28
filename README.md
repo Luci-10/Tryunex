@@ -1,4 +1,4 @@
-# Wordrobe
+# Tryunex
 
 Your wardrobe in your pocket. Upload photos of your clothes, plan what to wear, share your wardrobe with friends and family.
 

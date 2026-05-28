@@ -4,8 +4,8 @@ import { db } from "../db/client.js";
 import { users } from "../db/schema.js";
 import { eq } from "drizzle-orm";
 
-const SESSION_COOKIE = "wordrobe_session";
-const PENDING_COOKIE = "wordrobe_pending";
+const SESSION_COOKIE = "tryunex_session";
+const PENDING_COOKIE = "tryunex_pending";
 
 function secret() {
   const s = process.env.JWT_SECRET;
