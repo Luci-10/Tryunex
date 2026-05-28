@@ -4,7 +4,7 @@ import { randomBytes } from "node:crypto";
 import { sql } from "drizzle-orm";
 import { db } from "../db/client.js";
 import { clothes, wearEvents } from "../db/schema.js";
-import { and, asc, count, desc, eq, gte, inArray, lt, max } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, inArray, lt, max, notInArray } from "drizzle-orm";
 import { requireAuth } from "../services/auth.js";
 import { presignPut, r2PublicBase } from "../services/r2.js";
 import { settlePastPlans } from "../services/plans.js";
@@ -40,12 +40,30 @@ router.post("/upload-url", async (req, res) => {
 
 // GET /clothes?status=clean|worn — also includes lastWornOn per cloth
 // (most recent past wear_event) so the wardrobe grid can show "X days ago".
+// Clothes with an active plan (unsettled wear_event for today / future) are
+// hidden — they're committed, shouldn't be re-selectable.
 router.get("/", async (req, res) => {
   await settlePastPlans(req.userId!);
   const status = req.query.status === "worn" ? "worn" : req.query.status === "clean" ? "clean" : null;
-  const where = status
+  const today = todayStr();
+  const plannedClothIds = db
+    .select({ id: wearEvents.clothId })
+    .from(wearEvents)
+    .where(
+      and(
+        eq(wearEvents.userId, req.userId!),
+        eq(wearEvents.settled, false),
+        gte(wearEvents.wornOn, today),
+      ),
+    );
+  const baseWhere = status
     ? and(eq(clothes.userId, req.userId!), eq(clothes.status, status))
     : eq(clothes.userId, req.userId!);
+  // Only hide planned clothes from the clean/wardrobe list — worn/all
+  // queries can still surface them.
+  const where = status === "clean"
+    ? and(baseWhere, notInArray(clothes.id, plannedClothIds))
+    : baseWhere;
   const rows = await db
     .select({
       id: clothes.id,

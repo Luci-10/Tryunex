@@ -2,7 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { db } from "../db/client.js";
 import { clothes, shareCodes, shares, suggestions, users, wearEvents } from "../db/schema.js";
-import { and, asc, desc, eq, gte, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, notInArray } from "drizzle-orm";
 import { requireAuth } from "../services/auth.js";
 import { settlePastPlans } from "../services/plans.js";
 import { randomBytes } from "node:crypto";
@@ -144,10 +144,26 @@ router.get("/friends/:ownerId/wardrobe", async (req, res) => {
   const owner = ownerRows[0];
   if (!owner) return res.status(404).json({ error: "Not found" });
 
+  const plannedClothIds = db
+    .select({ id: wearEvents.clothId })
+    .from(wearEvents)
+    .where(
+      and(
+        eq(wearEvents.userId, ownerId),
+        eq(wearEvents.settled, false),
+        gte(wearEvents.wornOn, todayStr()),
+      ),
+    );
   const items = await db
     .select()
     .from(clothes)
-    .where(and(eq(clothes.userId, ownerId), eq(clothes.status, "clean")))
+    .where(
+      and(
+        eq(clothes.userId, ownerId),
+        eq(clothes.status, "clean"),
+        notInArray(clothes.id, plannedClothIds),
+      ),
+    )
     .orderBy(desc(clothes.createdAt));
 
   const plans = await db
