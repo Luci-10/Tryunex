@@ -127,6 +127,23 @@ export function createApp() {
     res.json({ log });
   });
 
+  // TEMPORARY: time a user-by-email lookup like /auth/verify does, with no
+  // cookies or auth involved. Lets us isolate whether the DB query is what's
+  // hanging during OTP verification.
+  app.get("/api/_debug/lookup-user", async (req, res) => {
+    const email = String(req.query.email ?? "").trim().toLowerCase();
+    if (!email) return res.status(400).json({ error: "Pass ?email=..." });
+    try {
+      const { neon } = await import("@neondatabase/serverless");
+      const sql = neon(process.env.DATABASE_URL!);
+      const t0 = Date.now();
+      const rows = await sql`SELECT id, email FROM users WHERE email = ${email} LIMIT 1`;
+      res.json({ ms: Date.now() - t0, found: rows.length > 0, rows });
+    } catch (e: any) {
+      res.status(500).json({ error: e?.message });
+    }
+  });
+
   // TEMPORARY: end-to-end test of R2 presign + PUT from the server side.
   // Verifies the SigV4 implementation works before the browser tries it.
   app.get("/api/_debug/r2-test", async (_req, res) => {
