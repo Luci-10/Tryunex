@@ -127,6 +127,32 @@ export function createApp() {
     res.json({ log });
   });
 
+  // TEMPORARY: try the EXACT INSERT that /share/redeem does, with hardcoded
+  // UUIDs of the two known test users. If this hangs, the INSERT itself is
+  // the problem (FK check, lock, etc.).
+  app.get("/api/_debug/test-share-insert", async (_req, res) => {
+    try {
+      const { neon } = await import("@neondatabase/serverless");
+      const sql = neon(process.env.DATABASE_URL!);
+      const ownerId = "ae9e9fb8-af73-407a-9cb4-9a209f112aac";
+      const viewerId = "d0a86365-f000-49cc-8f97-642e681879d6";
+      // Clear any existing share first
+      const t0 = Date.now();
+      await sql`DELETE FROM shares WHERE owner_id = ${ownerId} AND viewer_id = ${viewerId}`;
+      const delMs = Date.now() - t0;
+      const t1 = Date.now();
+      const inserted = await sql`
+        INSERT INTO shares (owner_id, viewer_id, permission)
+        VALUES (${ownerId}, ${viewerId}, 'suggest')
+        RETURNING id, owner_id, viewer_id, permission
+      `;
+      const insertMs = Date.now() - t1;
+      res.json({ delMs, insertMs, inserted });
+    } catch (e: any) {
+      res.status(500).json({ error: e?.message });
+    }
+  });
+
   // TEMPORARY: dump current state of share_codes + shares for debugging.
   app.get("/api/_debug/shares", async (_req, res) => {
     try {
