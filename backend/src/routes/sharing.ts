@@ -37,7 +37,7 @@ router.post("/share/codes", async (req, res) => {
 });
 
 router.delete("/share/codes/:id", async (req, res) => {
-  const id = Number(req.params.id);
+  const id = req.params.id;
   if (!id) return res.status(400).json({ error: "Bad id" });
   await db.delete(shareCodes).where(and(eq(shareCodes.id, id), eq(shareCodes.ownerId, req.userId!)));
   res.json({ ok: true });
@@ -106,14 +106,14 @@ router.get("/share/i-can-see", async (req, res) => {
 });
 
 router.delete("/share/:id/owner", async (req, res) => {
-  const id = Number(req.params.id);
+  const id = req.params.id;
   if (!id) return res.status(400).json({ error: "Bad id" });
   await db.delete(shares).where(and(eq(shares.id, id), eq(shares.ownerId, req.userId!)));
   res.json({ ok: true });
 });
 
 router.delete("/share/:id/viewer", async (req, res) => {
-  const id = Number(req.params.id);
+  const id = req.params.id;
   if (!id) return res.status(400).json({ error: "Bad id" });
   await db.delete(shares).where(and(eq(shares.id, id), eq(shares.viewerId, req.userId!)));
   res.json({ ok: true });
@@ -122,7 +122,7 @@ router.delete("/share/:id/viewer", async (req, res) => {
 // --- Friend wardrobe view + actions ---
 
 router.get("/friends/:ownerId/wardrobe", async (req, res) => {
-  const ownerId = Number(req.params.ownerId);
+  const ownerId = req.params.ownerId;
   if (!ownerId) return res.status(400).json({ error: "Bad id" });
   const shareRows = await db
     .select()
@@ -149,12 +149,12 @@ router.get("/friends/:ownerId/wardrobe", async (req, res) => {
 });
 
 router.post("/friends/:ownerId/suggest", async (req, res) => {
-  const ownerId = Number(req.params.ownerId);
+  const ownerId = req.params.ownerId;
   if (!ownerId) return res.status(400).json({ error: "Bad id" });
 
   const parse = z
     .object({
-      clothIds: z.array(z.number().int()).min(1),
+      clothIds: z.array(z.string().min(1)).min(1),
       note: z.string().max(500).optional().nullable(),
       forDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
     })
@@ -182,12 +182,12 @@ router.post("/friends/:ownerId/suggest", async (req, res) => {
 });
 
 router.post("/friends/:ownerId/wear", async (req, res) => {
-  const ownerId = Number(req.params.ownerId);
+  const ownerId = req.params.ownerId;
   if (!ownerId) return res.status(400).json({ error: "Bad id" });
 
   const parse = z
     .object({
-      ids: z.array(z.number().int()).min(1),
+      ids: z.array(z.string().min(1)).min(1),
       date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
     })
     .safeParse(req.body);
@@ -229,15 +229,15 @@ router.get("/suggestions", async (req, res) => {
     .orderBy(desc(suggestions.createdAt));
 
   const allIds = Array.from(
-    new Set(rows.flatMap((r) => r.clothIds.split(",").map((x) => Number(x)).filter(Boolean))),
+    new Set(rows.flatMap((r) => r.clothIds.split(",").filter(Boolean))),
   );
-  const clothMap = new Map<number, { id: number; name: string; imageUrl: string }>();
+  const clothMap = new Map<string, { id: string; name: string; imageUrl: string }>();
   if (allIds.length) {
     const cs = await db
       .select({ id: clothes.id, name: clothes.name, imageUrl: clothes.imageUrl })
       .from(clothes)
-      .where(inArray(clothes.id, allIds));
-    cs.forEach((c) => clothMap.set(c.id, c));
+      .where(inArray(clothes.id, allIds as unknown as number[]));
+    cs.forEach((c) => clothMap.set(String(c.id), { ...c, id: String(c.id) }));
   }
 
   res.json({
@@ -245,14 +245,15 @@ router.get("/suggestions", async (req, res) => {
       ...r,
       clothes: r.clothIds
         .split(",")
-        .map((x) => clothMap.get(Number(x)))
+        .filter(Boolean)
+        .map((x) => clothMap.get(x))
         .filter(Boolean),
     })),
   });
 });
 
 router.post("/suggestions/:id/respond", async (req, res) => {
-  const id = Number(req.params.id);
+  const id = req.params.id;
   if (!id) return res.status(400).json({ error: "Bad id" });
   const parse = z.object({ accept: z.boolean() }).safeParse(req.body);
   if (!parse.success) return res.status(400).json({ error: "Invalid input" });
@@ -262,16 +263,16 @@ router.post("/suggestions/:id/respond", async (req, res) => {
   if (!s || s.ownerId !== req.userId!) return res.status(404).json({ error: "Not found" });
 
   if (parse.data.accept) {
-    const ids = s.clothIds.split(",").map((x) => Number(x)).filter(Boolean);
+    const ids = s.clothIds.split(",").filter(Boolean);
     const wornOn = s.forDate ?? new Date().toISOString().slice(0, 10);
     if (ids.length) {
       await db
         .update(clothes)
         .set({ status: "worn" })
-        .where(and(eq(clothes.userId, req.userId!), inArray(clothes.id, ids)));
+        .where(and(eq(clothes.userId, req.userId! as unknown as number), inArray(clothes.id, ids as unknown as number[])));
       await db
         .insert(wearEvents)
-        .values(ids.map((cid) => ({ clothId: cid, userId: req.userId!, wornOn })));
+        .values(ids.map((cid) => ({ clothId: cid as unknown as number, userId: req.userId! as unknown as number, wornOn })));
     }
     await db.update(suggestions).set({ status: "accepted" }).where(eq(suggestions.id, id));
   } else {

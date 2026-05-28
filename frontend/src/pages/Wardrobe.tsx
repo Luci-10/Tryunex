@@ -6,6 +6,7 @@ import ClothDetailModal from "../components/ClothDetailModal";
 import WardrobeFilters, { type SortMode } from "../components/WardrobeFilters";
 import StatsRow from "../components/StatsRow";
 import FAB from "../components/FAB";
+import WardrobeSwitcher from "../components/WardrobeSwitcher";
 import { api, type Cloth } from "../api";
 
 const CATEGORY_ORDER = ["top", "bottom", "dress", "outerwear", "shoes", "accessory", "other"];
@@ -129,6 +130,8 @@ export default function Wardrobe() {
     <>
       <Nav />
       <main className="max-w-5xl mx-auto px-4 py-5 space-y-5 pb-24">
+        <WardrobeSwitcher current="mine" />
+
         {isSunday && wornCount > 0 && (
           <div className="bg-brand-50 border border-brand-200 rounded-2xl p-4 flex items-center justify-between gap-3">
             <div>

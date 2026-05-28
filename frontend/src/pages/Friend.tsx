@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import Nav from "../components/Nav";
 import ClothCard from "../components/ClothCard";
+import WardrobeSwitcher from "../components/WardrobeSwitcher";
 import { api, type Cloth } from "../api";
 
 type Permission = "view" | "suggest" | "edit";
@@ -66,9 +67,27 @@ export default function Friend() {
     } finally { setBusy(false); }
   }
 
-  if (loading) return (<><Nav /><main className="max-w-5xl mx-auto px-4 py-6 text-gray-500">Loading…</main></>);
+  if (loading) {
+    return (
+      <>
+        <Nav />
+        <main className="max-w-5xl mx-auto px-4 py-6 space-y-4">
+          <WardrobeSwitcher current={ownerId ?? "mine"} />
+          <p className="text-gray-500">Loading…</p>
+        </main>
+      </>
+    );
+  }
   if (accessError || !data) {
-    return (<><Nav /><main className="max-w-5xl mx-auto px-4 py-6 text-gray-600">{accessError ?? "No access"}</main></>);
+    return (
+      <>
+        <Nav />
+        <main className="max-w-5xl mx-auto px-4 py-6 space-y-4">
+          <WardrobeSwitcher current={ownerId ?? "mine"} />
+          <p className="text-gray-600">{accessError ?? "No access"}</p>
+        </main>
+      </>
+    );
   }
 
   const canAct = data.permission !== "view";
@@ -77,6 +96,7 @@ export default function Friend() {
     <>
       <Nav />
       <main className="max-w-5xl mx-auto px-4 py-6 space-y-4">
+        <WardrobeSwitcher current={ownerId ?? "mine"} />
         <div>
           <h1 className="text-xl font-bold">{data.owner.name}'s wardrobe</h1>
           <p className="text-sm text-gray-500">Your access: {data.permission}</p>
