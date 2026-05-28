@@ -127,6 +127,37 @@ export function createApp() {
     res.json({ log });
   });
 
+  // TEMPORARY: end-to-end test of R2 presign + PUT from the server side.
+  // Verifies the SigV4 implementation works before the browser tries it.
+  app.get("/api/_debug/r2-test", async (_req, res) => {
+    try {
+      const { presignPut } = await import("./services/r2.js");
+      const key = `_debug/server-test-${Date.now()}.txt`;
+      const t0 = Date.now();
+      const { uploadUrl, publicUrl } = await presignPut(key, "text/plain");
+      const presignMs = Date.now() - t0;
+      const t1 = Date.now();
+      const put = await fetch(uploadUrl, {
+        method: "PUT",
+        headers: { "Content-Type": "text/plain" },
+        body: "hello from server-side r2 test",
+      });
+      const putMs = Date.now() - t1;
+      const putBody = put.ok ? null : await put.text();
+      res.json({
+        presignMs,
+        putMs,
+        putStatus: put.status,
+        putOk: put.ok,
+        putBody,
+        publicUrl,
+        uploadUrlHost: new URL(uploadUrl).host,
+      });
+    } catch (e: any) {
+      res.status(500).json({ error: e?.message, stack: e?.stack?.split("\n").slice(0, 5) });
+    }
+  });
+
   // TEMPORARY: check which R2 env vars the function can see. Reports only
   // names + lengths, never values, so it's safe to leave on briefly.
   app.get("/api/_debug/env", (_req, res) => {
