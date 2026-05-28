@@ -100,10 +100,6 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
 }
 
 export async function loadUser(userId: string) {
-  const rows = await db
-    .select()
-    .from(users)
-    .where(eq(users.id, userId as unknown as number))
-    .limit(1);
+  const rows = await db.select().from(users).where(eq(users.id, userId)).limit(1);
   return rows[0] ?? null;
 }

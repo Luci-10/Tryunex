@@ -12,13 +12,13 @@ export default function Friend() {
   const today = new Date().toISOString().slice(0, 10);
   const [data, setData] = useState<{
     permission: Permission;
-    owner: { id: number; name: string };
+    owner: { id: string; name: string };
     clothes: Cloth[];
   } | null>(null);
   const [loading, setLoading] = useState(true);
   const [accessError, setAccessError] = useState<string | null>(null);
 
-  const [sel, setSel] = useState<Set<number>>(new Set());
+  const [sel, setSel] = useState<Set<string>>(new Set());
   const [note, setNote] = useState("");
   const [date, setDate] = useState(today);
   const [busy, setBusy] = useState(false);
@@ -37,7 +37,7 @@ export default function Friend() {
   }
   useEffect(() => { load(); }, [ownerId]);
 
-  function toggle(id: number) {
+  function toggle(id: string) {
     setSel((p) => {
       const n = new Set(p);
       n.has(id) ? n.delete(id) : n.add(id);

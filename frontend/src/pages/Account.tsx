@@ -5,11 +5,11 @@ import { api } from "../api";
 import { useAuth } from "../auth";
 
 type Sug = {
-  id: number;
+  id: string;
   note: string | null;
   forDate: string | null;
   suggesterName: string;
-  clothes: { id: number; name: string; imageUrl: string }[];
+  clothes: { id: string; name: string; imageUrl: string }[];
 };
 
 export default function Account() {
@@ -17,7 +17,7 @@ export default function Account() {
   const nav = useNavigate();
   const [sugs, setSugs] = useState<Sug[]>([]);
   const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState<number | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
 
   async function load() {
     const r = await api.get<{ suggestions: Sug[] }>("/suggestions");
@@ -25,7 +25,7 @@ export default function Account() {
   }
   useEffect(() => { load().finally(() => setLoading(false)); }, []);
 
-  async function respond(id: number, accept: boolean) {
+  async function respond(id: string, accept: boolean) {
     setBusy(id);
     try {
       await api.post(`/suggestions/${id}/respond`, { accept });

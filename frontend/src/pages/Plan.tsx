@@ -8,7 +8,7 @@ export default function Plan() {
   const nav = useNavigate();
   const today = new Date().toISOString().slice(0, 10);
   const [clean, setClean] = useState<Cloth[]>([]);
-  const [sel, setSel] = useState<Set<number>>(new Set());
+  const [sel, setSel] = useState<Set<string>>(new Set());
   const [date, setDate] = useState(today);
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -19,7 +19,7 @@ export default function Plan() {
       .finally(() => setLoading(false));
   }, []);
 
-  function toggle(id: number) {
+  function toggle(id: string) {
     setSel((p) => {
       const n = new Set(p);
       n.has(id) ? n.delete(id) : n.add(id);

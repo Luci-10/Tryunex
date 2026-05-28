@@ -46,14 +46,11 @@ router.delete("/share/codes/:id", async (req, res) => {
 // --- Viewer: redeem ---
 
 router.post("/share/redeem", async (req, res) => {
-  const t0 = Date.now();
-  const lap = (s: string) => console.log(`[redeem] +${Date.now() - t0}ms ${s}`);
   const parse = z.object({ code: z.string().min(1) }).safeParse(req.body);
   if (!parse.success) return res.status(400).json({ error: "Invalid code" });
   const code = parse.data.code.trim().toUpperCase();
 
   const rows = await db.select().from(shareCodes).where(eq(shareCodes.code, code)).limit(1);
-  lap("shareCodes select");
   const sc = rows[0];
   if (!sc) return res.status(404).json({ error: "Code not found" });
   if (sc.used) return res.status(400).json({ error: "Code already used" });
@@ -64,18 +61,14 @@ router.post("/share/redeem", async (req, res) => {
     .from(shares)
     .where(and(eq(shares.ownerId, sc.ownerId), eq(shares.viewerId, req.userId!)))
     .limit(1);
-  lap("shares select");
   if (existing[0]) {
     await db.update(shares).set({ permission: sc.permission }).where(eq(shares.id, existing[0].id));
-    lap("shares update");
   } else {
     await db
       .insert(shares)
       .values({ ownerId: sc.ownerId, viewerId: req.userId!, permission: sc.permission });
-    lap("shares insert");
   }
   await db.update(shareCodes).set({ used: true }).where(eq(shareCodes.id, sc.id));
-  lap("shareCodes update");
   res.json({ ok: true, ownerId: sc.ownerId });
 });
 
@@ -243,8 +236,8 @@ router.get("/suggestions", async (req, res) => {
     const cs = await db
       .select({ id: clothes.id, name: clothes.name, imageUrl: clothes.imageUrl })
       .from(clothes)
-      .where(inArray(clothes.id, allIds as unknown as number[]));
-    cs.forEach((c) => clothMap.set(String(c.id), { ...c, id: String(c.id) }));
+      .where(inArray(clothes.id, allIds));
+    cs.forEach((c) => clothMap.set(c.id, c));
   }
 
   res.json({
@@ -276,10 +269,10 @@ router.post("/suggestions/:id/respond", async (req, res) => {
       await db
         .update(clothes)
         .set({ status: "worn" })
-        .where(and(eq(clothes.userId, req.userId! as unknown as number), inArray(clothes.id, ids as unknown as number[])));
+        .where(and(eq(clothes.userId, req.userId!), inArray(clothes.id, ids)));
       await db
         .insert(wearEvents)
-        .values(ids.map((cid) => ({ clothId: cid as unknown as number, userId: req.userId! as unknown as number, wornOn })));
+        .values(ids.map((cid) => ({ clothId: cid, userId: req.userId!, wornOn })));
     }
     await db.update(suggestions).set({ status: "accepted" }).where(eq(suggestions.id, id));
   } else {

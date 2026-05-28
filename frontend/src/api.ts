@@ -42,7 +42,7 @@ export const api = {
 };
 
 export type User = {
-  id: number;
+  id: string;
   email: string;
   name: string;
   dob: string | null;
@@ -51,8 +51,8 @@ export type User = {
 };
 
 export type Cloth = {
-  id: number;
-  userId: number;
+  id: string;
+  userId: string;
   name: string;
   category: string;
   imageUrl: string;

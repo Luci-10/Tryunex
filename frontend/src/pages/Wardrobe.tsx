@@ -21,7 +21,7 @@ export default function Wardrobe() {
   const [sort, setSort] = useState<SortMode>("newest");
 
   const [addOpen, setAddOpen] = useState(false);
-  const [detailId, setDetailId] = useState<number | null>(null);
+  const [detailId, setDetailId] = useState<string | null>(null);
 
   const [toast, setToast] = useState<string | null>(null);
   function flash(msg: string) {
@@ -52,7 +52,7 @@ export default function Wardrobe() {
     flash("Reset done — wardrobe refreshed");
   }
 
-  async function wearToday(id: number) {
+  async function wearToday(id: string) {
     const date = new Date().toISOString().slice(0, 10);
     await api.post("/clothes/wear", { ids: [id], date });
     setClean((p) => p.filter((c) => c.id !== id));
@@ -69,7 +69,7 @@ export default function Wardrobe() {
     setClean((p) => p.map((x) => (x.id === c.id ? c : x)));
   }
 
-  function onDeleted(id: number) {
+  function onDeleted(id: string) {
     setClean((p) => p.filter((c) => c.id !== id));
     flash("Deleted");
   }
@@ -212,8 +212,8 @@ function Grid({
   onWearToday,
 }: {
   items: Cloth[];
-  onOpen: (id: number) => void;
-  onWearToday: (id: number) => void;
+  onOpen: (id: string) => void;
+  onWearToday: (id: string) => void;
 }) {
   return (
     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">

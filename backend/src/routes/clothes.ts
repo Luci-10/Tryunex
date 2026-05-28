@@ -62,7 +62,7 @@ router.post("/", async (req, res) => {
   const [row] = await db
     .insert(clothes)
     .values({
-      userId: req.userId! as unknown as number,
+      userId: req.userId!,
       name: parse.data.name,
       category: parse.data.category,
       imageUrl: parse.data.imageUrl,
@@ -73,7 +73,7 @@ router.post("/", async (req, res) => {
 
 // GET /clothes/:id — cloth + wear stats (for detail modal)
 router.get("/:id", async (req, res) => {
-  const id = Number(req.params.id);
+  const id = req.params.id;
   if (!id) return res.status(400).json({ error: "Bad id" });
   const rows = await db
     .select()
@@ -91,7 +91,7 @@ router.get("/:id", async (req, res) => {
 
 // PATCH /clothes/:id — rename / recategorize
 router.patch("/:id", async (req, res) => {
-  const id = Number(req.params.id);
+  const id = req.params.id;
   if (!id) return res.status(400).json({ error: "Bad id" });
   const parse = z
     .object({
@@ -116,7 +116,7 @@ router.patch("/:id", async (req, res) => {
 
 // DELETE /clothes/:id
 router.delete("/:id", async (req, res) => {
-  const id = Number(req.params.id);
+  const id = req.params.id;
   if (!id) return res.status(400).json({ error: "Bad id" });
   await db.delete(clothes).where(and(eq(clothes.id, id), eq(clothes.userId, req.userId!)));
   res.json({ ok: true });
@@ -126,7 +126,7 @@ router.delete("/:id", async (req, res) => {
 router.post("/wear", async (req, res) => {
   const parse = z
     .object({
-      ids: z.array(z.number().int()).min(1),
+      ids: z.array(z.string().min(1)).min(1),
       date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
     })
     .safeParse(req.body);
@@ -152,7 +152,7 @@ router.post("/reset", async (req, res) => {
 
 // POST /clothes/:id/clean
 router.post("/:id/clean", async (req, res) => {
-  const id = Number(req.params.id);
+  const id = req.params.id;
   if (!id) return res.status(400).json({ error: "Bad id" });
   await db
     .update(clothes)

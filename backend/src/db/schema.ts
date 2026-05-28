@@ -1,14 +1,13 @@
 import {
   pgTable,
-  serial,
   text,
   timestamp,
-  integer,
   pgEnum,
   uniqueIndex,
   index,
   date,
   boolean,
+  uuid,
 } from "drizzle-orm/pg-core";
 
 export const clothStatusEnum = pgEnum("cloth_status", ["clean", "worn"]);
@@ -23,12 +22,12 @@ export const genderEnum = pgEnum("gender", ["male", "female", "other", "prefer_n
 export const users = pgTable(
   "users",
   {
-    id: serial("id").primaryKey(),
+    id: uuid("id").primaryKey().defaultRandom(),
     email: text("email").notNull(),
     name: text("name").notNull(),
     dob: date("dob"),
-    gender: genderEnum("gender"),
-    createdAt: timestamp("created_at").defaultNow().notNull(),
+    gender: text("gender"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (t) => ({
     emailIdx: uniqueIndex("users_email_idx").on(t.email),
@@ -38,13 +37,13 @@ export const users = pgTable(
 export const clothes = pgTable(
   "clothes",
   {
-    id: serial("id").primaryKey(),
-    userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
     category: text("category").notNull().default("other"),
     imageUrl: text("image_url").notNull(),
     status: clothStatusEnum("status").notNull().default("clean"),
-    createdAt: timestamp("created_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (t) => ({
     userIdx: index("clothes_user_idx").on(t.userId),
@@ -54,11 +53,11 @@ export const clothes = pgTable(
 export const wearEvents = pgTable(
   "wear_events",
   {
-    id: serial("id").primaryKey(),
-    clothId: integer("cloth_id").notNull().references(() => clothes.id, { onDelete: "cascade" }),
-    userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    id: uuid("id").primaryKey().defaultRandom(),
+    clothId: uuid("cloth_id").notNull().references(() => clothes.id, { onDelete: "cascade" }),
+    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
     wornOn: date("worn_on").notNull(),
-    createdAt: timestamp("created_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (t) => ({
     userIdx: index("wear_user_idx").on(t.userId),
@@ -69,12 +68,12 @@ export const wearEvents = pgTable(
 export const shareCodes = pgTable(
   "share_codes",
   {
-    id: serial("id").primaryKey(),
-    ownerId: integer("owner_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    id: uuid("id").primaryKey().defaultRandom(),
+    ownerId: uuid("owner_id").notNull().references(() => users.id, { onDelete: "cascade" }),
     code: text("code").notNull(),
     permission: permissionEnum("permission").notNull().default("suggest"),
     used: boolean("used").notNull().default(false),
-    createdAt: timestamp("created_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (t) => ({
     codeIdx: uniqueIndex("share_codes_code_idx").on(t.code),
@@ -84,11 +83,11 @@ export const shareCodes = pgTable(
 export const shares = pgTable(
   "shares",
   {
-    id: serial("id").primaryKey(),
-    ownerId: integer("owner_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-    viewerId: integer("viewer_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    id: uuid("id").primaryKey().defaultRandom(),
+    ownerId: uuid("owner_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    viewerId: uuid("viewer_id").notNull().references(() => users.id, { onDelete: "cascade" }),
     permission: permissionEnum("permission").notNull().default("suggest"),
-    createdAt: timestamp("created_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (t) => ({
     pairIdx: uniqueIndex("shares_pair_idx").on(t.ownerId, t.viewerId),
@@ -96,14 +95,14 @@ export const shares = pgTable(
 );
 
 export const suggestions = pgTable("suggestions", {
-  id: serial("id").primaryKey(),
-  ownerId: integer("owner_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  suggesterId: integer("suggester_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  id: uuid("id").primaryKey().defaultRandom(),
+  ownerId: uuid("owner_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  suggesterId: uuid("suggester_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   clothIds: text("cloth_ids").notNull(), // CSV
   note: text("note"),
   forDate: date("for_date"),
   status: suggestionStatusEnum("status").notNull().default("pending"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
 export type User = typeof users.$inferSelect;

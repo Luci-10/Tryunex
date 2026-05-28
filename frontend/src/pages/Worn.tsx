@@ -19,7 +19,7 @@ export default function Worn() {
     setWorn([]);
   }
 
-  async function clean(id: number) {
+  async function clean(id: string) {
     await api.post(`/clothes/${id}/clean`);
     setWorn((p) => p.filter((c) => c.id !== id));
   }

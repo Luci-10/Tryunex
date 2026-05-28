@@ -43,18 +43,14 @@ router.post("/start", async (req, res) => {
 
 // POST /auth/verify { email, otp }
 router.post("/verify", async (req, res) => {
-  const t0 = Date.now();
-  const lap = (s: string) => console.log(`[verify] +${Date.now() - t0}ms ${s}`);
   const parse = z.object({
     email: z.string().email(),
     otp: z.string().length(6),
   }).safeParse(req.body);
   if (!parse.success) return res.status(400).json({ error: "Invalid input" });
   const email = parse.data.email.trim().toLowerCase();
-  lap("parsed");
 
   const result = await verifyOtpFromCookie(req, res, email, parse.data.otp);
-  lap("otp checked");
   if (!result.ok) {
     const msg = {
       no_request: "No code was requested — try sending a new one",
@@ -69,17 +65,14 @@ router.post("/verify", async (req, res) => {
   clearOtpCookie(res);
 
   const existing = await db.select().from(users).where(eq(users.email, email)).limit(1);
-  lap("user select");
   if (existing[0]) {
     const token = await signSessionToken(existing[0].id);
-    lap("session token signed");
     setSessionCookie(res, token);
     clearPendingCookie(res);
     return res.json({ status: "logged_in", user: existing[0] });
   }
 
   const pending = await signPendingToken(email);
-  lap("pending token signed");
   setPendingCookie(res, pending);
   return res.json({ status: "needs_registration", email });
 });

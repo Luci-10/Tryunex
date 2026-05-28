@@ -3,9 +3,9 @@ import { Link, useNavigate } from "react-router-dom";
 import Nav from "../components/Nav";
 import { api } from "../api";
 
-type Code = { id: number; code: string; permission: "view" | "suggest" | "edit" };
-type WithMe = { id: number; permission: string; viewerId: number; viewerName: string; viewerEmail: string };
-type ICanSee = { id: number; permission: string; ownerId: number; ownerName: string; ownerEmail: string };
+type Code = { id: string; code: string; permission: "view" | "suggest" | "edit" };
+type WithMe = { id: string; permission: string; viewerId: string; viewerName: string; viewerEmail: string };
+type ICanSee = { id: string; permission: string; ownerId: string; ownerName: string; ownerEmail: string };
 
 export default function Shared() {
   const nav = useNavigate();
@@ -39,7 +39,7 @@ export default function Shared() {
     } finally { setBusy(false); }
   }
 
-  async function cancelCode(id: number) {
+  async function cancelCode(id: string) {
     await api.delete(`/share/codes/${id}`);
     setCodes((p) => p.filter((c) => c.id !== id));
   }
@@ -49,7 +49,7 @@ export default function Shared() {
     setError(null);
     setBusy(true);
     try {
-      const r = await api.post<{ ownerId: number }>("/share/redeem", { code: redeem });
+      const r = await api.post<{ ownerId: string }>("/share/redeem", { code: redeem });
       setRedeem("");
       nav(`/friends/${r.ownerId}`);
     } catch (err: any) {
@@ -57,13 +57,13 @@ export default function Shared() {
     } finally { setBusy(false); }
   }
 
-  async function removeViewer(id: number) {
+  async function removeViewer(id: string) {
     if (!confirm("Remove this person's access?")) return;
     await api.delete(`/share/${id}/owner`);
     setWithMe((p) => p.filter((s) => s.id !== id));
   }
 
-  async function disconnect(id: number) {
+  async function disconnect(id: string) {
     if (!confirm("Disconnect from this wardrobe?")) return;
     await api.delete(`/share/${id}/viewer`);
     setICanSee((p) => p.filter((s) => s.id !== id));

@@ -3,7 +3,7 @@ import Nav from "../components/Nav";
 import { api } from "../api";
 
 type Row = {
-  id: number;
+  id: string;
   wornOn: string;
   clothName: string;
   clothImage: string;

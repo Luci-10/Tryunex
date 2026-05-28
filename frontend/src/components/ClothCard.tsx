@@ -10,8 +10,8 @@ export default function ClothCard({
   cloth: Cloth;
   selected?: boolean;
   onClick?: () => void;
-  onMarkClean?: (id: number) => void;
-  onWearToday?: (id: number) => void;
+  onMarkClean?: (id: string) => void;
+  onWearToday?: (id: string) => void;
 }) {
   return (
     <div

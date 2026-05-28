@@ -14,12 +14,12 @@ export default function ClothDetailModal({
   onDeleted,
   onWearToday,
 }: {
-  clothId: number | null;
+  clothId: string | null;
   open: boolean;
   onClose: () => void;
   onSaved: (c: Cloth) => void;
-  onDeleted: (id: number) => void;
-  onWearToday: (id: number) => Promise<void>;
+  onDeleted: (id: string) => void;
+  onWearToday: (id: string) => Promise<void>;
 }) {
   const [data, setData] = useState<Detail | null>(null);
   const [name, setName] = useState("");
