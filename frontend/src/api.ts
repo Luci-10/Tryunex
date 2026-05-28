@@ -58,4 +58,5 @@ export type Cloth = {
   imageUrl: string;
   status: "clean" | "worn";
   createdAt: string;
+  lastWornOn?: string | null;
 };

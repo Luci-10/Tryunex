@@ -53,8 +53,7 @@ export default function Wardrobe() {
   }
 
   async function wearToday(id: string) {
-    const date = new Date().toISOString().slice(0, 10);
-    await api.post("/clothes/wear", { ids: [id], date });
+    await api.post("/clothes/wear", { ids: [id] });
     setClean((p) => p.filter((c) => c.id !== id));
     setWornCount((n) => n + 1);
     flash("Moved to Worn pile");

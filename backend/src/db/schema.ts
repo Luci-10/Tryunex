@@ -57,6 +57,10 @@ export const wearEvents = pgTable(
     clothId: uuid("cloth_id").notNull().references(() => clothes.id, { onDelete: "cascade" }),
     userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
     wornOn: date("worn_on").notNull(),
+    // false = future plan, not yet processed; true = past wear, already
+    // reflected in clothes.status. Lets us auto-flip planned → worn when
+    // the date passes without re-marking clothes after the laundry reset.
+    settled: boolean("settled").notNull().default(true),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (t) => ({
