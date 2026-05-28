@@ -24,20 +24,6 @@ export function createApp() {
 
   app.get("/api/health", (_req, res) => res.json({ ok: true }));
 
-  // TEMPORARY: one-shot schema migration for the plan feature. Idempotent.
-  // Remove after running once.
-  app.get("/api/_debug/add-settled", async (_req, res) => {
-    const { neon } = await import("@neondatabase/serverless");
-    const sql = neon(process.env.DATABASE_URL!);
-    try {
-      await sql`ALTER TABLE wear_events ADD COLUMN IF NOT EXISTS settled BOOLEAN NOT NULL DEFAULT true`;
-      const cols = await sql`SELECT column_name, data_type FROM information_schema.columns WHERE table_schema='public' AND table_name='wear_events' ORDER BY ordinal_position`;
-      res.json({ ok: true, wear_events_columns: cols });
-    } catch (e: any) {
-      res.status(500).json({ error: e?.message });
-    }
-  });
-
   app.use("/api/auth", authRoutes);
   app.use("/api/clothes", clothesRoutes);
   app.use("/api/history", historyRoutes);
