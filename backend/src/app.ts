@@ -127,6 +127,40 @@ export function createApp() {
     res.json({ log });
   });
 
+  // TEMPORARY: run the redeem flow via Drizzle (no auth), timing each step.
+  app.get("/api/_debug/redeem-drizzle", async (req, res) => {
+    const code = String(req.query.code ?? "").trim().toUpperCase();
+    const viewerId = "d0a86365-f000-49cc-8f97-642e681879d6"; // 2nd test user
+    const log: { step: string; ms: number; result?: unknown; error?: string }[] = [];
+    const run = async <T>(step: string, fn: () => Promise<T>): Promise<T | undefined> => {
+      const t = Date.now();
+      try {
+        const r = await fn();
+        log.push({ step, ms: Date.now() - t, result: Array.isArray(r) ? `${r.length} rows` : "ok" });
+        return r;
+      } catch (e: any) {
+        log.push({ step, ms: Date.now() - t, error: e?.message });
+        return undefined;
+      }
+    };
+    try {
+      const { db } = await import("./db/client.js");
+      const { shareCodes, shares } = await import("./db/schema.js");
+      const { and, eq } = await import("drizzle-orm");
+      // Clear any existing share for clean test
+      await run("clear share", () => db.delete(shares).where(and(eq(shares.ownerId, "ae9e9fb8-af73-407a-9cb4-9a209f112aac" as any), eq(shares.viewerId, viewerId as any))));
+      const rows = await run("select shareCodes", () => db.select().from(shareCodes).where(eq(shareCodes.code, code)).limit(1));
+      const sc = (rows as any)?.[0];
+      if (!sc) { log.push({ step: "code not found", ms: 0 }); return res.json({ log }); }
+      log.push({ step: "found code", ms: 0, result: { owner: sc.ownerId, used: sc.used } });
+      await run("insert share", () => db.insert(shares).values({ ownerId: sc.ownerId, viewerId: viewerId as any, permission: sc.permission }));
+      await run("update shareCodes", () => db.update(shareCodes).set({ used: true }).where(eq(shareCodes.id, sc.id)));
+      res.json({ log });
+    } catch (e: any) {
+      res.status(500).json({ error: e?.message, log });
+    }
+  });
+
   // TEMPORARY: try the EXACT INSERT that /share/redeem does, with hardcoded
   // UUIDs of the two known test users. If this hangs, the INSERT itself is
   // the problem (FK check, lock, etc.).
