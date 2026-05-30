@@ -5,6 +5,7 @@ const TABS = [
   { to: "/", label: "Wardrobe", end: true },
   { to: "/worn", label: "Worn" },
   { to: "/plan", label: "Plan" },
+  { to: "/tryon", label: "Try-on" },
   { to: "/shared", label: "Shared" },
   { to: "/history", label: "History" },
   { to: "/account", label: "Account" },

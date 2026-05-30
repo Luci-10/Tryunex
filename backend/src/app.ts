@@ -8,6 +8,8 @@ import authRoutes from "./routes/auth.js";
 import clothesRoutes from "./routes/clothes.js";
 import sharingRoutes from "./routes/sharing.js";
 import historyRoutes from "./routes/history.js";
+import chatRoutes from "./routes/chat.js";
+import tryonRoutes from "./routes/tryon.js";
 
 export function createApp() {
   const app = express();
@@ -41,6 +43,8 @@ export function createApp() {
   app.use("/api/auth", authRoutes);
   app.use("/api/clothes", clothesRoutes);
   app.use("/api/history", historyRoutes);
+  app.use("/api/chat", chatRoutes);
+  app.use("/api/tryon", tryonRoutes);
   // sharing.ts owns /share/*, /friends/*, /suggestions/* — mounted under /api.
   app.use("/api", sharingRoutes);
 

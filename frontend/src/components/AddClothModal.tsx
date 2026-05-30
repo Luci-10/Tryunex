@@ -25,18 +25,34 @@ const CATEGORIES = ["top", "bottom", "dress", "outerwear", "shoes", "accessory",
 // 800px is plenty for the wardrobe grid (cards render ~200-400px wide) and
 // keeps uploads small for users on slower connections — Vercel Blob lives in
 // the US, so a smaller payload meaningfully cuts upload time from India.
+// 800px is plenty for the wardrobe grid (cards render ~200-400px wide) and
+// keeps uploads small for users on slower connections.
 async function resizeImage(file: File, maxSide = 800, quality = 0.78): Promise<Blob> {
-  const bitmap = await createImageBitmap(file);
-  const scale = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));
-  const w = Math.round(bitmap.width * scale);
-  const h = Math.round(bitmap.height * scale);
+  const imageUrl = URL.createObjectURL(file);
+  const img = new Image();
+  img.src = imageUrl;
+
+  await new Promise((resolve, reject) => {
+    img.onload = resolve;
+    img.onerror = () => reject(new Error("Failed to load image for resizing"));
+  });
+
+  const scale = Math.min(1, maxSide / Math.max(img.width, img.height));
+  const w = Math.round(img.width * scale);
+  const h = Math.round(img.height * scale);
+
   const canvas = document.createElement("canvas");
   canvas.width = w;
   canvas.height = h;
   const ctx = canvas.getContext("2d");
-  if (!ctx) throw new Error("Canvas not supported");
-  ctx.drawImage(bitmap, 0, 0, w, h);
-  bitmap.close();
+  if (!ctx) {
+    URL.revokeObjectURL(imageUrl);
+    throw new Error("Canvas not supported");
+  }
+
+  ctx.drawImage(img, 0, 0, w, h);
+  URL.revokeObjectURL(imageUrl);
+
   return await new Promise<Blob>((resolve, reject) => {
     canvas.toBlob(
       (blob) => (blob ? resolve(blob) : reject(new Error("Failed to encode image"))),

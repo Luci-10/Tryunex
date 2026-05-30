@@ -109,7 +109,20 @@ export const suggestions = pgTable("suggestions", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
+// Try-on assets — both the user's reference selfie(s) and generated try-on
+// results. type='selfie' rows have no cloth_id; type='result' rows reference
+// the cloth used. "Current" selfie = newest type='selfie' row for the user.
+export const tryonAssets = pgTable("tryon_assets", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  type: text("type").notNull(), // 'selfie' | 'result'
+  imageUrl: text("image_url").notNull(),
+  clothId: uuid("cloth_id").references(() => clothes.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
 export type User = typeof users.$inferSelect;
 export type Cloth = typeof clothes.$inferSelect;
 export type Share = typeof shares.$inferSelect;
 export type Suggestion = typeof suggestions.$inferSelect;
+export type TryonAsset = typeof tryonAssets.$inferSelect;

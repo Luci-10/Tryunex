@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import Modal from "./Modal";
 import Lightbox from "./Lightbox";
 import { api, type Cloth } from "../api";
+import { useChat } from "../chat";
+import { useTryOn } from "../tryon";
 
 const CATEGORIES = ["top", "bottom", "dress", "outerwear", "shoes", "accessory", "other"];
 
@@ -28,6 +30,8 @@ export default function ClothDetailModal({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [zoom, setZoom] = useState(false);
+  const { openChat } = useChat();
+  const { tryOn } = useTryOn();
 
   useEffect(() => {
     if (!open || !clothId) return;
@@ -139,6 +143,27 @@ export default function ClothDetailModal({
               {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
             </select>
           </label>
+
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              onClick={() => {
+                tryOn(data.cloth);
+                onClose();
+              }}
+              className="bg-brand-50 hover:bg-brand-100 text-brand-700 rounded-lg py-2 text-sm font-medium"
+            >
+              👤 Try this on
+            </button>
+            <button
+              onClick={() => {
+                openChat(data.cloth);
+                onClose();
+              }}
+              className="bg-brand-50 hover:bg-brand-100 text-brand-700 rounded-lg py-2 text-sm font-medium"
+            >
+              💬 Ask AI
+            </button>
+          </div>
 
           <div className="flex gap-2 pt-2">
             <button

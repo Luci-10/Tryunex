@@ -1,10 +1,15 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import { useAuth } from "./auth";
+import { ChatProvider } from "./chat";
+import { TryOnProvider } from "./tryon";
+import ChatFab from "./components/ChatFab";
+import ChatPanel from "./components/ChatPanel";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Wardrobe from "./pages/Wardrobe";
 import Worn from "./pages/Worn";
 import Plan from "./pages/Plan";
+import Tryon from "./pages/Tryon";
 import Shared from "./pages/Shared";
 import Friend from "./pages/Friend";
 import History from "./pages/History";
@@ -20,17 +25,24 @@ function Private({ children }: { children: React.ReactNode }) {
 export default function App() {
   const { user, loading } = useAuth();
   return (
-    <Routes>
-      <Route path="/login" element={user && !loading ? <Navigate to="/" replace /> : <Login />} />
-      <Route path="/register" element={user && !loading ? <Navigate to="/" replace /> : <Register />} />
-      <Route path="/" element={<Private><Wardrobe /></Private>} />
-      <Route path="/worn" element={<Private><Worn /></Private>} />
-      <Route path="/plan" element={<Private><Plan /></Private>} />
-      <Route path="/shared" element={<Private><Shared /></Private>} />
-      <Route path="/friends/:ownerId" element={<Private><Friend /></Private>} />
-      <Route path="/history" element={<Private><History /></Private>} />
-      <Route path="/account" element={<Private><Account /></Private>} />
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+    <ChatProvider>
+    <TryOnProvider>
+      <Routes>
+        <Route path="/login" element={user && !loading ? <Navigate to="/" replace /> : <Login />} />
+        <Route path="/register" element={user && !loading ? <Navigate to="/" replace /> : <Register />} />
+        <Route path="/" element={<Private><Wardrobe /></Private>} />
+        <Route path="/worn" element={<Private><Worn /></Private>} />
+        <Route path="/plan" element={<Private><Plan /></Private>} />
+        <Route path="/tryon" element={<Private><Tryon /></Private>} />
+        <Route path="/shared" element={<Private><Shared /></Private>} />
+        <Route path="/friends/:ownerId" element={<Private><Friend /></Private>} />
+        <Route path="/history" element={<Private><History /></Private>} />
+        <Route path="/account" element={<Private><Account /></Private>} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+      <ChatFab />
+      <ChatPanel />
+    </TryOnProvider>
+    </ChatProvider>
   );
 }

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { Cloth } from "../api";
 import Lightbox from "./Lightbox";
+import { useTryOn } from "../tryon";
 
 // "Worn today" / "Worn yesterday" / "Worn N days ago" / "Never worn".
 // Dates from the server are YYYY-MM-DD; compare against local midnight to
@@ -30,6 +31,7 @@ export default function ClothCard({
   onWearToday?: (id: string) => void;
 }) {
   const [zoom, setZoom] = useState(false);
+  const { tryOn } = useTryOn();
 
   return (
     <>
@@ -49,6 +51,17 @@ export default function ClothCard({
           {selected && (
             <span className="absolute top-2 left-2 bg-brand-600 text-white text-xs px-2 py-0.5 rounded-full">✓</span>
           )}
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              tryOn(cloth);
+            }}
+            className="absolute bottom-2 left-2 bg-white/95 hover:bg-white text-brand-700 text-xs font-medium px-2.5 py-1 rounded-full shadow-md flex items-center gap-1"
+            aria-label="Try on"
+            title="Try on"
+          >
+            <span>👤</span><span>Try</span>
+          </button>
           {onWearToday && cloth.status === "clean" && (
             <button
               onClick={(e) => {
