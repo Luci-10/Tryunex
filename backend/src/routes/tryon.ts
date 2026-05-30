@@ -40,6 +40,11 @@ async function ensureSchema() {
     `;
     await sql`CREATE INDEX IF NOT EXISTS "tryon_user_idx" ON "tryon_assets" ("user_id")`;
     await sql`CREATE INDEX IF NOT EXISTS "tryon_user_type_idx" ON "tryon_assets" ("user_id", "type", "created_at" DESC)`;
+    // Cache columns: same outfit (sorted CSV of cloth ids) + same selfie =
+    // cache hit, skip Gemini, return existing URL.
+    await sql`ALTER TABLE "tryon_assets" ADD COLUMN IF NOT EXISTS "cloth_ids_csv" text`;
+    await sql`ALTER TABLE "tryon_assets" ADD COLUMN IF NOT EXISTS "selfie_id" uuid`;
+    await sql`CREATE INDEX IF NOT EXISTS "tryon_cache_idx" ON "tryon_assets" ("user_id", "cloth_ids_csv", "selfie_id")`;
   })();
   return schemaReady;
 }
@@ -166,6 +171,34 @@ router.post("/generate", async (req, res) => {
   const orderedClothes = requestedIds.map((id) => byId.get(id)).filter(Boolean) as typeof clothRows;
   if (orderedClothes.length === 0) return res.status(404).json({ error: "Cloth not found" });
 
+  // Cache: if we've already generated this exact outfit on this exact
+  // selfie, skip Gemini and return the prior result. Saves $0.04 + 10s
+  // per re-apply when the user toggles between outfits.
+  const clothIdsCsv = [...orderedClothes.map((c) => c.id)].sort().join(",");
+  const { neon } = await import("@neondatabase/serverless");
+  const sql = neon(process.env.DATABASE_URL!);
+  const cached = (await sql`
+    SELECT id, image_url, created_at FROM tryon_assets
+    WHERE user_id = ${req.userId!}
+      AND type = 'result'
+      AND cloth_ids_csv = ${clothIdsCsv}
+      AND selfie_id = ${selfieRow.id}
+    LIMIT 1
+  `) as Array<{ id: string; image_url: string; created_at: string }>;
+  if (cached.length > 0) {
+    const c = cached[0];
+    return res.json({
+      result: {
+        id: c.id,
+        imageUrl: c.image_url,
+        createdAt: c.created_at,
+        clothId: orderedClothes[0].id,
+      },
+      clothes: orderedClothes,
+      cached: true,
+    });
+  }
+
   let client: GoogleGenAI;
   try {
     client = ai();
@@ -227,18 +260,24 @@ router.post("/generate", async (req, res) => {
       return res.status(502).json({ error: `R2 upload failed: ${put.status} ${body}` });
     }
 
-    // Store first cloth as the "primary" — history shows that cloth's
-    // thumbnail. The composite image itself shows the full outfit.
-    const [row] = await db
-      .insert(tryonAssets)
-      .values({
-        userId: req.userId!,
-        type: "result",
-        imageUrl: publicUrl,
+    // Insert with cache keys (cloth_ids_csv + selfie_id) via raw SQL so
+    // future calls with the same outfit + selfie hit the cache above.
+    const inserted = (await sql`
+      INSERT INTO tryon_assets (user_id, type, image_url, cloth_id, cloth_ids_csv, selfie_id)
+      VALUES (${req.userId!}, 'result', ${publicUrl}, ${orderedClothes[0].id}, ${clothIdsCsv}, ${selfieRow.id})
+      RETURNING id, image_url, created_at
+    `) as Array<{ id: string; image_url: string; created_at: string }>;
+    const row = inserted[0];
+    res.json({
+      result: {
+        id: row.id,
+        imageUrl: row.image_url,
+        createdAt: row.created_at,
         clothId: orderedClothes[0].id,
-      })
-      .returning();
-    res.json({ result: row, clothes: orderedClothes });
+      },
+      clothes: orderedClothes,
+      cached: false,
+    });
   } catch (e: any) {
     console.error("[tryon] generate failed", e);
     res.status(500).json({ error: e?.message ?? "Generation failed" });

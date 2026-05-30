@@ -10,9 +10,14 @@ type Result = {
   imageUrl: string;
   createdAt: string;
   clothId: string | null;
-  clothName: string | null;
-  clothImageUrl: string | null;
 };
+
+// Whatever is shown in the hero slot at the top — either the user's actual
+// selfie or the most recent try-on preview. Purely client state; refresh /
+// logout resets it back to `selfie`.
+type Displayed =
+  | { kind: "selfie" }
+  | { kind: "tryon"; url: string; outfitLabel: string };
 
 async function resizeImage(file: File, maxSide = 1024, quality = 0.85): Promise<Blob> {
   const bitmap = await createImageBitmap(file);
@@ -56,7 +61,7 @@ export default function Tryon() {
   const { outfits, newOutfit, deleteOutfit, addCloth, removeCloth } = useTryOn();
   const [selfie, setSelfie] = useState<Selfie | null>(null);
   const [clothes, setClothes] = useState<Cloth[]>([]);
-  const [results, setResults] = useState<Result[]>([]);
+  const [displayed, setDisplayed] = useState<Displayed>({ kind: "selfie" });
   const [loading, setLoading] = useState(true);
   const [busyOutfitId, setBusyOutfitId] = useState<string | null>(null);
   const [uploadingSelfie, setUploadingSelfie] = useState(false);
@@ -68,14 +73,14 @@ export default function Tryon() {
   async function load() {
     setLoading(true);
     try {
-      const [s, c, h] = await Promise.all([
+      // History endpoint isn't used here — try-on results now live only in
+      // the displayed slot (ephemeral) and the backend cache (for re-use).
+      const [s, c] = await Promise.all([
         api.get<{ selfie: Selfie | null }>("/tryon/selfie"),
         api.get<{ clothes: Cloth[] }>("/clothes?status=clean"),
-        api.get<{ results: Result[] }>("/tryon/history"),
       ]);
       setSelfie(s.selfie);
       setClothes(c.clothes);
-      setResults(h.results);
     } catch (err: any) {
       setError(err.message ?? "Could not load");
     } finally {
@@ -121,18 +126,16 @@ export default function Tryon() {
     setError(null);
     setBusyOutfitId(outfit.id);
     try {
-      const r = await api.post<{ result: Result; clothes: Cloth[] }>("/tryon/generate", {
+      const r = await api.post<{ result: Result; cached: boolean }>("/tryon/generate", {
         clothIds: outfit.clothes.map((c) => c.id),
       });
-      const first = outfit.clothes[0];
-      const newRow: Result = {
-        ...r.result,
-        clothName: first.name + (outfit.clothes.length > 1 ? ` + ${outfit.clothes.length - 1} more` : ""),
-        clothImageUrl: first.imageUrl,
-      };
-      setResults((prev) => [newRow, ...prev]);
-      deleteOutfit(outfit.id);
-      setZoom(r.result.imageUrl);
+      const label =
+        outfit.clothes.length === 1
+          ? outfit.clothes[0].name
+          : `${outfit.clothes[0].name} + ${outfit.clothes.length - 1} more`;
+      // Replace the displayed image with the try-on result. Outfit stays
+      // in pending so the user can re-apply (cache makes that instant).
+      setDisplayed({ kind: "tryon", url: r.result.imageUrl, outfitLabel: label });
     } catch (err: any) {
       setError(err.message ?? "Try-on failed");
     } finally {
@@ -140,10 +143,8 @@ export default function Tryon() {
     }
   }
 
-  async function deleteResult(id: string) {
-    if (!confirm("Delete this try-on?")) return;
-    await api.delete(`/tryon/${id}`);
-    setResults((prev) => prev.filter((r) => r.id !== id));
+  function showOriginal() {
+    setDisplayed({ kind: "selfie" });
   }
 
   if (loading) {
@@ -180,40 +181,66 @@ export default function Tryon() {
           </p>
         </div>
 
-        {/* Selfie — hero block at the top so the user sees their own face
-            front-and-center on every visit. Bigger than the original
-            sidebar thumbnail. */}
+        {/* Hero block — shows either the actual selfie or the last try-on
+            result. Replacing the selfie file goes via the dashed border;
+            the try-on overlay shows what's currently displayed and offers
+            "Show original" to revert. */}
         <section className="bg-white rounded-2xl shadow-sm p-4 flex flex-col items-center gap-3">
-          <label className="relative w-56 h-56 sm:w-64 sm:h-64 bg-brand-50 rounded-2xl border-2 border-dashed border-brand-200 flex items-center justify-center cursor-pointer overflow-hidden">
-            {selfie ? (
-              <img src={selfie.imageUrl} alt="Your selfie" className="w-full h-full object-cover" />
+          <div className="relative w-56 h-56 sm:w-64 sm:h-64">
+            {displayed.kind === "tryon" ? (
+              <>
+                <img
+                  src={displayed.url}
+                  alt="Try-on preview"
+                  className="w-full h-full rounded-2xl object-cover bg-gray-100 cursor-zoom-in"
+                  onClick={() => setZoom(displayed.url)}
+                />
+                <span className="absolute top-2 left-2 bg-brand-600 text-white text-[10px] font-medium px-2 py-1 rounded-full shadow">
+                  Wearing: {displayed.outfitLabel}
+                </span>
+              </>
             ) : (
-              <span className="text-brand-600 text-sm text-center px-3">
-                Tap to upload your<br />try-on photo
-              </span>
+              <label className="relative w-full h-full bg-brand-50 rounded-2xl border-2 border-dashed border-brand-200 flex items-center justify-center cursor-pointer overflow-hidden block">
+                {selfie ? (
+                  <img src={selfie.imageUrl} alt="Your selfie" className="w-full h-full object-cover" />
+                ) : (
+                  <span className="text-brand-600 text-sm text-center px-3">
+                    Tap to upload your<br />try-on photo
+                  </span>
+                )}
+                <input
+                  type="file"
+                  accept="image/*"
+                  capture="user"
+                  disabled={uploadingSelfie}
+                  className="absolute inset-0 opacity-0 cursor-pointer"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) onSelfieChange(f);
+                  }}
+                />
+                {uploadingSelfie && (
+                  <span className="absolute inset-x-0 bottom-0 bg-black/60 text-white text-xs text-center py-1">
+                    Uploading {uploadProgress ?? 0}%…
+                  </span>
+                )}
+              </label>
             )}
-            <input
-              type="file"
-              accept="image/*"
-              capture="user"
-              disabled={uploadingSelfie}
-              className="absolute inset-0 opacity-0 cursor-pointer"
-              onChange={(e) => {
-                const f = e.target.files?.[0];
-                if (f) onSelfieChange(f);
-              }}
-            />
-            {uploadingSelfie && (
-              <span className="absolute inset-x-0 bottom-0 bg-black/60 text-white text-xs text-center py-1">
-                Uploading {uploadProgress ?? 0}%…
-              </span>
-            )}
-          </label>
-          <div className="text-xs text-gray-500 text-center max-w-xs">
-            {selfie
-              ? "Tap the photo to replace it. Front-facing, plain background works best."
-              : "Front-facing, plain background, upper-body or full-body works best."}
           </div>
+          {displayed.kind === "tryon" ? (
+            <button
+              onClick={showOriginal}
+              className="text-xs bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 font-medium px-3 py-1.5 rounded-full"
+            >
+              ← Show original photo
+            </button>
+          ) : (
+            <div className="text-xs text-gray-500 text-center max-w-xs">
+              {selfie
+                ? "Tap the photo to replace it. Front-facing, plain background works best."
+                : "Front-facing, plain background, upper-body or full-body works best."}
+            </div>
+          )}
         </section>
 
         {error && (
@@ -296,43 +323,6 @@ export default function Tryon() {
           )}
         </section>
 
-        {/* History */}
-        {results.length > 0 && (
-          <section className="space-y-3">
-            <h2 className="text-sm font-semibold text-gray-700">Your try-ons</h2>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-              {results.map((r) => (
-                <div key={r.id} className="bg-white rounded-xl shadow-sm overflow-hidden">
-                  <div
-                    className="aspect-square cursor-zoom-in"
-                    onClick={() => setZoom(r.imageUrl)}
-                  >
-                    <img src={r.imageUrl} alt="Try-on" className="w-full h-full object-cover" />
-                  </div>
-                  <div className="p-2 flex items-center gap-2">
-                    {r.clothImageUrl && (
-                      <img
-                        src={r.clothImageUrl}
-                        alt=""
-                        className="w-6 h-6 rounded object-cover bg-gray-100 flex-shrink-0"
-                      />
-                    )}
-                    <div className="flex-1 min-w-0 text-xs text-gray-600 truncate">
-                      {r.clothName ?? "Outfit"}
-                    </div>
-                    <button
-                      onClick={() => deleteResult(r.id)}
-                      className="text-xs text-red-600 hover:text-red-700"
-                      aria-label="Delete"
-                    >
-                      ×
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
-        )}
       </main>
     </>
   );
