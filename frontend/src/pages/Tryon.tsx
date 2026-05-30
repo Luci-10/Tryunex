@@ -176,9 +176,45 @@ export default function Tryon() {
         <div>
           <h1 className="text-xl font-bold">Try-on Studio</h1>
           <p className="text-sm text-gray-600">
-            Build one or more outfits below, then tap <em>Put on me</em> to see each one on you. Best for tops &amp; outerwear.
+            Build outfits below and tap <em>Put on me</em> to see each one on you.
           </p>
         </div>
+
+        {/* Selfie — hero block at the top so the user sees their own face
+            front-and-center on every visit. Bigger than the original
+            sidebar thumbnail. */}
+        <section className="bg-white rounded-2xl shadow-sm p-4 flex flex-col items-center gap-3">
+          <label className="relative w-56 h-56 sm:w-64 sm:h-64 bg-brand-50 rounded-2xl border-2 border-dashed border-brand-200 flex items-center justify-center cursor-pointer overflow-hidden">
+            {selfie ? (
+              <img src={selfie.imageUrl} alt="Your selfie" className="w-full h-full object-cover" />
+            ) : (
+              <span className="text-brand-600 text-sm text-center px-3">
+                Tap to upload your<br />try-on photo
+              </span>
+            )}
+            <input
+              type="file"
+              accept="image/*"
+              capture="user"
+              disabled={uploadingSelfie}
+              className="absolute inset-0 opacity-0 cursor-pointer"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) onSelfieChange(f);
+              }}
+            />
+            {uploadingSelfie && (
+              <span className="absolute inset-x-0 bottom-0 bg-black/60 text-white text-xs text-center py-1">
+                Uploading {uploadProgress ?? 0}%…
+              </span>
+            )}
+          </label>
+          <div className="text-xs text-gray-500 text-center max-w-xs">
+            {selfie
+              ? "Tap the photo to replace it. Front-facing, plain background works best."
+              : "Front-facing, plain background, upper-body or full-body works best."}
+          </div>
+        </section>
 
         {error && (
           <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-3 py-2">
@@ -219,48 +255,6 @@ export default function Tryon() {
               />
             ))
           )}
-        </section>
-
-        {/* Selfie */}
-        <section className="bg-white rounded-2xl shadow-sm p-4">
-          <h2 className="text-sm font-semibold text-gray-700 mb-3">Your try-on photo</h2>
-          <div className="flex items-start gap-4">
-            <label className="relative w-32 h-32 bg-brand-50 rounded-xl border-2 border-dashed border-brand-200 flex items-center justify-center cursor-pointer overflow-hidden flex-shrink-0">
-              {selfie ? (
-                <img src={selfie.imageUrl} alt="Your selfie" className="w-full h-full object-cover" />
-              ) : (
-                <span className="text-brand-600 text-xs text-center px-2">Tap to upload</span>
-              )}
-              <input
-                type="file"
-                accept="image/*"
-                capture="user"
-                disabled={uploadingSelfie}
-                className="absolute inset-0 opacity-0 cursor-pointer"
-                onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  if (f) onSelfieChange(f);
-                }}
-              />
-            </label>
-            <div className="flex-1 text-sm text-gray-600 space-y-1">
-              {selfie ? (
-                <>
-                  <p className="text-gray-800 font-medium">Looking good 👍</p>
-                  <p>Tap the photo to replace it.</p>
-                  <p className="text-xs text-gray-500">Best results: front-facing, plain background, full-body.</p>
-                </>
-              ) : (
-                <>
-                  <p className="text-gray-800 font-medium">Add a selfie to get started</p>
-                  <p className="text-xs">Front-facing, plain background.</p>
-                  {uploadingSelfie && (
-                    <p className="text-xs text-brand-700">Uploading {uploadProgress ?? 0}%…</p>
-                  )}
-                </>
-              )}
-            </div>
-          </div>
         </section>
 
         {/* Cloth picker — adds to the last outfit (or creates one) */}
@@ -377,13 +371,6 @@ function OutfitCard({
             <span className="ml-2 text-xs text-brand-700 font-normal">· active</span>
           )}
         </h3>
-        <button
-          onClick={onDiscard}
-          disabled={busy}
-          className="text-xs text-gray-500 hover:text-red-600 disabled:opacity-50"
-        >
-          Discard
-        </button>
       </div>
 
       {empty ? (
@@ -413,19 +400,28 @@ function OutfitCard({
         </div>
       )}
 
-      {!empty && (
+      <div className="flex gap-2">
         <button
-          onClick={onApply}
-          disabled={busy || !hasSelfie}
-          className="w-full bg-brand-600 hover:bg-brand-700 text-white rounded-lg py-2.5 font-medium disabled:opacity-50"
+          onClick={onDiscard}
+          disabled={busy}
+          className="flex-1 bg-white hover:bg-red-50 hover:text-red-700 hover:border-red-300 text-gray-700 border border-gray-300 rounded-lg py-2.5 font-medium disabled:opacity-50"
         >
-          {busy
-            ? "Generating…"
-            : !hasSelfie
-            ? "Upload selfie first ↓"
-            : `Put on me (${outfit.clothes.length})`}
+          Discard
         </button>
-      )}
+        {!empty && (
+          <button
+            onClick={onApply}
+            disabled={busy || !hasSelfie}
+            className="flex-1 bg-brand-600 hover:bg-brand-700 text-white rounded-lg py-2.5 font-medium disabled:opacity-50"
+          >
+            {busy
+              ? "Generating…"
+              : !hasSelfie
+              ? "Upload selfie ↓"
+              : `Put on me (${outfit.clothes.length})`}
+          </button>
+        )}
+      </div>
       {busy && (
         <p className="text-xs text-gray-500 text-center">Takes 5-15 seconds. Hold tight.</p>
       )}
