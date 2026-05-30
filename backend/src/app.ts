@@ -23,12 +23,18 @@ export function createApp() {
     "https://www.tryunex.in",
     process.env.FRONTEND_ORIGIN ?? "http://localhost:5173",
   ]);
+  // Vercel preview deploys live at <project>-<hash>-<team>.vercel.app —
+  // a different origin per push, so the explicit allowlist can't cover them.
+  // Allow any vercel.app subdomain so previews of this branch (and others)
+  // work without a manual config update.
+  const VERCEL_HOST = /^https:\/\/[a-z0-9-]+\.vercel\.app$/;
   app.use(
     cors({
       origin: (origin, cb) => {
         // Same-origin / curl / server-to-server have no Origin header.
         if (!origin) return cb(null, true);
         if (allowedOrigins.has(origin)) return cb(null, true);
+        if (VERCEL_HOST.test(origin)) return cb(null, true);
         cb(new Error(`CORS: origin not allowed: ${origin}`));
       },
       credentials: true,
