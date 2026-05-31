@@ -13,6 +13,7 @@ import Tryon from "./pages/Tryon";
 import Shared from "./pages/Shared";
 import Friend from "./pages/Friend";
 import History from "./pages/History";
+import Contact from "./pages/Contact";
 import Account from "./pages/Account";
 
 function Private({ children }: { children: React.ReactNode }) {
@@ -37,6 +38,7 @@ export default function App() {
         <Route path="/shared" element={<Private><Shared /></Private>} />
         <Route path="/friends/:ownerId" element={<Private><Friend /></Private>} />
         <Route path="/history" element={<Private><History /></Private>} />
+        <Route path="/contact" element={<Private><Contact /></Private>} />
         <Route path="/account" element={<Private><Account /></Private>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
