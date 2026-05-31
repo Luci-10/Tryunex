@@ -136,11 +136,13 @@ export default function AddClothModal({
           ) : (
             <span className="text-brand-600 text-sm text-center px-4">Tap to choose a photo<br /><span className="text-xs text-gray-500">(or take one with your camera)</span></span>
           )}
+          {/* No `capture` attr — phone OS shows the picker with both
+              "Take photo" and "Choose from gallery". With capture set,
+              gallery is skipped entirely. */}
           <input
             name="image"
             type="file"
             accept="image/*"
-            capture="environment"
             required
             className="absolute inset-0 opacity-0 cursor-pointer"
             onChange={(e) => {

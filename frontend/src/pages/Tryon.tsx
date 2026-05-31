@@ -211,7 +211,6 @@ export default function Tryon() {
                 <input
                   type="file"
                   accept="image/*"
-                  capture="user"
                   disabled={uploadingSelfie}
                   className="absolute inset-0 opacity-0 cursor-pointer"
                   onChange={(e) => {
