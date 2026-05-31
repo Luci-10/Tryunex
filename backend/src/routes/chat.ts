@@ -54,7 +54,7 @@ async function buildWardrobeContext(userId: string): Promise<string> {
   return lines.join("\n");
 }
 
-const SYSTEM_BASE = `You are Tryunex, a friendly wardrobe assistant. You help the user pick outfits, plan what to wear, and care for their clothes.
+const SYSTEM_BASE = `You are TryUnex, a friendly wardrobe assistant. You help the user pick outfits, plan what to wear, and care for their clothes.
 
 Style:
 - Concise. Use short sentences and bullet points.

@@ -2,7 +2,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
   appId: 'in.tryunex.app',
-  appName: 'Tryunex',
+  appName: 'TryUnex',
   webDir: 'dist',
   plugins: {
     CapacitorHttp: {

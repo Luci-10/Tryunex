@@ -105,7 +105,7 @@ export default function ChatPanel() {
       <div className="bg-white shadow-2xl rounded-t-2xl sm:rounded-2xl flex flex-col h-[75vh] sm:h-[70vh]">
         <header className="flex items-center gap-2 px-4 py-3 border-b">
           <div className="flex-1">
-            <div className="font-semibold text-sm">Ask Tryunex</div>
+            <div className="font-semibold text-sm">Ask TryUnex</div>
             {attached && (
               <div className="text-xs text-brand-700 mt-0.5">Asking about: {attached.name}</div>
             )}
