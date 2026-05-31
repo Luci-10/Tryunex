@@ -4,6 +4,7 @@ node_modules
 .DS_Store
 ._*
 .claude/
+.idea/
 *.log
 
 # build outputs
