@@ -1,37 +1,40 @@
-import { createContext, useContext, useState, type ReactNode } from "react";
-import { useNavigate } from "react-router-dom";
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import type { Cloth } from "./api";
 
 export type Outfit = { id: string; clothes: Cloth[] };
 
-// The Try-on page can hold multiple pending outfits in parallel — each is
-// an independent group of clothes the user wants to compose and try on.
-// "Try" from anywhere appends a cloth to the most recent (active) outfit,
-// creating one if needed. Users build subsequent outfits by hitting
-// "+ New outfit" on the page.
 type TryonState = {
   outfits: Outfit[];
-  // Lifecycle
   newOutfit: () => string;
   deleteOutfit: (outfitId: string) => void;
-  // Items
   addCloth: (outfitId: string, cloth: Cloth) => void;
   removeCloth: (outfitId: string, clothId: string) => void;
-  // Cloth-card entry point — adds to the latest outfit (or starts a new
-  // one if there are no outfits yet) and navigates to /tryon.
+  // Adds the cloth to the latest outfit (or starts a new one) and shows
+  // a toast confirming. Does NOT navigate — user stays on whatever page
+  // they were on, and visits /tryon when ready.
   tryOn: (cloth: Cloth) => void;
 };
 
 const Ctx = createContext<TryonState | null>(null);
 
 function uid() {
-  // Small client-side id — only used to key React lists, never sent to the server.
   return Math.random().toString(36).slice(2, 10);
 }
 
 export function TryOnProvider({ children }: { children: ReactNode }) {
-  const nav = useNavigate();
   const [outfits, setOutfits] = useState<Outfit[]>([]);
+  const [toast, setToast] = useState<string | null>(null);
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  function flash(msg: string) {
+    setToast(msg);
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToast(null), 2500);
+  }
+
+  useEffect(() => () => {
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+  }, []);
 
   function newOutfit() {
     const id = uid();
@@ -62,21 +65,38 @@ export function TryOnProvider({ children }: { children: ReactNode }) {
   }
 
   function tryOn(cloth: Cloth) {
+    let action: "duplicate" | "appended" | "new" = "appended";
     setOutfits((prev) => {
       if (prev.length === 0) {
+        action = "new";
         return [{ id: uid(), clothes: [cloth] }];
       }
-      // Add to the last (most recently created) outfit, skipping dupes.
       const last = prev[prev.length - 1];
-      if (last.clothes.some((c) => c.id === cloth.id)) return prev;
+      if (last.clothes.some((c) => c.id === cloth.id)) {
+        action = "duplicate";
+        return prev;
+      }
+      action = last.clothes.length === 0 ? "new" : "appended";
       return [...prev.slice(0, -1), { ...last, clothes: [...last.clothes, cloth] }];
     });
-    nav("/tryon");
+    // Toast can't read state synchronously after setState, so derive from `action`.
+    queueMicrotask(() => {
+      if (action === "duplicate") flash(`${cloth.name} is already in your outfit`);
+      else if (action === "new") flash(`Started a new outfit with ${cloth.name}`);
+      else flash(`Added ${cloth.name} to the outfit`);
+    });
   }
 
   return (
     <Ctx.Provider value={{ outfits, newOutfit, deleteOutfit, addCloth, removeCloth, tryOn }}>
       {children}
+      {toast && (
+        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 pointer-events-none">
+          <div className="bg-gray-900 text-white text-sm px-4 py-2 rounded-full shadow-lg pointer-events-auto">
+            {toast}
+          </div>
+        </div>
+      )}
     </Ctx.Provider>
   );
 }
