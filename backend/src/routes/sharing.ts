@@ -11,6 +11,20 @@ function todayStr() {
   return new Date().toISOString().slice(0, 10);
 }
 
+// One-time additive migration for the allow_tryon flag on share_codes and
+// shares. Idempotent — runs once per cold start, no separate migration step.
+let shareSchemaReady: Promise<void> | null = null;
+async function ensureShareSchema() {
+  if (shareSchemaReady) return shareSchemaReady;
+  shareSchemaReady = (async () => {
+    const { neon } = await import("@neondatabase/serverless");
+    const sql = neon(process.env.DATABASE_URL!);
+    await sql`ALTER TABLE share_codes ADD COLUMN IF NOT EXISTS allow_tryon BOOLEAN NOT NULL DEFAULT false`;
+    await sql`ALTER TABLE shares ADD COLUMN IF NOT EXISTS allow_tryon BOOLEAN NOT NULL DEFAULT false`;
+  })();
+  return shareSchemaReady;
+}
+
 // Mount at root: this router owns /share/*, /friends/*, /suggestions/*.
 const router = Router();
 router.use(requireAuth);
@@ -22,6 +36,7 @@ function newCode() {
 // --- Owner: codes ---
 
 router.get("/share/codes", async (req, res) => {
+  await ensureShareSchema();
   const rows = await db
     .select()
     .from(shareCodes)
@@ -31,12 +46,23 @@ router.get("/share/codes", async (req, res) => {
 });
 
 router.post("/share/codes", async (req, res) => {
-  const parse = z.object({ permission: z.enum(["view", "suggest", "edit"]) }).safeParse(req.body);
+  await ensureShareSchema();
+  const parse = z
+    .object({
+      permission: z.enum(["view", "suggest", "edit"]),
+      allowTryon: z.boolean().optional().default(false),
+    })
+    .safeParse(req.body);
   if (!parse.success) return res.status(400).json({ error: "Invalid permission" });
   const code = newCode();
   const [row] = await db
     .insert(shareCodes)
-    .values({ ownerId: req.userId!, code, permission: parse.data.permission })
+    .values({
+      ownerId: req.userId!,
+      code,
+      permission: parse.data.permission,
+      allowTryon: parse.data.allowTryon,
+    })
     .returning();
   res.json({ code: row });
 });
@@ -51,6 +77,7 @@ router.delete("/share/codes/:id", async (req, res) => {
 // --- Viewer: redeem ---
 
 router.post("/share/redeem", async (req, res) => {
+  await ensureShareSchema();
   const parse = z.object({ code: z.string().min(1) }).safeParse(req.body);
   if (!parse.success) return res.status(400).json({ error: "Invalid code" });
   const code = parse.data.code.trim().toUpperCase();
@@ -67,11 +94,17 @@ router.post("/share/redeem", async (req, res) => {
     .where(and(eq(shares.ownerId, sc.ownerId), eq(shares.viewerId, req.userId!)))
     .limit(1);
   if (existing[0]) {
-    await db.update(shares).set({ permission: sc.permission }).where(eq(shares.id, existing[0].id));
-  } else {
     await db
-      .insert(shares)
-      .values({ ownerId: sc.ownerId, viewerId: req.userId!, permission: sc.permission });
+      .update(shares)
+      .set({ permission: sc.permission, allowTryon: sc.allowTryon })
+      .where(eq(shares.id, existing[0].id));
+  } else {
+    await db.insert(shares).values({
+      ownerId: sc.ownerId,
+      viewerId: req.userId!,
+      permission: sc.permission,
+      allowTryon: sc.allowTryon,
+    });
   }
   await db.update(shareCodes).set({ used: true }).where(eq(shareCodes.id, sc.id));
   res.json({ ok: true, ownerId: sc.ownerId });
@@ -80,10 +113,12 @@ router.post("/share/redeem", async (req, res) => {
 // --- Lists ---
 
 router.get("/share/with-me", async (req, res) => {
+  await ensureShareSchema();
   const rows = await db
     .select({
       id: shares.id,
       permission: shares.permission,
+      allowTryon: shares.allowTryon,
       createdAt: shares.createdAt,
       viewerId: users.id,
       viewerName: users.name,
@@ -96,10 +131,12 @@ router.get("/share/with-me", async (req, res) => {
 });
 
 router.get("/share/i-can-see", async (req, res) => {
+  await ensureShareSchema();
   const rows = await db
     .select({
       id: shares.id,
       permission: shares.permission,
+      allowTryon: shares.allowTryon,
       ownerId: users.id,
       ownerName: users.name,
       ownerEmail: users.email,
@@ -127,6 +164,7 @@ router.delete("/share/:id/viewer", async (req, res) => {
 // --- Friend wardrobe view + actions ---
 
 router.get("/friends/:ownerId/wardrobe", async (req, res) => {
+  await ensureShareSchema();
   const ownerId = req.params.ownerId;
   if (!ownerId) return res.status(400).json({ error: "Bad id" });
   const shareRows = await db
@@ -191,6 +229,7 @@ router.get("/friends/:ownerId/wardrobe", async (req, res) => {
 
   res.json({
     permission: share.permission,
+    allowTryon: share.allowTryon,
     owner: { id: owner.id, name: owner.name },
     clothes: items,
     plans,

@@ -23,12 +23,16 @@ export default function ClothCard({
   onClick,
   onMarkClean,
   onWearToday,
+  canTryOn = true,
 }: {
   cloth: Cloth;
   selected?: boolean;
   onClick?: () => void;
   onMarkClean?: (id: string) => void;
   onWearToday?: (id: string) => void;
+  // Hide the "Try" pill — used on friend's wardrobes when the owner
+  // didn't grant try-on access in their share code.
+  canTryOn?: boolean;
 }) {
   const [zoom, setZoom] = useState(false);
   const { tryOn } = useTryOn();
@@ -51,17 +55,19 @@ export default function ClothCard({
           {selected && (
             <span className="absolute top-2 left-2 bg-brand-600 text-white text-xs px-2 py-0.5 rounded-full">✓</span>
           )}
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              tryOn(cloth);
-            }}
-            className="absolute bottom-2 left-2 bg-white/95 hover:bg-white text-brand-700 text-xs font-medium px-2.5 py-1 rounded-full shadow-md flex items-center gap-1"
-            aria-label="Try on"
-            title="Try on"
-          >
-            <span>👤</span><span>Try</span>
-          </button>
+          {canTryOn && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                tryOn(cloth);
+              }}
+              className="absolute bottom-2 left-2 bg-white/95 hover:bg-white text-brand-700 text-xs font-medium px-2.5 py-1 rounded-full shadow-md flex items-center gap-1"
+              aria-label="Try on"
+              title="Try on"
+            >
+              <span>👤</span><span>Try</span>
+            </button>
+          )}
           {onWearToday && cloth.status === "clean" && (
             <button
               onClick={(e) => {

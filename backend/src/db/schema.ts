@@ -76,6 +76,8 @@ export const shareCodes = pgTable(
     ownerId: uuid("owner_id").notNull().references(() => users.id, { onDelete: "cascade" }),
     code: text("code").notNull(),
     permission: permissionEnum("permission").notNull().default("suggest"),
+    // Orthogonal to permission: lets the friend try owner's clothes on themselves.
+    allowTryon: boolean("allow_tryon").notNull().default(false),
     used: boolean("used").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
@@ -91,6 +93,7 @@ export const shares = pgTable(
     ownerId: uuid("owner_id").notNull().references(() => users.id, { onDelete: "cascade" }),
     viewerId: uuid("viewer_id").notNull().references(() => users.id, { onDelete: "cascade" }),
     permission: permissionEnum("permission").notNull().default("suggest"),
+    allowTryon: boolean("allow_tryon").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (t) => ({

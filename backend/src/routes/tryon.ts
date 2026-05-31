@@ -12,7 +12,7 @@ import { randomBytes } from "node:crypto";
 import { GoogleGenAI } from "@google/genai";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { db } from "../db/client.js";
-import { clothes, tryonAssets } from "../db/schema.js";
+import { clothes, shares, tryonAssets } from "../db/schema.js";
 import { requireAuth } from "../services/auth.js";
 import { presignPut, r2PublicBase } from "../services/r2.js";
 
@@ -162,13 +162,38 @@ router.post("/generate", async (req, res) => {
     .limit(1);
   if (!selfieRow) return res.status(400).json({ error: "Upload a selfie first" });
 
+  // Fetch any cloth in the requested set. Ownership check happens below so
+  // we can support outfits that include friend's clothes (when the friend
+  // granted try-on access via their share code).
   const clothRows = await db
     .select()
     .from(clothes)
-    .where(and(eq(clothes.userId, req.userId!), inArray(clothes.id, requestedIds)));
+    .where(inArray(clothes.id, requestedIds));
   if (clothRows.length === 0) return res.status(404).json({ error: "Cloth not found" });
-  const byId = new Map(clothRows.map((c) => [c.id, c]));
-  const orderedClothes = requestedIds.map((id) => byId.get(id)).filter(Boolean) as typeof clothRows;
+
+  // Build the set of friend-owners whose clothes appear in this outfit, then
+  // load shares for those owners and verify each grants try-on.
+  const foreignOwnerIds = Array.from(
+    new Set(clothRows.filter((c) => c.userId !== req.userId).map((c) => c.userId)),
+  );
+  let tryonAllowedOwners = new Set<string>();
+  if (foreignOwnerIds.length > 0) {
+    const shareRows = await db
+      .select({ ownerId: shares.ownerId, allowTryon: shares.allowTryon })
+      .from(shares)
+      .where(and(eq(shares.viewerId, req.userId!), inArray(shares.ownerId, foreignOwnerIds)));
+    tryonAllowedOwners = new Set(shareRows.filter((s) => s.allowTryon).map((s) => s.ownerId));
+  }
+  const accessible = clothRows.filter(
+    (c) => c.userId === req.userId || tryonAllowedOwners.has(c.userId),
+  );
+  if (accessible.length !== clothRows.length) {
+    return res
+      .status(403)
+      .json({ error: "One or more clothes aren't accessible for try-on" });
+  }
+  const byId = new Map(accessible.map((c) => [c.id, c]));
+  const orderedClothes = requestedIds.map((id) => byId.get(id)).filter(Boolean) as typeof accessible;
   if (orderedClothes.length === 0) return res.status(404).json({ error: "Cloth not found" });
 
   // Cache: if we've already generated this exact outfit on this exact

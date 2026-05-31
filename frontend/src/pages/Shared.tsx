@@ -3,13 +3,14 @@ import { Link, useNavigate } from "react-router-dom";
 import Nav from "../components/Nav";
 import { api } from "../api";
 
-type Code = { id: string; code: string; permission: "view" | "suggest" | "edit" };
-type WithMe = { id: string; permission: string; viewerId: string; viewerName: string; viewerEmail: string };
-type ICanSee = { id: string; permission: string; ownerId: string; ownerName: string; ownerEmail: string };
+type Code = { id: string; code: string; permission: "view" | "suggest" | "edit"; allowTryon: boolean };
+type WithMe = { id: string; permission: string; allowTryon: boolean; viewerId: string; viewerName: string; viewerEmail: string };
+type ICanSee = { id: string; permission: string; allowTryon: boolean; ownerId: string; ownerName: string; ownerEmail: string };
 
 export default function Shared() {
   const nav = useNavigate();
   const [permission, setPermission] = useState<"view" | "suggest" | "edit">("suggest");
+  const [allowTryon, setAllowTryon] = useState(false);
   const [generated, setGenerated] = useState<string | null>(null);
   const [codes, setCodes] = useState<Code[]>([]);
   const [withMe, setWithMe] = useState<WithMe[]>([]);
@@ -33,7 +34,7 @@ export default function Shared() {
   async function generate() {
     setBusy(true);
     try {
-      const r = await api.post<{ code: Code }>("/share/codes", { permission });
+      const r = await api.post<{ code: Code }>("/share/codes", { permission, allowTryon });
       setGenerated(r.code.code);
       setCodes((p) => [r.code, ...p]);
     } finally { setBusy(false); }
@@ -97,6 +98,15 @@ export default function Shared() {
               {permission === "suggest" && "Friend can propose outfits; you approve."}
               {permission === "edit" && "Friend can mark your clothes as worn directly."}
             </p>
+            <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={allowTryon}
+                onChange={(e) => setAllowTryon(e.target.checked)}
+                className="accent-brand-600 w-4 h-4"
+              />
+              <span>Also let them <strong>try on</strong> your clothes (uses their selfie)</span>
+            </label>
             <div className="flex items-center gap-3 flex-wrap">
               <button
                 disabled={busy}
@@ -125,7 +135,7 @@ export default function Shared() {
                 <div key={c.id} className="flex items-center justify-between text-sm">
                   <span>
                     <code className="font-mono bg-gray-100 px-2 py-0.5 rounded">{c.code}</code>
-                    <span className="text-gray-500 ml-2 capitalize">({c.permission})</span>
+                    <span className="text-gray-500 ml-2 capitalize">({c.permission}{c.allowTryon ? " + try-on" : ""})</span>
                   </span>
                   <button
                     onClick={() => cancelCode(c.id)}
@@ -149,7 +159,7 @@ export default function Shared() {
                 <li key={s.id} className="p-4 flex items-center justify-between">
                   <div>
                     <div className="font-medium">{s.viewerName}</div>
-                    <div className="text-xs text-gray-500">{s.viewerEmail} · {s.permission}</div>
+                    <div className="text-xs text-gray-500">{s.viewerEmail} · {s.permission}{s.allowTryon ? " + try-on" : ""}</div>
                   </div>
                   <button
                     onClick={() => removeViewer(s.id)}
@@ -185,7 +195,7 @@ export default function Shared() {
                     <Link to={`/friends/${s.ownerId}`} className="font-medium text-brand-700 hover:underline">
                       {s.ownerName}'s wardrobe
                     </Link>
-                    <div className="text-xs text-gray-500">{s.ownerEmail} · {s.permission}</div>
+                    <div className="text-xs text-gray-500">{s.ownerEmail} · {s.permission}{s.allowTryon ? " + try-on" : ""}</div>
                   </div>
                   <button
                     onClick={() => disconnect(s.id)}

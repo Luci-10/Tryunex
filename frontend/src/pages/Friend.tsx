@@ -15,6 +15,7 @@ type PlanEntry = {
 
 type FriendData = {
   permission: Permission;
+  allowTryon: boolean;
   owner: { id: string; name: string };
   clothes: Cloth[];
   plans: PlanEntry[];
@@ -203,6 +204,7 @@ export default function Friend() {
                 cloth={c}
                 selected={sel.has(c.id)}
                 onClick={canAct ? () => toggle(c.id) : undefined}
+                canTryOn={data.allowTryon}
               />
             ))}
           </div>
