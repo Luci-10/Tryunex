@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import Nav from "../components/Nav";
 import Lightbox from "../components/Lightbox";
+import PhotoAccessPrompt from "../components/PhotoAccessPrompt";
 import { api, type Cloth } from "../api";
 import { useTryOn, type Outfit } from "../tryon";
+import { hasPhotoConsent, grantPhotoConsent } from "../photoConsent";
 
 type Selfie = { id: string; imageUrl: string; createdAt: string };
 type Result = {
@@ -69,6 +71,20 @@ export default function Tryon() {
   const [error, setError] = useState<string | null>(null);
   const [zoom, setZoom] = useState<string | null>(null);
   const outfitsRef = useRef<HTMLDivElement>(null);
+  const selfieFileRef = useRef<HTMLInputElement>(null);
+  const [askPhoto, setAskPhoto] = useState(false);
+
+  function handleSelfieClick(e: React.MouseEvent) {
+    if (!hasPhotoConsent()) {
+      e.preventDefault();
+      setAskPhoto(true);
+    }
+  }
+  function continuePhotoAccess() {
+    grantPhotoConsent();
+    setAskPhoto(false);
+    setTimeout(() => selfieFileRef.current?.click(), 50);
+  }
 
   async function load() {
     setLoading(true);
@@ -200,7 +216,10 @@ export default function Tryon() {
                 </span>
               </>
             ) : (
-              <label className="relative w-full h-full bg-brand-50 rounded-2xl border-2 border-dashed border-brand-200 flex items-center justify-center cursor-pointer overflow-hidden block">
+              <label
+                onClick={handleSelfieClick}
+                className="relative w-full h-full bg-brand-50 rounded-2xl border-2 border-dashed border-brand-200 flex items-center justify-center cursor-pointer overflow-hidden block"
+              >
                 {selfie ? (
                   <img src={selfie.imageUrl} alt="Your selfie" className="w-full h-full object-cover" />
                 ) : (
@@ -209,6 +228,7 @@ export default function Tryon() {
                   </span>
                 )}
                 <input
+                  ref={selfieFileRef}
                   type="file"
                   accept="image/*"
                   disabled={uploadingSelfie}
@@ -323,6 +343,11 @@ export default function Tryon() {
         </section>
 
       </main>
+      <PhotoAccessPrompt
+        open={askPhoto}
+        onCancel={() => setAskPhoto(false)}
+        onContinue={continuePhotoAccess}
+      />
     </>
   );
 }

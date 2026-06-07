@@ -2,6 +2,8 @@ import { useRef, useState } from "react";
 import { api, type Cloth } from "../api";
 import { useAuth } from "../auth";
 import Modal from "./Modal";
+import PhotoAccessPrompt from "./PhotoAccessPrompt";
+import { hasPhotoConsent, grantPhotoConsent } from "../photoConsent";
 
 function putWithProgress(url: string, body: Blob, contentType: string, onProgress: (pct: number) => void): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -73,10 +75,26 @@ export default function AddClothModal({
 }) {
   const { user } = useAuth();
   const formRef = useRef<HTMLFormElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [askPhoto, setAskPhoto] = useState(false);
+
+  // Intercept the label click on first-ever upload to show the explainer.
+  function handleUploadAreaClick(e: React.MouseEvent) {
+    if (!hasPhotoConsent()) {
+      e.preventDefault();
+      setAskPhoto(true);
+    }
+  }
+  function continuePhotoAccess() {
+    grantPhotoConsent();
+    setAskPhoto(false);
+    // Defer click so the modal can unmount cleanly first.
+    setTimeout(() => fileRef.current?.click(), 50);
+  }
 
   function close() {
     formRef.current?.reset();
@@ -130,7 +148,10 @@ export default function AddClothModal({
   return (
     <Modal open={open} onClose={close} title="Add a piece">
       <form ref={formRef} onSubmit={submit} className="space-y-3">
-        <label className="relative aspect-square bg-brand-50 rounded-xl border-2 border-dashed border-brand-200 flex items-center justify-center cursor-pointer overflow-hidden block">
+        <label
+          onClick={handleUploadAreaClick}
+          className="relative aspect-square bg-brand-50 rounded-xl border-2 border-dashed border-brand-200 flex items-center justify-center cursor-pointer overflow-hidden block"
+        >
           {preview ? (
             <img src={preview} alt="" className="w-full h-full object-cover" />
           ) : (
@@ -140,6 +161,7 @@ export default function AddClothModal({
               "Take photo" and "Choose from gallery". With capture set,
               gallery is skipped entirely. */}
           <input
+            ref={fileRef}
             name="image"
             type="file"
             accept="image/*"
@@ -176,6 +198,11 @@ export default function AddClothModal({
         </button>
         {error && <p className="text-sm text-red-600">{error}</p>}
       </form>
+      <PhotoAccessPrompt
+        open={askPhoto}
+        onCancel={() => setAskPhoto(false)}
+        onContinue={continuePhotoAccess}
+      />
     </Modal>
   );
 }
