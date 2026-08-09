@@ -7,6 +7,10 @@ const BASE = (typeof window !== "undefined" && (window as any).Capacitor)
   ? "https://www.tryunex.in/api"
   : "/api";
 
+// Streaming endpoints (chat) can't go through `api.*` because those return
+// parsed bodies — they still need the same origin resolution, so export it.
+export const API_BASE = BASE;
+
 export type ApiError = { error: string } & Record<string, unknown>;
 
 async function handle(res: Response) {

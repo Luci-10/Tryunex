@@ -1,19 +1,22 @@
 import { useEffect, useRef, useState } from "react";
 import { useChat } from "../chat";
 import { useTryOn } from "../tryon";
-import { api, type Cloth } from "../api";
+import { api, API_BASE, type Cloth } from "../api";
+import IconButton from "./ui/IconButton";
+import Button from "./ui/Button";
+import { Input } from "./ui/Field";
+import { Close, Send, Sparkles } from "./ui/icons";
 
 type Msg = { role: "user" | "assistant"; content: string };
 
-const QUICK_CHIPS = [
+const STARTERS = [
   "What should I wear today?",
   "I have an event tonight",
   "What's in my wardrobe?",
 ];
 
-// Matches `[cloth: <id>]` tokens emitted by the chat model (see system prompt
-// in backend/src/routes/chat.ts). Kept tolerant of whitespace so the
-// occasional `[cloth:<id>]` or `[cloth:  <id>  ]` still resolves.
+// Matches `[cloth: <id>]` tokens emitted by the model (see the system prompt
+// in backend/src/routes/chat.ts). Tolerant of stray whitespace.
 const CLOTH_TOKEN = /\[cloth:\s*([^\]\s]+)\s*\]/g;
 
 export default function ChatPanel() {
@@ -21,12 +24,14 @@ export default function ChatPanel() {
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
-  const [streaming, setStreaming] = useState<string>("");
+  const [streaming, setStreaming] = useState("");
   const [wardrobe, setWardrobe] = useState<Map<string, Cloth>>(new Map());
   const scrollRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const restoreRef = useRef<HTMLElement | null>(null);
 
-  // Load the user's wardrobe once per panel open so we can resolve
-  // [cloth: <id>] tokens to a name + image without an extra fetch per turn.
+  // Load the wardrobe once per open so [cloth: id] tokens resolve to a name
+  // and image without a fetch per turn.
   useEffect(() => {
     if (!open) return;
     api
@@ -39,9 +44,25 @@ export default function ChatPanel() {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, streaming, open]);
 
+  // Focus the composer on open, hand focus back to the trigger on close.
   useEffect(() => {
-    if (!open) setAttached(null);
+    if (open) {
+      restoreRef.current = document.activeElement as HTMLElement | null;
+      setTimeout(() => inputRef.current?.focus(), 60);
+    } else {
+      setAttached(null);
+      restoreRef.current?.focus?.();
+    }
   }, [open, setAttached]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") closeChat();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [open, closeChat]);
 
   async function send(text: string) {
     if (!text.trim() || busy) return;
@@ -52,13 +73,13 @@ export default function ChatPanel() {
     setStreaming("");
 
     try {
-      const res = await fetch("/api/chat", {
+      const res = await fetch(`${API_BASE}/chat`, {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ messages: next, attachedClothId: attached?.id }),
       });
-      if (!res.ok) throw new Error(await res.text() || `HTTP ${res.status}`);
+      if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`);
       if (!res.body) throw new Error("No response body");
 
       const reader = res.body.getReader();
@@ -73,10 +94,9 @@ export default function ChatPanel() {
         const frames = buf.split("\n\n");
         buf = frames.pop() ?? "";
         for (const frame of frames) {
-          const lines = frame.split("\n");
           let evName = "message";
           let data = "";
-          for (const line of lines) {
+          for (const line of frame.split("\n")) {
             if (line.startsWith("event:")) evName = line.slice(6).trim();
             else if (line.startsWith("data:")) data += line.slice(5).trim();
           }
@@ -100,71 +120,128 @@ export default function ChatPanel() {
   }
 
   if (!open) return null;
-  return (
-    <div className="fixed inset-x-0 bottom-0 z-40 sm:inset-auto sm:bottom-5 sm:right-5 sm:w-[400px] sm:max-h-[80vh]">
-      <div className="bg-white shadow-2xl rounded-t-2xl sm:rounded-2xl flex flex-col h-[75vh] sm:h-[70vh]">
-        <header className="flex items-center gap-2 px-4 py-3 border-b">
-          <div className="flex-1">
-            <div className="font-semibold text-sm">Ask TryUnex</div>
-            {attached && (
-              <div className="text-xs text-brand-700 mt-0.5">Asking about: {attached.name}</div>
-            )}
-          </div>
-          <button
-            onClick={closeChat}
-            aria-label="Close"
-            className="text-gray-500 hover:text-gray-800 text-xl leading-none w-8 h-8"
-          >
-            ×
-          </button>
-        </header>
 
-        <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
-          {messages.length === 0 && !streaming && (
-            <div className="space-y-3">
-              <p className="text-sm text-gray-600">
-                Hi 👋 I can suggest outfits, help plan your week, or answer questions about your wardrobe.
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {QUICK_CHIPS.map((q) => (
-                  <button
-                    key={q}
-                    onClick={() => send(q)}
-                    className="text-xs bg-brand-50 hover:bg-brand-100 text-brand-700 px-3 py-1.5 rounded-full"
-                  >
-                    {q}
-                  </button>
-                ))}
-              </div>
+  return (
+    <>
+      {/* Backdrop on phones only — the desktop panel is anchored, not modal. */}
+      <div
+        className="md:hidden fixed inset-0 z-40 bg-ink/40 backdrop-blur-[2px] animate-fade-in"
+        onClick={closeChat}
+        aria-hidden
+      />
+      <div
+        role="dialog"
+        aria-modal="false"
+        aria-label="Ask TryUnex"
+        className="fixed z-50 inset-x-0 bottom-0 md:inset-auto md:bottom-6 md:right-6 md:w-[400px]"
+      >
+        <div className="bg-white rounded-t-sheet md:rounded-sheet border border-ink/[0.07] shadow-lift flex flex-col h-[78dvh] md:h-[min(34rem,72vh)] overflow-hidden animate-sheet-up">
+          <header className="flex items-center gap-2 px-4 py-3 border-b border-ink/[0.07] shrink-0">
+            <span className="w-8 h-8 rounded-full bg-lilac text-brand-600 grid place-items-center shrink-0">
+              <Sparkles className="w-4 h-4" />
+            </span>
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold text-sm leading-tight">Ask TryUnex</p>
+              <p className="text-[11px] text-ink/65">Outfit ideas from your own wardrobe</p>
+            </div>
+            <IconButton label="Close chat" onClick={closeChat}>
+              <Close className="w-5 h-5" />
+            </IconButton>
+          </header>
+
+          {attached && (
+            <div className="px-4 py-2 border-b border-ink/[0.07] shrink-0">
+              <span className="inline-flex items-center gap-2 pl-1 pr-1 py-1 rounded-full bg-brand-50 border border-brand-200 max-w-full">
+                <img
+                  src={attached.imageUrl}
+                  alt={attached.name}
+                  className="w-7 h-7 rounded-full object-cover shrink-0"
+                />
+                <span className="text-[13px] font-medium text-brand-700 truncate">
+                  {attached.name}
+                </span>
+                <IconButton
+                  label={`Stop asking about ${attached.name}`}
+                  size="sm"
+                  tone="brand"
+                  onClick={() => setAttached(null)}
+                >
+                  <Close className="w-3.5 h-3.5" />
+                </IconButton>
+              </span>
             </div>
           )}
-          {messages.map((m, i) => (
-            <Bubble key={i} role={m.role} text={m.content} wardrobe={wardrobe} />
-          ))}
-          {streaming && <Bubble role="assistant" text={streaming} wardrobe={wardrobe} />}
-        </div>
 
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            send(input);
-          }}
-          className="border-t p-3 flex gap-2"
-        >
-          <input
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder="Ask anything…"
-            disabled={busy}
-            className="flex-1 border rounded-full px-4 py-2 text-sm disabled:opacity-60"
-          />
-          <button
-            disabled={busy || !input.trim()}
-            className="bg-brand-600 hover:bg-brand-700 text-white text-sm font-medium px-4 rounded-full disabled:opacity-50"
+          <div
+            ref={scrollRef}
+            className="flex-1 overflow-y-auto overscroll-contain px-4 py-3 space-y-3"
           >
-            {busy ? "…" : "Send"}
-          </button>
-        </form>
+            {messages.length === 0 && !streaming && (
+              <div className="space-y-3 pt-2">
+                <p className="text-sm text-ink/70 leading-relaxed">
+                  Hi 👋 I can suggest outfits, help plan your week, or answer questions about what
+                  you own.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {STARTERS.map((q) => (
+                    <button
+                      key={q}
+                      type="button"
+                      onClick={() => send(q)}
+                      className="text-[13px] bg-brand-50 hover:bg-brand-100 text-brand-700 px-3 h-9 rounded-full"
+                    >
+                      {q}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {messages.map((m, i) => (
+              <Bubble key={i} role={m.role} text={m.content} wardrobe={wardrobe} />
+            ))}
+            {streaming && <Bubble role="assistant" text={streaming} wardrobe={wardrobe} />}
+            {busy && !streaming && <Typing />}
+          </div>
+
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              send(input);
+            }}
+            className="border-t border-ink/[0.07] p-3 flex gap-2 shrink-0 pb-[calc(0.75rem+env(safe-area-inset-bottom))] md:pb-3"
+          >
+            <Input
+              ref={inputRef}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder="Ask anything…"
+              aria-label="Message"
+              disabled={busy}
+              className="!rounded-full"
+            />
+            <Button type="submit" disabled={busy || !input.trim()} className="!w-11 !px-0 !rounded-full">
+              <Send className="w-4 h-4" />
+              <span className="sr-only">Send</span>
+            </Button>
+          </form>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function Typing() {
+  return (
+    <div className="flex justify-start" aria-label="TryUnex is typing">
+      <div className="bg-ink/[0.05] rounded-2xl px-3.5 py-3 flex gap-1">
+        {[0, 150, 300].map((d) => (
+          <span
+            key={d}
+            className="w-1.5 h-1.5 rounded-full bg-ink/35 animate-bounce"
+            style={{ animationDelay: `${d}ms` }}
+          />
+        ))}
       </div>
     </div>
   );
@@ -180,13 +257,13 @@ function Bubble({
   wardrobe: Map<string, Cloth>;
 }) {
   const isUser = role === "user";
-  // User messages are plain text. Assistant messages may contain [cloth: id]
-  // tokens which we replace with inline cloth cards.
   return (
     <div className={isUser ? "flex justify-end" : "flex justify-start"}>
       <div
-        className={`max-w-[85%] px-3 py-2 rounded-2xl text-sm whitespace-pre-wrap ${
-          isUser ? "bg-brand-600 text-white" : "bg-gray-100 text-gray-900"
+        className={`max-w-[85%] px-3.5 py-2.5 text-sm whitespace-pre-wrap leading-relaxed ${
+          isUser
+            ? "bg-brand-500 text-white rounded-2xl rounded-br-md"
+            : "bg-ink/[0.05] text-ink rounded-2xl rounded-bl-md"
         }`}
       >
         {isUser ? text : renderAssistantText(text, wardrobe)}
@@ -212,7 +289,7 @@ function renderAssistantText(text: string, wardrobe: Map<string, Cloth>) {
       {parts.map((p, i) => {
         if (p.type === "text") return <span key={i}>{p.value}</span>;
         const cloth = wardrobe.get(p.value);
-        if (!cloth) return <span key={i} className="text-gray-400 italic">[unknown]</span>;
+        if (!cloth) return <span key={i} className="text-ink/55 italic">[unknown piece]</span>;
         return <ClothChip key={i} cloth={cloth} />;
       })}
     </>
@@ -236,38 +313,42 @@ function ClothChip({ cloth }: { cloth: Cloth }) {
       setDone(true);
       setExpanded(false);
     } catch (err: any) {
-      setError(err.message ?? "Could not plan");
+      setError(err.message ?? "Could not plan that");
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <span className="block my-2 bg-white border rounded-xl p-2 not-prose">
+    <span className="block my-2 bg-white border border-ink/10 rounded-xl p-2">
       <span className="flex items-center gap-2">
         <img
           src={cloth.imageUrl}
           alt={cloth.name}
-          className="w-12 h-12 rounded-lg object-cover bg-gray-100 flex-shrink-0"
+          className="w-11 h-11 rounded-lg object-cover bg-ink/[0.05] shrink-0"
         />
         <span className="flex-1 min-w-0">
-          <span className="block text-sm font-medium truncate text-gray-900">{cloth.name}</span>
-          <span className="block text-xs text-gray-500 capitalize">{cloth.category}</span>
+          <span className="block text-[13px] font-medium truncate">{cloth.name}</span>
+          <span className="block text-[11px] text-ink/65 capitalize">{cloth.category}</span>
         </span>
         {done ? (
-          <span className="text-xs text-emerald-700 font-medium px-2">✓ Planned</span>
+          <span className="text-[12px] text-emerald-700 font-medium px-2">✓ Planned</span>
         ) : (
-          <span className="flex gap-1">
+          <span className="flex gap-1 shrink-0">
             <button
+              type="button"
               onClick={() => tryOn(cloth)}
-              className="text-xs bg-brand-50 hover:bg-brand-100 text-brand-700 font-medium px-2 py-1 rounded-md"
-              title="Try on"
+              aria-label={`Try on ${cloth.name}`}
+              className="tap-44 h-8 px-2.5 rounded-lg bg-brand-50 hover:bg-brand-100 text-brand-700 text-[12px] font-medium inline-flex items-center gap-1"
             >
-              👤
+              <Sparkles className="w-3.5 h-3.5" />
+              Try
             </button>
             <button
+              type="button"
               onClick={() => setExpanded((v) => !v)}
-              className="text-xs bg-brand-50 hover:bg-brand-100 text-brand-700 font-medium px-2.5 py-1 rounded-md"
+              aria-expanded={expanded}
+              className="tap-44 h-8 px-2.5 rounded-lg bg-brand-50 hover:bg-brand-100 text-brand-700 text-[12px] font-medium"
             >
               Plan
             </button>
@@ -281,18 +362,24 @@ function ClothChip({ cloth }: { cloth: Cloth }) {
             min={today}
             value={date}
             onChange={(e) => setDate(e.target.value)}
-            className="text-xs border rounded px-2 py-1 flex-1"
+            aria-label={`Date to plan ${cloth.name}`}
+            className="text-[12px] border border-ink/12 rounded-lg px-2 h-9 flex-1 min-w-0"
           />
           <button
+            type="button"
             disabled={busy}
             onClick={plan}
-            className="text-xs bg-brand-600 hover:bg-brand-700 text-white font-medium px-3 py-1 rounded disabled:opacity-50"
+            className="h-9 px-3 rounded-lg bg-brand-500 hover:bg-brand-600 text-white text-[12px] font-medium disabled:opacity-50"
           >
             {busy ? "…" : "Confirm"}
           </button>
         </span>
       )}
-      {error && <span className="block text-xs text-red-600 mt-1">{error}</span>}
+      {error && (
+        <span role="alert" className="block text-[12px] text-coral mt-1">
+          {error}
+        </span>
+      )}
     </span>
   );
 }

@@ -1,7 +1,12 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
+import IconButton from "./ui/IconButton";
+import { Close } from "./ui/icons";
 
-// Full-screen image overlay. Tap anywhere (or press Esc) to close. Built
-// without a portal — relative to viewport via `fixed inset-0`.
+/**
+ * Full-screen image view. Escape or the close button dismisses it; tapping
+ * the backdrop does too. Focus moves to the close button on open so keyboard
+ * users can always get out.
+ */
 export default function Lightbox({
   src,
   alt,
@@ -11,8 +16,11 @@ export default function Lightbox({
   alt?: string;
   onClose: () => void;
 }) {
+  const closeRef = useRef<HTMLButtonElement>(null);
+
   useEffect(() => {
     if (!src) return;
+    closeRef.current?.focus();
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
     };
@@ -28,22 +36,27 @@ export default function Lightbox({
   if (!src) return null;
   return (
     <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={alt ? `${alt} — full size` : "Image, full size"}
       onClick={onClose}
-      className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4 cursor-zoom-out"
+      className="fixed inset-0 z-[70] bg-ink/95 flex items-center justify-center p-4 cursor-zoom-out animate-fade-in"
     >
       <img
         src={src}
         alt={alt ?? ""}
-        className="max-w-full max-h-full object-contain"
+        className="max-w-full max-h-full object-contain rounded-lg"
         onClick={(e) => e.stopPropagation()}
       />
-      <button
+      <IconButton
+        ref={closeRef}
+        label="Close full-size image"
+        tone="onImage"
         onClick={onClose}
-        className="absolute top-4 right-4 bg-white/15 hover:bg-white/25 text-white rounded-full w-10 h-10 text-xl leading-none"
-        aria-label="Close"
+        className="absolute top-4 right-4 !w-11 !h-11"
       >
-        ×
-      </button>
+        <Close className="w-5 h-5" />
+      </IconButton>
     </div>
   );
 }

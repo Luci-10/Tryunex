@@ -1,7 +1,13 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api, type User } from "../api";
 import { useAuth } from "../auth";
+import AuthShell from "../components/AuthShell";
+import Button from "../components/ui/Button";
+import { Input, Label, FieldError } from "../components/ui/Field";
+import { ChevronLeft, Mail } from "../components/ui/icons";
+
+const RESEND_SECONDS = 30;
 
 export default function Login() {
   const nav = useNavigate();
@@ -12,19 +18,32 @@ export default function Login() {
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [cooldown, setCooldown] = useState(0);
+  const otpRef = useRef<HTMLInputElement>(null);
 
-  async function requestOtp(e?: React.FormEvent) {
-    e?.preventDefault();
+  // Resend is rate-limited client-side so the button can't be mashed while
+  // the first mail is still in flight.
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const t = setTimeout(() => setCooldown((c) => c - 1), 1000);
+    return () => clearTimeout(t);
+  }, [cooldown]);
+
+  useEffect(() => {
+    if (step === "otp") otpRef.current?.focus();
+  }, [step]);
+
+  async function requestOtp(resend = false) {
     setError(null);
-    setInfo(null);
     if (!email) return;
     setBusy(true);
     try {
       await api.post("/auth/start", { email });
       setStep("otp");
-      setInfo(`Code sent to ${email}. Check your inbox (and spam).`);
+      setCooldown(RESEND_SECONDS);
+      setInfo(resend ? `New code sent to ${email}.` : `Code sent to ${email}. Check spam too.`);
     } catch (err: any) {
-      setError(err.message ?? "Could not send code");
+      setError(err.message ?? "Could not send the code");
     } finally {
       setBusy(false);
     }
@@ -36,8 +55,7 @@ export default function Login() {
     setBusy(true);
     try {
       const r = await api.post<
-        | { status: "logged_in"; user: User }
-        | { status: "needs_registration"; email: string }
+        { status: "logged_in"; user: User } | { status: "needs_registration"; email: string }
       >("/auth/verify", { email, otp });
       if (r.status === "logged_in") {
         setUser(r.user);
@@ -47,82 +65,107 @@ export default function Login() {
       }
     } catch (err: any) {
       setError(err.message ?? "Verification failed");
-    } finally {
       setBusy(false);
     }
   }
 
-  return (
-    <div className="min-h-screen flex items-center justify-center p-4">
-      <div className="w-full max-w-sm bg-white rounded-2xl shadow p-6 space-y-4">
-        <div>
-          <h1 className="text-2xl font-bold text-brand-700">TryUnex</h1>
-          <p className="text-sm text-gray-600">Sign in with your email — we'll send you a 6-digit code.</p>
-        </div>
+  function backToEmail() {
+    setStep("email");
+    setOtp("");
+    setError(null);
+    setInfo(null);
+  }
 
-        {step === "email" && (
-          <form onSubmit={requestOtp} className="space-y-3">
-            <input
+  return (
+    <AuthShell
+      title={step === "email" ? "Welcome back" : "Check your email"}
+      subtitle={
+        step === "email"
+          ? "Enter your email and we'll send a 6-digit code — no password to remember."
+          : undefined
+      }
+      footer="Your wardrobe, your photos, your call on who sees them."
+    >
+      {step === "email" ? (
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            requestOtp();
+          }}
+          className="space-y-4"
+        >
+          <label className="block">
+            <Label>Email address</Label>
+            <Input
               type="email"
+              name="email"
+              autoComplete="email"
               required
               autoFocus
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="you@example.com"
-              className="w-full border rounded-lg px-3 py-2"
+              aria-invalid={error ? true : undefined}
             />
+            <FieldError>{error}</FieldError>
+          </label>
+          <Button type="submit" size="lg" block loading={busy} leading={<Mail className="w-4 h-4" />}>
+            {busy ? "Sending code…" : "Send me a code"}
+          </Button>
+        </form>
+      ) : (
+        <form onSubmit={verify} className="space-y-4">
+          <div className="flex items-center gap-1.5 text-sm text-ink/70">
             <button
-              disabled={busy}
-              className="w-full bg-brand-600 text-white rounded-lg py-2 font-medium disabled:opacity-60"
+              type="button"
+              onClick={backToEmail}
+              className="tap-44 inline-flex items-center gap-0.5 text-brand-700 font-medium hover:underline"
             >
-              {busy ? "Sending…" : "Send code"}
+              <ChevronLeft className="w-4 h-4" />
+              Change
             </button>
-          </form>
-        )}
+            <span className="truncate">{email}</span>
+          </div>
 
-        {step === "otp" && (
-          <form onSubmit={verify} className="space-y-3">
-            <div className="text-sm text-gray-600">
-              Code sent to <strong>{email}</strong>{" "}
-              <button
-                type="button"
-                onClick={() => { setStep("email"); setOtp(""); setError(null); setInfo(null); }}
-                className="text-brand-700 hover:underline"
-              >
-                change
-              </button>
-            </div>
-            <input
+          <label className="block">
+            <Label>6-digit code</Label>
+            <Input
+              ref={otpRef}
               inputMode="numeric"
+              autoComplete="one-time-code"
               pattern="\d{6}"
               maxLength={6}
-              autoFocus
               required
               value={otp}
               onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
-              placeholder="6-digit code"
-              className="w-full border rounded-lg px-3 py-3 text-center text-2xl font-mono tracking-[0.5em]"
+              placeholder="······"
+              aria-invalid={error ? true : undefined}
+              className="h-14 text-center text-2xl font-mono tracking-[0.45em] placeholder:tracking-[0.45em]"
             />
-            <button
-              disabled={busy || otp.length !== 6}
-              className="w-full bg-brand-600 text-white rounded-lg py-2 font-medium disabled:opacity-60"
-            >
-              {busy ? "Verifying…" : "Verify"}
-            </button>
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => requestOtp()}
-              className="w-full text-sm text-brand-700 hover:underline"
-            >
-              Resend code
-            </button>
-          </form>
-        )}
+            <FieldError>{error}</FieldError>
+          </label>
 
-        {info && <p className="text-sm text-emerald-700">{info}</p>}
-        {error && <p className="text-sm text-red-600">{error}</p>}
-      </div>
-    </div>
+          <Button type="submit" size="lg" block loading={busy} disabled={otp.length !== 6}>
+            {busy ? "Verifying…" : "Verify and continue"}
+          </Button>
+
+          <Button
+            type="button"
+            variant="quiet"
+            block
+            disabled={busy || cooldown > 0}
+            onClick={() => requestOtp(true)}
+          >
+            {cooldown > 0 ? `Resend code in ${cooldown}s` : "Resend code"}
+          </Button>
+        </form>
+      )}
+
+      {/* Status updates are announced without stealing focus from the input. */}
+      <p aria-live="polite" className="sr-only">
+        {error ?? info ?? ""}
+      </p>
+      {info && !error && <p className="mt-3 text-[13px] text-emerald-700">{info}</p>}
+    </AuthShell>
   );
 }

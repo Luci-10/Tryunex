@@ -1,8 +1,18 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
-import Nav from "../components/Nav";
+import PageShell from "../components/PageShell";
 import ClothCard from "../components/ClothCard";
 import WardrobeSwitcher from "../components/WardrobeSwitcher";
+import SelectionTray from "../components/SelectionTray";
+import SectionHeading from "../components/ui/SectionHeading";
+import Button from "../components/ui/Button";
+import EmptyState from "../components/ui/EmptyState";
+import { GridSkeleton } from "../components/ui/Skeleton";
+import { Badge } from "../components/ui/Chip";
+import { Input, ErrorBanner } from "../components/ui/Field";
+import { useToast } from "../components/ui/Toast";
+import { Avatar } from "../components/Nav";
+import { permissionTone } from "./Shared";
 import { api, type Cloth } from "../api";
 
 type Permission = "view" | "suggest" | "edit";
@@ -30,61 +40,74 @@ function formatDate(d: string, today: string) {
   });
 }
 
+const PERMISSION_LINE: Record<Permission, string> = {
+  view: "You can browse this wardrobe.",
+  suggest: "You can suggest outfits — they approve.",
+  edit: "You can plan outfits directly.",
+};
+
 export default function Friend() {
   const { ownerId } = useParams<{ ownerId: string }>();
   const today = new Date().toISOString().slice(0, 10);
+  const { toast } = useToast();
+
   const [data, setData] = useState<FriendData | null>(null);
   const [loading, setLoading] = useState(true);
   const [accessError, setAccessError] = useState<string | null>(null);
 
-  const [sel, setSel] = useState<Set<string>>(new Set());
+  const [sel, setSel] = useState<string[]>([]);
   const [note, setNote] = useState("");
   const [date, setDate] = useState(today);
   const [busy, setBusy] = useState(false);
-  const [msg, setMsg] = useState<string | null>(null);
 
   async function load() {
     setLoading(true);
+    setAccessError(null);
     try {
       const r = await api.get<FriendData>(`/friends/${ownerId}/wardrobe`);
       setData(r);
     } catch (err: any) {
-      setAccessError(err.message ?? "Could not load");
+      setAccessError(err.message ?? "Could not open this wardrobe");
     } finally {
       setLoading(false);
     }
   }
+
   useEffect(() => {
     load();
+    setSel([]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ownerId]);
 
   function toggle(id: string) {
-    setSel((p) => {
-      const n = new Set(p);
-      n.has(id) ? n.delete(id) : n.add(id);
-      return n;
-    });
+    setSel((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
   }
 
+  const selected = useMemo(
+    () => (data ? (sel.map((id) => data.clothes.find((c) => c.id === id)).filter(Boolean) as Cloth[]) : []),
+    [sel, data],
+  );
+
   async function submit() {
-    if (!data || sel.size === 0) return;
+    if (!data || sel.length === 0) return;
     setBusy(true);
     try {
       if (data.permission === "edit") {
-        await api.post(`/friends/${ownerId}/plan`, { ids: [...sel], date });
-        setMsg("Outfit planned ✓");
+        await api.post(`/friends/${ownerId}/plan`, { ids: sel, date });
+        toast("Outfit planned", { tone: "success" });
         await load();
       } else {
         await api.post(`/friends/${ownerId}/suggest`, {
-          clothIds: [...sel],
+          clothIds: sel,
           note: note || null,
           forDate: date,
         });
-        setMsg("Suggestion sent ✓");
+        toast(`Suggestion sent to ${data.owner.name}`, { tone: "success" });
         setNote("");
       }
-      setSel(new Set());
-      setTimeout(() => setMsg(null), 2500);
+      setSel([]);
+    } catch (err: any) {
+      toast(err.message ?? "Could not send that", { tone: "error" });
     } finally {
       setBusy(false);
     }
@@ -102,114 +125,132 @@ export default function Friend() {
 
   if (loading) {
     return (
-      <>
-        <Nav />
-        <main className="max-w-5xl mx-auto px-4 py-6 space-y-4">
-          <WardrobeSwitcher current={ownerId ?? "mine"} />
-          <p className="text-gray-500">Loading…</p>
-        </main>
-      </>
+      <PageShell>
+        <WardrobeSwitcher current={ownerId ?? "mine"} />
+        <GridSkeleton count={6} />
+      </PageShell>
     );
   }
+
   if (accessError || !data) {
     return (
-      <>
-        <Nav />
-        <main className="max-w-5xl mx-auto px-4 py-6 space-y-4">
-          <WardrobeSwitcher current={ownerId ?? "mine"} />
-          <p className="text-gray-600">{accessError ?? "No access"}</p>
-        </main>
-      </>
+      <PageShell>
+        <WardrobeSwitcher current={ownerId ?? "mine"} />
+        <EmptyState
+          tone="butter"
+          title="No access to this wardrobe"
+          body={accessError ?? "The owner may have removed your access."}
+        />
+      </PageShell>
     );
   }
 
   const canAct = data.permission !== "view";
-  const actionLabel = data.permission === "edit" ? "Plan this" : "Send suggestion";
+  const actionLabel = data.permission === "edit" ? "Plan outfit" : "Send suggestion";
 
   return (
-    <>
-      <Nav />
-      <main className="max-w-5xl mx-auto px-4 py-6 space-y-5">
-        <WardrobeSwitcher current={ownerId ?? "mine"} />
-        <div>
-          <h1 className="text-xl font-bold">{data.owner.name}'s wardrobe</h1>
-          <p className="text-sm text-gray-500">Your access: {data.permission}</p>
+    <PageShell>
+      <WardrobeSwitcher current={ownerId ?? "mine"} />
+
+      {/* Whose wardrobe this is, and exactly what you're allowed to do here. */}
+      <section className="rounded-card border border-sky/80 bg-gradient-to-br from-sky via-sky/60 to-white p-4 flex items-center gap-3">
+        <Avatar name={data.owner.name} />
+        <div className="min-w-0 flex-1">
+          <h1 className="text-[19px] font-bold tracking-tight truncate">
+            {data.owner.name}'s wardrobe
+          </h1>
+          <p className="text-[13px] text-ink/70 mt-0.5">{PERMISSION_LINE[data.permission]}</p>
         </div>
+        <span className="flex flex-col items-end gap-1 shrink-0">
+          <Badge tone={permissionTone(data.permission) as any}>{data.permission}</Badge>
+          {data.allowTryon && <Badge tone="lilac">try-on</Badge>}
+        </span>
+      </section>
 
-        {groupedPlans.length > 0 && (
-          <section className="space-y-3">
-            <h2 className="text-sm font-semibold text-gray-700">Upcoming plans</h2>
-            {groupedPlans.map(([d, items]) => (
-              <div key={d} className="bg-white rounded-2xl shadow-sm p-4 space-y-3">
-                <h3 className="text-sm font-medium text-gray-800">
-                  {formatDate(d, today)}
-                  <span className="ml-2 text-xs text-gray-400 font-normal">
-                    {items.length} piece{items.length === 1 ? "" : "s"}
-                  </span>
-                </h3>
-                <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
-                  {items.map((p) => (
-                    <div key={p.id} className="bg-gray-50 rounded-lg overflow-hidden">
-                      <div className="aspect-square">
-                        <img src={p.cloth.imageUrl} alt={p.cloth.name} className="w-full h-full object-cover" />
-                      </div>
-                      <div className="p-1.5 text-xs truncate">{p.cloth.name}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </section>
-        )}
+      {accessError && <ErrorBanner onRetry={() => load()}>{accessError}</ErrorBanner>}
 
-        {canAct && (
-          <div className="bg-white rounded-2xl shadow-sm p-4 space-y-3 sticky top-24 z-[1]">
-            <div className="flex flex-wrap items-center gap-3">
-              <label className="text-sm font-medium">For:</label>
-              <input
-                type="date"
-                min={today}
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-                className="border rounded-lg px-3 py-2"
-              />
-              <span className="text-sm text-gray-600">{sel.size} selected</span>
+      {groupedPlans.length > 0 && (
+        <section className="space-y-3">
+          <SectionHeading title="Their upcoming plans" as="h2" />
+          {groupedPlans.map(([d, items]) => (
+            <div key={d} className="surface p-4">
+              <h3 className="text-sm font-semibold">
+                {formatDate(d, today)}
+                <span className="ml-1.5 text-xs text-ink/60 font-normal">
+                  {items.length} piece{items.length === 1 ? "" : "s"}
+                </span>
+              </h3>
+              <ul className="flex gap-2.5 overflow-x-auto no-scrollbar mt-3 pb-1">
+                {items.map((p) => (
+                  <li key={p.id} className="shrink-0 w-20">
+                    <img
+                      src={p.cloth.imageUrl}
+                      alt={p.cloth.name}
+                      className="w-20 h-20 rounded-xl object-cover bg-ink/[0.05]"
+                    />
+                    <p className="text-[11px] text-ink/70 truncate mt-1">{p.cloth.name}</p>
+                  </li>
+                ))}
+              </ul>
             </div>
-            {data.permission === "suggest" && (
-              <input
-                value={note}
-                onChange={(e) => setNote(e.target.value)}
-                placeholder="Add a note (optional)"
-                className="w-full border rounded-lg px-3 py-2"
-              />
-            )}
-            <button
-              disabled={busy || sel.size === 0}
-              onClick={submit}
-              className="bg-brand-600 text-white rounded-lg px-4 py-2 font-medium disabled:opacity-60"
-            >
-              {busy ? "Saving…" : actionLabel}
-            </button>
-            {msg && <p className="text-sm text-emerald-700">{msg}</p>}
-          </div>
-        )}
+          ))}
+        </section>
+      )}
 
+      <section className="space-y-3">
+        <SectionHeading
+          title="Their wardrobe"
+          count={data.clothes.length}
+          hint={canAct ? "Tap pieces to build an outfit" : undefined}
+          as="h2"
+        />
         {data.clothes.length === 0 ? (
-          <p className="text-gray-500 text-sm">Nothing clean in their wardrobe.</p>
+          <EmptyState tone="butter" title="Nothing clean right now" body="Check back after laundry day." />
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
             {data.clothes.map((c) => (
               <ClothCard
                 key={c.id}
                 cloth={c}
-                selected={sel.has(c.id)}
+                selectable={canAct}
+                selected={sel.includes(c.id)}
                 onClick={canAct ? () => toggle(c.id) : undefined}
                 canTryOn={data.allowTryon}
               />
             ))}
           </div>
         )}
-      </main>
-    </>
+      </section>
+
+      {canAct && (
+        <SelectionTray
+          label={data.permission === "edit" ? "Outfit you're planning" : "Outfit you're suggesting"}
+          items={selected}
+          onRemove={(id) => setSel((p) => p.filter((x) => x !== id))}
+          onClear={() => setSel([])}
+        >
+          <Input
+            type="date"
+            min={today}
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+            aria-label="Date for this outfit"
+            className="!w-auto max-w-[10.5rem]"
+          />
+          {data.permission === "suggest" && (
+            <Input
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="Add a note (optional)"
+              aria-label="Note for your suggestion"
+              className="flex-1 min-w-[10rem]"
+            />
+          )}
+          <Button onClick={submit} loading={busy} className="ml-auto">
+            {actionLabel}
+          </Button>
+        </SelectionTray>
+      )}
+    </PageShell>
   );
 }

@@ -2,6 +2,9 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api, type User } from "../api";
 import { useAuth } from "../auth";
+import AuthShell from "../components/AuthShell";
+import Button from "../components/ui/Button";
+import { Input, Label, Select, FieldError } from "../components/ui/Field";
 
 export default function Register() {
   const nav = useNavigate();
@@ -28,8 +31,8 @@ export default function Register() {
     } catch (err: any) {
       setError(err.message ?? "Could not save");
       if (String(err.message).toLowerCase().includes("verify")) {
-        // Session expired — go back to login.
-        setTimeout(() => nav("/login", { replace: true }), 1500);
+        // Pending token expired — send them back to the start.
+        setTimeout(() => nav("/login", { replace: true }), 1800);
       }
     } finally {
       setBusy(false);
@@ -37,58 +40,45 @@ export default function Register() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4">
-      <form onSubmit={submit} className="w-full max-w-sm bg-white rounded-2xl shadow p-6 space-y-4">
-        <div>
-          <h1 className="text-2xl font-bold text-brand-700">Welcome to TryUnex</h1>
-          <p className="text-sm text-gray-600">A few details to set up your account.</p>
-        </div>
-
+    <AuthShell title="Nice to meet you" subtitle="Two quick details and your wardrobe is ready.">
+      <form onSubmit={submit} className="space-y-4">
         <label className="block">
-          <span className="text-sm font-medium text-gray-700">Your name</span>
-          <input
+          <Label>Your name</Label>
+          <Input
             required
             autoFocus
+            autoComplete="name"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            className="mt-1 w-full border rounded-lg px-3 py-2"
             placeholder="What should we call you?"
           />
         </label>
 
         <label className="block">
-          <span className="text-sm font-medium text-gray-700">Date of birth</span>
-          <input
-            type="date"
-            value={dob}
-            onChange={(e) => setDob(e.target.value)}
-            className="mt-1 w-full border rounded-lg px-3 py-2"
-          />
+          <Label hint="optional">Date of birth</Label>
+          <Input type="date" value={dob} onChange={(e) => setDob(e.target.value)} />
         </label>
 
         <label className="block">
-          <span className="text-sm font-medium text-gray-700">Gender</span>
-          <select
-            value={gender}
-            onChange={(e) => setGender(e.target.value as any)}
-            className="mt-1 w-full border rounded-lg px-3 py-2"
-          >
+          <Label hint="optional">Gender</Label>
+          <Select value={gender} onChange={(e) => setGender(e.target.value as any)}>
             <option value="">Prefer not to say</option>
             <option value="male">Male</option>
             <option value="female">Female</option>
             <option value="other">Other</option>
             <option value="prefer_not_to_say">Prefer not to say</option>
-          </select>
+          </Select>
         </label>
 
-        <button
-          disabled={busy || !name.trim()}
-          className="w-full bg-brand-600 text-white rounded-lg py-2 font-medium disabled:opacity-60"
-        >
-          {busy ? "Saving…" : "Enter TryUnex"}
-        </button>
-        {error && <p className="text-sm text-red-600">{error}</p>}
+        <FieldError>{error}</FieldError>
+
+        <Button type="submit" size="lg" block loading={busy} disabled={!name.trim()}>
+          {busy ? "Setting up…" : "Enter TryUnex"}
+        </Button>
       </form>
-    </div>
+      <p aria-live="polite" className="sr-only">
+        {error ?? ""}
+      </p>
+    </AuthShell>
   );
 }
