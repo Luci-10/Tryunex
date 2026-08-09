@@ -6,7 +6,7 @@ import Button from "../components/ui/Button";
 import OtpInput from "../components/ui/OtpInput";
 import { Input, Label, FieldError } from "../components/ui/Field";
 import { ChevronLeft, Mail } from "../components/ui/icons";
-import { FeatureCarousel, HeroPanel, ProductPreview } from "../components/login/LoginArt";
+import { HeroPanel, HowItWorks, MobileShowcase } from "../components/login/LoginArt";
 
 const RESEND_SECONDS = 30;
 
@@ -80,11 +80,11 @@ export default function Login() {
         <div className="w-full lg:grid lg:grid-cols-2 lg:rounded-[28px] lg:overflow-hidden lg:border lg:border-ink/[0.07] lg:bg-white lg:shadow-lift">
           <HeroPanel />
 
-          <div className="lg:p-10 xl:p-12 lg:flex lg:flex-col lg:justify-center">
+          <div className="lg:h-full lg:p-9 xl:p-11 lg:flex lg:flex-col lg:justify-center">
             {/* Phone/tablet story: compact logo, one line, one preview, then
                 the benefits as a swipeable strip. Desktop gets all of this in
                 the hero panel instead. */}
-            <div className="lg:hidden space-y-5 mb-6">
+            <div className="lg:hidden space-y-4 mb-5">
               <div className="flex items-center gap-2">
                 <img src="/favicon.svg" alt="" className="w-7 h-7" />
                 <span className="text-[17px] font-bold text-brand-700 tracking-tight">TryUnex</span>
@@ -99,8 +99,7 @@ export default function Login() {
                 </p>
               </div>
 
-              <ProductPreview />
-              <FeatureCarousel />
+              <MobileShowcase />
             </div>
 
             <div className="rounded-3xl border border-ink/[0.07] bg-white shadow-card lg:shadow-none lg:border-0 lg:rounded-none p-5 sm:p-6 lg:p-0">
@@ -114,9 +113,16 @@ export default function Login() {
                   className="space-y-4 animate-sheet-up"
                 >
                   <div>
-                    <h2 className="text-[20px] lg:text-[24px] font-bold tracking-tight leading-tight">
+                    <p className="text-[11px] font-semibold uppercase tracking-wider text-brand-700">
+                      Sign in or join
+                    </p>
+                    <h2 className="text-[21px] lg:text-[25px] font-bold tracking-tight leading-tight mt-1.5">
                       Meet your wardrobe's new favourite place
                     </h2>
+                    <p className="text-[14px] text-ink/65 leading-snug mt-2">
+                      One email, one code, and you're in. New here? The same code creates your
+                      account.
+                    </p>
                   </div>
 
                   <label className="block">
@@ -218,7 +224,16 @@ export default function Login() {
               </p>
             </div>
 
-            <p className="text-[12.5px] text-ink/60 text-center mt-5 lg:mt-6">
+            {/* Sets expectations and keeps the sign-in column from reading
+                as three controls floating in white space. */}
+            <div className="mt-5 lg:mt-7 pt-5 lg:pt-6 border-t border-ink/[0.08]">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-ink/55 mb-3">
+                How it works
+              </p>
+              <HowItWorks />
+            </div>
+
+            <p className="text-[12.5px] text-ink/65 text-center mt-5 lg:mt-6">
               Your wardrobe, your photos, your call on who sees them.
             </p>
           </div>

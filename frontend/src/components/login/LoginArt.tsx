@@ -1,13 +1,24 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import IconButton from "../ui/IconButton";
-import { Calendar, ChevronLeft, ChevronRight, Shirt, Sparkles, UserIcon, Users } from "../ui/icons";
+import {
+  Calendar,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  Close,
+  Shirt,
+  Sparkles,
+  UserIcon,
+  Users,
+} from "../ui/icons";
+
+type Tone = "lilac" | "peach" | "mint" | "sky";
 
 type Feature = {
   title: string;
   body: string;
   icon: typeof Shirt;
-  /** Tint used for the icon chip and the light-variant card. */
-  tone: "lilac" | "peach" | "mint" | "sky";
+  tone: Tone;
 };
 
 export const FEATURES: Feature[] = [
@@ -37,80 +48,342 @@ export const FEATURES: Feature[] = [
   },
 ];
 
-const CHIP: Record<Feature["tone"], string> = {
+const CHIP: Record<Tone, string> = {
   lilac: "bg-lilac text-brand-700",
   peach: "bg-peach text-orange-800",
   mint: "bg-mint text-emerald-800",
   sky: "bg-sky text-blue-800",
 };
 
-const LIGHT_CARD: Record<Feature["tone"], string> = {
-  lilac: "bg-lilac/60 border-brand-200/70",
-  peach: "bg-peach/60 border-orange-600/10",
-  mint: "bg-mint/60 border-emerald-600/10",
-  sky: "bg-sky/60 border-blue-600/10",
+const BLOCK: Record<Tone, string> = {
+  lilac: "bg-lilac text-brand-600",
+  peach: "bg-peach text-orange-700",
+  mint: "bg-mint text-emerald-700",
+  sky: "bg-sky text-blue-700",
 };
 
-/** Lifts on hover and on tap — the lift is decoration, never an affordance. */
-export function FeatureCard({
-  feature,
-  variant,
-  index = 0,
-}: {
-  feature: Feature;
-  variant: "dark" | "light";
-  index?: number;
-}) {
-  const Icon = feature.icon;
+function prefersReducedMotion() {
+  return typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
+/* ------------------------------------------------------------------ scenes */
+
+/** Each scene is drawn from tokens — no image assets, nothing to load. */
+function Scene({ index }: { index: number }) {
+  if (index === 1) return <PlanScene />;
+  if (index === 2) return <TryOnScene />;
+  if (index === 3) return <ShareScene />;
+  return <WardrobeScene />;
+}
+
+function SceneLabel({ children }: { children: React.ReactNode }) {
   return (
-    <div
-      style={{ animationDelay: `${120 + index * 90}ms` }}
-      className={[
-        "rounded-2xl border p-3.5 h-full animate-rise-in",
-        "transition-[transform,background-color,border-color,box-shadow] duration-200",
-        "hover:-translate-y-0.5 active:-translate-y-0.5 motion-reduce:hover:translate-y-0",
-        variant === "dark"
-          ? "bg-white/[0.07] border-white/10 hover:bg-white/[0.12] hover:border-white/20"
-          : `${LIGHT_CARD[feature.tone]} hover:shadow-card`,
-      ].join(" ")}
-    >
-      <span className={`w-9 h-9 rounded-xl grid place-items-center ${CHIP[feature.tone]}`}>
-        <Icon className="w-[18px] h-[18px]" />
-      </span>
-      <h3
-        className={`text-sm font-semibold mt-2.5 ${variant === "dark" ? "text-white" : "text-ink"}`}
-      >
-        {feature.title}
-      </h3>
-      <p
-        className={`text-[12.5px] leading-snug mt-1 ${
-          variant === "dark" ? "text-white/65" : "text-ink/70"
-        }`}
-      >
-        {feature.body}
-      </p>
+    <p className="shrink-0 text-[11px] font-semibold uppercase tracking-wider text-ink/55 mb-2.5">
+      {children}
+    </p>
+  );
+}
+
+/** Every scene fills its frame exactly, so switching never shifts the page. */
+function SceneFrame({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="h-full flex flex-col">
+      <SceneLabel>{label}</SceneLabel>
+      <div className="flex-1 min-h-0 flex flex-col">{children}</div>
     </div>
   );
 }
 
-/**
- * Phone-only feature strip. Swiping is native scroll-snap; the dots and the
- * arrow buttons do the same job for anyone who can't or won't swipe.
- */
-export function FeatureCarousel() {
-  const listRef = useRef<HTMLUListElement>(null);
-  const [index, setIndex] = useState(0);
+function WardrobeScene() {
+  const tones: Tone[] = ["lilac", "peach", "mint", "sky", "lilac", "mint"];
+  return (
+    <SceneFrame label="12 pieces · 8 clean">
+      <div className="grid grid-cols-3 grid-rows-2 gap-2 flex-1 min-h-0">
+        {tones.map((t, i) => (
+          <div
+            key={i}
+            style={{ animationDelay: `${i * 70}ms` }}
+            className={`rounded-xl grid place-items-center animate-rise-in ${BLOCK[t]}`}
+          >
+            <Shirt className="w-5 h-5" />
+          </div>
+        ))}
+      </div>
+    </SceneFrame>
+  );
+}
 
-  const go = useCallback((n: number) => {
-    const el = listRef.current;
-    if (!el) return;
-    const clamped = Math.max(0, Math.min(FEATURES.length - 1, n));
-    const child = el.children[clamped] as HTMLElement | undefined;
-    if (child) el.scrollTo({ left: child.offsetLeft - el.offsetLeft, behavior: "smooth" });
-    setIndex(clamped);
+function PlanScene() {
+  const days = ["M", "T", "W", "T", "F", "S", "S"];
+  return (
+    <SceneFrame label="This week">
+      <div className="flex gap-1.5 shrink-0">
+        {days.map((d, i) => (
+          <span
+            key={i}
+            style={{ animationDelay: `${i * 45}ms` }}
+            className={`flex-1 h-8 rounded-lg grid place-items-center text-[11px] font-semibold animate-rise-in ${
+              i === 4 ? "bg-brand-500 text-white" : "bg-ink/[0.05] text-ink/55"
+            }`}
+          >
+            {d}
+          </span>
+        ))}
+      </div>
+      <div
+        style={{ animationDelay: "340ms" }}
+        className="mt-2.5 rounded-xl bg-peach/70 p-2.5 flex-1 min-h-0 flex flex-col animate-slide-in"
+      >
+        <p className="text-[11px] font-semibold text-orange-900 shrink-0">
+          Friday · 3 pieces planned
+        </p>
+        <div className="flex gap-2 mt-2 flex-1 min-h-0">
+          {(["lilac", "mint", "sky"] as Tone[]).map((t, i) => (
+            <span key={i} className={`flex-1 rounded-lg grid place-items-center ${BLOCK[t]}`}>
+              <Shirt className="w-4 h-4" />
+            </span>
+          ))}
+        </div>
+      </div>
+    </SceneFrame>
+  );
+}
+
+function TryOnScene() {
+  return (
+    <SceneFrame label="Before · after">
+      <div className="flex-1 min-h-0 flex gap-2.5">
+        <div className="relative flex-1 rounded-xl overflow-hidden bg-ink/[0.05]">
+          <div className="absolute inset-0 grid place-items-center bg-gradient-to-b from-ink/[0.05] to-ink/[0.12]">
+            <UserIcon className="w-9 h-9 text-ink/30" />
+          </div>
+          <div className="absolute inset-0 grid place-items-center bg-gradient-to-b from-brand-400 to-brand-600 animate-xfade">
+            <UserIcon className="w-9 h-9 text-white/90" />
+          </div>
+        </div>
+        <div className="w-[38%] flex flex-col gap-1.5">
+          {(["lilac", "mint"] as Tone[]).map((t, i) => (
+            <span
+              key={i}
+              style={{ animationDelay: `${i * 110}ms` }}
+              className={`flex-1 rounded-xl grid place-items-center animate-rise-in ${BLOCK[t]}`}
+            >
+              <Shirt className="w-4 h-4" />
+            </span>
+          ))}
+          <span className="shrink-0 rounded-lg bg-brand-500 text-white text-[10px] font-semibold text-center py-1.5">
+            Put it on me
+          </span>
+        </div>
+      </div>
+    </SceneFrame>
+  );
+}
+
+function ShareScene() {
+  return (
+    <SceneFrame label="A friend suggests">
+      <div className="rounded-xl bg-sky/60 p-2.5 flex-1 min-h-0 flex flex-col animate-rise-in">
+        <div className="flex items-center gap-2 shrink-0">
+          <span className="w-7 h-7 rounded-full bg-brand-500 text-white grid place-items-center text-[10px] font-bold shrink-0">
+            PN
+          </span>
+          <p className="text-[11.5px] font-semibold text-blue-900 truncate">
+            Priya picked a look for Friday
+          </p>
+        </div>
+        <div className="flex gap-2 mt-2.5 flex-1 min-h-0">
+          {(["lilac", "peach", "mint"] as Tone[]).map((t, i) => (
+            <span
+              key={i}
+              style={{ animationDelay: `${100 + i * 90}ms` }}
+              className={`flex-1 rounded-lg grid place-items-center animate-rise-in ${BLOCK[t]}`}
+            >
+              <Shirt className="w-4 h-4" />
+            </span>
+          ))}
+        </div>
+      </div>
+      <div style={{ animationDelay: "380ms" }} className="flex gap-2 mt-2.5 shrink-0 animate-slide-in">
+        <span className="flex-1 h-8 rounded-lg bg-brand-500 text-white text-[11px] font-semibold grid place-items-center">
+          <span className="flex items-center gap-1">
+            <Check className="w-3.5 h-3.5" />
+            Accept
+          </span>
+        </span>
+        <span className="flex-1 h-8 rounded-lg bg-ink/[0.05] text-ink/65 text-[11px] font-semibold grid place-items-center">
+          <span className="flex items-center gap-1">
+            <Close className="w-3.5 h-3.5" />
+            Not today
+          </span>
+        </span>
+      </div>
+    </SceneFrame>
+  );
+}
+
+/* ------------------------------------------------------------- feature card */
+
+function FeatureButton({
+  feature,
+  active,
+  variant,
+  onSelect,
+}: {
+  feature: Feature;
+  active: boolean;
+  variant: "dark" | "light";
+  onSelect: () => void;
+}) {
+  const Icon = feature.icon;
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      aria-pressed={active}
+      className={[
+        "w-full h-full text-left rounded-2xl border p-3",
+        "transition-[transform,background-color,border-color,box-shadow] duration-200",
+        "hover:-translate-y-0.5 active:-translate-y-0.5 motion-reduce:hover:translate-y-0 motion-reduce:active:translate-y-0",
+        variant === "dark"
+          ? active
+            ? "bg-white/[0.16] border-white/25 shadow-[0_8px_24px_-12px_rgba(0,0,0,0.6)]"
+            : "bg-white/[0.06] border-white/10 hover:bg-white/[0.11]"
+          : active
+            ? "bg-white border-brand-400 shadow-card"
+            : "bg-white/70 border-ink/[0.07] hover:bg-white",
+      ].join(" ")}
+    >
+      <span className="flex gap-2.5">
+        <span
+          className={`w-9 h-9 shrink-0 rounded-xl grid place-items-center ${CHIP[feature.tone]}`}
+        >
+          <Icon className="w-[18px] h-[18px]" />
+        </span>
+        <span className="min-w-0">
+          <span
+            className={`block text-[13.5px] font-semibold leading-tight ${
+              variant === "dark" ? "text-white" : "text-ink"
+            }`}
+          >
+            {feature.title}
+          </span>
+          <span
+            className={`block text-[12px] leading-snug mt-1 ${
+              variant === "dark" ? "text-white/65" : "text-ink/70"
+            }`}
+          >
+            {feature.body}
+          </span>
+        </span>
+      </span>
+    </button>
+  );
+}
+
+/* --------------------------------------------------------------- showcase */
+
+function useShowcase() {
+  const [active, setActive] = useState(0);
+  const [paused, setPaused] = useState(false);
+
+  // Cycles on its own so the page has life, and stops for good the moment
+  // someone takes control. Never auto-advances under reduced motion.
+  useEffect(() => {
+    if (paused || prefersReducedMotion()) return;
+    const t = setInterval(() => setActive((a) => (a + 1) % FEATURES.length), 4500);
+    return () => clearInterval(t);
+  }, [paused]);
+
+  const select = useCallback((i: number) => {
+    setPaused(true);
+    setActive(((i % FEATURES.length) + FEATURES.length) % FEATURES.length);
   }, []);
 
-  // Keep the dots honest when the user swipes instead of tapping.
+  return { active, select, setActive, paused };
+}
+
+/** Desktop: the whole left panel — story, live scene, and the four cards. */
+export function HeroPanel() {
+  const { active, select } = useShowcase();
+
+  return (
+    <aside className="relative hidden lg:flex flex-col justify-center overflow-hidden bg-[#2A1B5E] p-8 xl:p-10">
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0"
+        style={{
+          background:
+            "radial-gradient(26rem 20rem at 8% -4%, rgba(155,130,240,0.45), transparent 60%)," +
+            "radial-gradient(20rem 16rem at 100% 18%, rgba(255,225,210,0.20), transparent 60%)," +
+            "radial-gradient(24rem 20rem at 60% 108%, rgba(207,244,223,0.18), transparent 60%)",
+        }}
+      />
+
+      <div className="relative">
+        <div className="flex items-center gap-2">
+          <img src="/favicon.svg" alt="" className="w-8 h-8" />
+          <span className="text-lg font-bold text-white tracking-tight">TryUnex</span>
+        </div>
+
+        <h2 className="text-[32px] xl:text-[36px] font-bold text-white leading-[1.1] tracking-tight mt-6">
+          Dress with more joy,
+          <br />
+          every day.
+        </h2>
+        <p className="text-[14.5px] text-white/70 leading-relaxed mt-3 max-w-sm">
+          Save your pieces, plan your looks, and try outfits on before you wear them.
+        </p>
+
+        <div className="mt-6 rounded-2xl bg-white/95 p-3.5 shadow-[0_18px_40px_-20px_rgba(0,0,0,0.7)]">
+          {/* Fixed height so switching scenes never shifts the layout. */}
+          <div key={active} className="h-[172px] animate-fade-in">
+            <Scene index={active} />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2.5 mt-4">
+          {FEATURES.map((f, i) => (
+            <FeatureButton
+              key={f.title}
+              feature={f}
+              variant="dark"
+              active={i === active}
+              onSelect={() => select(i)}
+            />
+          ))}
+        </div>
+      </div>
+    </aside>
+  );
+}
+
+/**
+ * Phone/tablet: the same scene, with the four cards as a swipeable strip.
+ * Swiping, the dots, and the arrows all drive the same selection — none of
+ * them is the only way in.
+ */
+export function MobileShowcase() {
+  const { active, select, setActive } = useShowcase();
+  const listRef = useRef<HTMLUListElement>(null);
+  const programmatic = useRef(false);
+
+  // Keep the strip in step with whichever card is showing.
+  useEffect(() => {
+    const el = listRef.current;
+    const child = el?.children[active] as HTMLElement | undefined;
+    if (!el || !child) return;
+    programmatic.current = true;
+    el.scrollTo({
+      left: child.offsetLeft - el.offsetLeft,
+      behavior: prefersReducedMotion() ? "auto" : "smooth",
+    });
+    const t = setTimeout(() => {
+      programmatic.current = false;
+    }, 500);
+    return () => clearTimeout(t);
+  }, [active]);
+
   useEffect(() => {
     const el = listRef.current;
     if (!el) return;
@@ -129,7 +402,9 @@ export function FeatureCarousel() {
             best = i;
           }
         });
-        setIndex(best);
+        // A swipe counts as taking control; our own scrollTo doesn't.
+        if (programmatic.current) setActive(best);
+        else select(best);
       });
     }
     el.addEventListener("scroll", onScroll, { passive: true });
@@ -137,50 +412,55 @@ export function FeatureCarousel() {
       el.removeEventListener("scroll", onScroll);
       cancelAnimationFrame(frame);
     };
-  }, []);
+  }, [select, setActive]);
 
   return (
     <section aria-label="What TryUnex does" className="lg:hidden">
+      <div className="rounded-3xl border border-ink/[0.06] bg-white/85 backdrop-blur shadow-card p-3.5">
+        <div key={active} className="h-[176px] animate-fade-in">
+          <Scene index={active} />
+        </div>
+      </div>
+
       <ul
         ref={listRef}
-        className="flex gap-3 overflow-x-auto no-scrollbar snap-x snap-mandatory -mx-4 px-4 pb-1"
+        className="flex gap-2.5 overflow-x-auto no-scrollbar snap-x snap-mandatory -mx-4 px-4 mt-3 pb-1"
       >
         {FEATURES.map((f, i) => (
-          <li key={f.title} className="snap-center shrink-0 w-[74vw] max-w-[18rem]">
-            <FeatureCard feature={f} variant="light" index={i} />
+          <li key={f.title} className="snap-center shrink-0 w-[70vw] max-w-[17rem]">
+            <FeatureButton
+              feature={f}
+              variant="light"
+              active={i === active}
+              onSelect={() => select(i)}
+            />
           </li>
         ))}
       </ul>
 
-      <div className="flex items-center justify-center gap-3 mt-3">
-        <IconButton label="Previous benefit" onClick={() => go(index - 1)} disabled={index === 0}>
+      <div className="flex items-center justify-center gap-3 mt-2.5">
+        <IconButton label="Previous benefit" onClick={() => select(active - 1)}>
           <ChevronLeft className="w-5 h-5" />
         </IconButton>
-
         <div className="flex items-center gap-1.5">
           {FEATURES.map((f, i) => (
             <button
               key={f.title}
               type="button"
-              onClick={() => go(i)}
+              onClick={() => select(i)}
               aria-label={`Show ${f.title}`}
-              aria-current={i === index ? "true" : undefined}
+              aria-current={i === active ? "true" : undefined}
               className="tap-44 p-1"
             >
               <span
                 className={`block h-1.5 rounded-full transition-all duration-200 ${
-                  i === index ? "w-5 bg-brand-500" : "w-1.5 bg-ink/20"
+                  i === active ? "w-5 bg-brand-500" : "w-1.5 bg-ink/20"
                 }`}
               />
             </button>
           ))}
         </div>
-
-        <IconButton
-          label="Next benefit"
-          onClick={() => go(index + 1)}
-          disabled={index === FEATURES.length - 1}
-        >
+        <IconButton label="Next benefit" onClick={() => select(active + 1)}>
           <ChevronRight className="w-5 h-5" />
         </IconButton>
       </div>
@@ -188,108 +468,26 @@ export function FeatureCarousel() {
   );
 }
 
-/**
- * A small, static-safe impression of the app: pieces stagger in, a plan card
- * slides in, and the try-on frame crossfades from photo to look. Decorative —
- * hidden from assistive tech, and every animation settles on its final frame
- * under prefers-reduced-motion.
- */
-export function ProductPreview() {
+/** Three compact steps under the form — fills the column, sets expectations. */
+export function HowItWorks() {
+  const steps = [
+    { n: 1, title: "Add your pieces", body: "Snap a photo — that's the whole setup." },
+    { n: 2, title: "Plan or try on", body: "Build a look, or see it on you first." },
+    { n: 3, title: "Share when you want", body: "Only with the people you invite." },
+  ];
   return (
-    <div
-      aria-hidden
-      className="rounded-3xl border border-ink/[0.06] bg-white/80 backdrop-blur shadow-card p-3.5 flex gap-3"
-    >
-      <div className="flex-1 min-w-0">
-        <p className="text-[10px] uppercase tracking-wider text-ink/55 font-semibold">
-          Your wardrobe
-        </p>
-        <div className="grid grid-cols-3 gap-2 mt-2">
-          {(["lilac", "peach", "mint"] as const).map((tone, i) => (
-            <div
-              key={tone}
-              style={{ animationDelay: `${i * 120}ms` }}
-              className={`aspect-square rounded-xl grid place-items-center animate-rise-in ${
-                tone === "lilac" ? "bg-lilac" : tone === "peach" ? "bg-peach" : "bg-mint"
-              }`}
-            >
-              <Shirt
-                className={`w-5 h-5 ${
-                  tone === "lilac"
-                    ? "text-brand-600"
-                    : tone === "peach"
-                      ? "text-orange-700"
-                      : "text-emerald-700"
-                }`}
-              />
-            </div>
-          ))}
-        </div>
-
-        <div
-          style={{ animationDelay: "460ms" }}
-          className="mt-2.5 flex items-center gap-2 rounded-xl bg-sky/70 px-2.5 py-2 animate-slide-in"
-        >
-          <Calendar className="w-4 h-4 text-blue-800 shrink-0" />
-          <span className="text-[11.5px] font-medium text-blue-900 truncate">
-            Friday · 3 pieces planned
+    <ol className="space-y-2.5">
+      {steps.map((s) => (
+        <li key={s.n} className="flex gap-3">
+          <span className="w-6 h-6 shrink-0 rounded-full bg-lilac text-brand-700 grid place-items-center text-[11px] font-bold">
+            {s.n}
           </span>
-        </div>
-      </div>
-
-      <div className="relative w-24 sm:w-28 shrink-0 rounded-2xl overflow-hidden bg-ink/[0.05]">
-        {/* "Before": the plain photo. */}
-        <div className="absolute inset-0 grid place-items-center bg-gradient-to-b from-ink/[0.06] to-ink/[0.12]">
-          <UserIcon className="w-8 h-8 text-ink/30" />
-        </div>
-        {/* "After": the generated look, crossfading over it. */}
-        <div className="absolute inset-0 grid place-items-center bg-gradient-to-b from-brand-400 to-brand-600 animate-xfade">
-          <UserIcon className="w-8 h-8 text-white/90" />
-        </div>
-        <span className="absolute bottom-1.5 inset-x-1.5 rounded-lg bg-white/90 text-[9.5px] font-semibold text-brand-700 text-center py-1">
-          Try-on
-        </span>
-      </div>
-    </div>
-  );
-}
-
-/** Desktop-only story panel that fills the left half of the card. */
-export function HeroPanel() {
-  return (
-    <aside className="relative hidden lg:flex flex-col justify-center overflow-hidden bg-[#2A1B5E] p-10 xl:p-12">
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0"
-        style={{
-          background:
-            "radial-gradient(26rem 20rem at 10% 0%, rgba(155,130,240,0.45), transparent 60%)," +
-            "radial-gradient(20rem 16rem at 100% 20%, rgba(255,225,210,0.20), transparent 60%)," +
-            "radial-gradient(24rem 20rem at 60% 110%, rgba(207,244,223,0.18), transparent 60%)",
-        }}
-      />
-
-      <div className="relative">
-        <div className="flex items-center gap-2">
-          <img src="/favicon.svg" alt="" className="w-8 h-8" />
-          <span className="text-lg font-bold text-white tracking-tight">TryUnex</span>
-        </div>
-
-        <h2 className="text-[34px] xl:text-[38px] font-bold text-white leading-[1.1] tracking-tight mt-8">
-          Dress with more joy,
-          <br />
-          every day.
-        </h2>
-        <p className="text-[15px] text-white/70 leading-relaxed mt-4 max-w-sm">
-          Save your pieces, plan your looks, and try outfits on before you wear them.
-        </p>
-
-        <div className="grid grid-cols-2 gap-3 mt-9">
-          {FEATURES.map((f, i) => (
-            <FeatureCard key={f.title} feature={f} variant="dark" index={i} />
-          ))}
-        </div>
-      </div>
-    </aside>
+          <span className="min-w-0">
+            <span className="block text-[13px] font-semibold leading-tight">{s.title}</span>
+            <span className="block text-[12.5px] text-ink/65 leading-snug mt-0.5">{s.body}</span>
+          </span>
+        </li>
+      ))}
+    </ol>
   );
 }
