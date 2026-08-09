@@ -1,53 +1,124 @@
 import { useEffect, useState } from "react";
-import Nav from "../components/Nav";
+import PageShell, { PageTitle } from "../components/PageShell";
 import ClothCard from "../components/ClothCard";
+import Button from "../components/ui/Button";
+import Surface from "../components/ui/Surface";
+import EmptyState from "../components/ui/EmptyState";
+import { GridSkeleton } from "../components/ui/Skeleton";
+import { ErrorBanner } from "../components/ui/Field";
+import { useToast } from "../components/ui/Toast";
+import { useConfirm } from "../components/ui/Confirm";
+import { Basket, Refresh } from "../components/ui/icons";
 import { api, type Cloth } from "../api";
 
 export default function Worn() {
   const [worn, setWorn] = useState<Cloth[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const { toast } = useToast();
+  const confirm = useConfirm();
 
   async function load() {
-    const r = await api.get<{ clothes: Cloth[] }>("/clothes?status=worn");
-    setWorn(r.clothes);
+    setError(null);
+    try {
+      const r = await api.get<{ clothes: Cloth[] }>("/clothes?status=worn");
+      setWorn(r.clothes);
+    } catch (err: any) {
+      setError(err.message ?? "Could not load your worn pile");
+    }
   }
-  useEffect(() => { load().finally(() => setLoading(false)); }, []);
+
+  useEffect(() => {
+    load().finally(() => setLoading(false));
+  }, []);
 
   async function reset() {
-    if (!confirm(`Move all ${worn.length} worn items back to the wardrobe?`)) return;
-    await api.post("/clothes/reset");
+    const ok = await confirm({
+      title: "Did the laundry?",
+      body: `All ${worn.length} piece${worn.length === 1 ? "" : "s"} go back to your clean wardrobe.`,
+      confirmLabel: "Yes, reset all",
+    });
+    if (!ok) return;
+    setBusy(true);
+    const snapshot = worn;
     setWorn([]);
+    try {
+      await api.post("/clothes/reset");
+      toast(`${snapshot.length} piece${snapshot.length === 1 ? "" : "s"} back in the wardrobe`, {
+        tone: "success",
+      });
+    } catch (err: any) {
+      setWorn(snapshot);
+      toast(err.message ?? "Could not reset", { tone: "error" });
+    } finally {
+      setBusy(false);
+    }
   }
 
-  async function clean(id: string) {
-    await api.post(`/clothes/${id}/clean`);
+  async function markClean(id: string) {
+    const item = worn.find((c) => c.id === id);
     setWorn((p) => p.filter((c) => c.id !== id));
+    try {
+      await api.post(`/clothes/${id}/clean`);
+      toast(item ? `${item.name} is clean again` : "Marked clean", {
+        tone: "success",
+        action: {
+          label: "Undo",
+          onClick: async () => {
+            await api.post("/clothes/wear", { ids: [id] });
+            await load();
+          },
+        },
+      });
+    } catch (err: any) {
+      await load();
+      toast(err.message ?? "Could not mark clean", { tone: "error" });
+    }
   }
 
   return (
-    <>
-      <Nav />
-      <main className="max-w-5xl mx-auto px-4 py-6 space-y-4">
-        <div className="flex items-center justify-between">
-          <h1 className="text-xl font-bold">Worn pile</h1>
-          {worn.length > 0 && (
-            <button onClick={reset} className="text-sm bg-brand-600 text-white rounded-lg px-3 py-1.5 font-medium">
-              Did laundry — reset all
-            </button>
-          )}
-        </div>
-        {loading ? (
-          <p className="text-gray-500 text-sm">Loading…</p>
-        ) : worn.length === 0 ? (
-          <p className="text-gray-500 text-sm">Nothing here. Everything's clean.</p>
-        ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-            {worn.map((c) => (
-              <ClothCard key={c.id} cloth={c} onMarkClean={clean} />
-            ))}
+    <PageShell>
+      <PageTitle
+        title="Laundry basket"
+        subtitle="Everything you've worn since the last reset."
+      />
+
+      {error && <ErrorBanner onRetry={() => load()}>{error}</ErrorBanner>}
+
+      {!loading && worn.length > 0 && (
+        <Surface tone="peach" className="flex items-center gap-3">
+          <span className="text-2xl" aria-hidden>
+            🧺
+          </span>
+          <div className="flex-1 min-w-0">
+            <p className="font-semibold text-sm">
+              {worn.length} piece{worn.length === 1 ? "" : "s"} waiting
+            </p>
+            <p className="text-[13px] text-ink/70">Reset the whole basket, or clean pieces one by one.</p>
           </div>
-        )}
-      </main>
-    </>
+          <Button size="sm" onClick={reset} loading={busy} leading={<Refresh className="w-4 h-4" />}>
+            Reset all
+          </Button>
+        </Surface>
+      )}
+
+      {loading ? (
+        <GridSkeleton count={4} />
+      ) : worn.length === 0 ? (
+        <EmptyState
+          tone="mint"
+          icon={<Basket className="w-7 h-7" />}
+          title="Basket's empty"
+          body="Nothing to wash — every piece in your wardrobe is clean."
+        />
+      ) : (
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+          {worn.map((c) => (
+            <ClothCard key={c.id} cloth={c} onMarkClean={markClean} />
+          ))}
+        </div>
+      )}
+    </PageShell>
   );
 }

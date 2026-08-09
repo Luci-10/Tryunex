@@ -2,5 +2,122 @@
 @tailwind components;
 @tailwind utilities;
 
-html, body, #root { height: 100%; }
-body { background: #faf7ff; color: #111827; font-family: system-ui, -apple-system, sans-serif; }
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    @apply bg-canvas text-ink;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    -webkit-font-smoothing: antialiased;
+    /* Never let a wide grid or tray push the page sideways. */
+    overflow-x: hidden;
+  }
+
+  /* One visible focus treatment for every interactive element. */
+  :where(a, button, input, select, textarea, [tabindex]):focus-visible {
+    outline: 2px solid theme("colors.brand.500");
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+
+  /* Form controls inherit the palette instead of the browser default. */
+  input,
+  select,
+  textarea {
+    @apply text-ink;
+  }
+}
+
+@layer components {
+  /* Card surface used across the whole app: soft radius, hairline border,
+     barely-there shadow — never a heavy drop shadow. */
+  .surface {
+    @apply bg-white rounded-card border border-ink/[0.06] shadow-card;
+  }
+
+  /* Expands a small control's hit area to 44×44 without changing its
+     visual size — used by icon buttons and chips. */
+  .tap-44 {
+    position: relative;
+  }
+  .tap-44::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 44px;
+    height: 44px;
+    transform: translate(-50%, -50%);
+  }
+}
+
+@layer utilities {
+  .no-scrollbar {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Capacitor safe areas. */
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .pt-safe {
+    padding-top: env(safe-area-inset-top);
+  }
+
+  /* Soft colour wash behind large empty areas. Sits under content, never
+     over it, and stays pale enough that cards keep their contrast. */
+  .blobs::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background:
+      radial-gradient(42rem 26rem at 12% -6%, rgba(118, 87, 232, 0.13), transparent 65%),
+      radial-gradient(34rem 22rem at 105% 6%, rgba(255, 225, 210, 0.6), transparent 62%),
+      radial-gradient(30rem 24rem at 50% 108%, rgba(207, 244, 223, 0.5), transparent 60%);
+  }
+
+  .shimmer {
+    position: relative;
+    overflow: hidden;
+  }
+  .shimmer::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgba(255, 255, 255, 0.6),
+      transparent
+    );
+    animation: shimmer 1.4s infinite;
+  }
+  @keyframes shimmer {
+    100% {
+      transform: translateX(100%);
+    }
+  }
+}
+
+/* Motion is decoration here — every animated affordance also works static. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

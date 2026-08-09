@@ -1,14 +1,18 @@
 import { useEffect, useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { NavLink, useNavigate } from "react-router-dom";
 import { api } from "../api";
+import { Users } from "./ui/icons";
 
 type Accessible = { id: string; ownerId: string; ownerName: string };
 
-// Dropdown at the top of the wardrobe pages: "My wardrobe" + every friend who
-// shared theirs. Selecting a friend navigates to /friends/<id>.
+/**
+ * Horizontal pills for "my wardrobe" plus every friend who shared theirs.
+ * Renders nothing when nobody has shared — no point spending a row on a
+ * one-option switcher.
+ */
 export default function WardrobeSwitcher({ current }: { current: "mine" | string }) {
   const nav = useNavigate();
-  const [accessible, setAccessible] = useState<Accessible[]>([]);
+  const [accessible, setAccessible] = useState<Accessible[] | null>(null);
 
   useEffect(() => {
     api
@@ -17,30 +21,50 @@ export default function WardrobeSwitcher({ current }: { current: "mine" | string
       .catch(() => setAccessible([]));
   }, []);
 
-  function onChange(e: React.ChangeEvent<HTMLSelectElement>) {
-    const v = e.target.value;
-    if (v === "mine") nav("/");
-    else nav(`/friends/${v}`);
-  }
+  if (!accessible || accessible.length === 0) return null;
 
   return (
-    <div className="bg-white rounded-2xl shadow-sm p-3 flex items-center gap-3 flex-wrap">
-      <label className="text-sm font-medium text-gray-700">Viewing:</label>
-      <select
-        value={current}
-        onChange={onChange}
-        className="border rounded-lg px-3 py-2 text-sm min-w-[200px] flex-1"
+    <div className="flex gap-2 overflow-x-auto no-scrollbar -mx-4 px-4" role="group" aria-label="Choose a wardrobe">
+      <Pill active={current === "mine"} onClick={() => nav("/")}>
+        My wardrobe
+      </Pill>
+      {accessible.map((a) => (
+        <Pill key={a.ownerId} active={current === a.ownerId} onClick={() => nav(`/friends/${a.ownerId}`)}>
+          {a.ownerName}
+        </Pill>
+      ))}
+      <NavLink
+        to="/shared"
+        className="h-9 px-3.5 inline-flex items-center gap-1.5 rounded-full text-sm whitespace-nowrap border border-dashed border-brand-300 text-brand-700 hover:bg-brand-50 shrink-0"
       >
-        <option value="mine">My wardrobe</option>
-        {accessible.map((a) => (
-          <option key={a.ownerId} value={a.ownerId}>
-            {a.ownerName}'s wardrobe
-          </option>
-        ))}
-      </select>
-      <Link to="/shared" className="text-sm text-brand-700 hover:underline whitespace-nowrap">
-        + Connect to friend
-      </Link>
+        <Users className="w-4 h-4" />
+        Connect
+      </NavLink>
     </div>
+  );
+}
+
+function Pill({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-current={active ? "true" : undefined}
+      className={`h-9 px-3.5 rounded-full text-sm whitespace-nowrap border shrink-0 transition-colors ${
+        active
+          ? "bg-ink text-white border-ink font-medium"
+          : "bg-white text-ink/70 border-ink/10 hover:bg-ink/[0.04]"
+      }`}
+    >
+      {children}
+    </button>
   );
 }

@@ -1,68 +1,15 @@
 import { useRef, useState } from "react";
 import { api, type Cloth } from "../api";
 import { useAuth } from "../auth";
-import Modal from "./Modal";
+import Sheet from "./ui/Sheet";
+import Button from "./ui/Button";
+import { Input, Label, Select, FieldError } from "./ui/Field";
 import PhotoAccessPrompt from "./PhotoAccessPrompt";
 import { hasPhotoConsent, grantPhotoConsent } from "../photoConsent";
-
-function putWithProgress(url: string, body: Blob, contentType: string, onProgress: (pct: number) => void): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    xhr.open("PUT", url);
-    xhr.setRequestHeader("Content-Type", contentType);
-    xhr.upload.onprogress = (e) => {
-      if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
-    };
-    xhr.onload = () =>
-      xhr.status >= 200 && xhr.status < 300
-        ? resolve()
-        : reject(new Error(`Upload failed: HTTP ${xhr.status}`));
-    xhr.onerror = () => reject(new Error("Network error during upload"));
-    xhr.send(body);
-  });
-}
+import { resizeImage, putWithProgress } from "../upload";
+import { Camera, Refresh } from "./ui/icons";
 
 const CATEGORIES = ["top", "bottom", "dress", "outerwear", "shoes", "accessory", "other"];
-
-// 800px is plenty for the wardrobe grid (cards render ~200-400px wide) and
-// keeps uploads small for users on slower connections — Vercel Blob lives in
-// the US, so a smaller payload meaningfully cuts upload time from India.
-// 800px is plenty for the wardrobe grid (cards render ~200-400px wide) and
-// keeps uploads small for users on slower connections.
-async function resizeImage(file: File, maxSide = 800, quality = 0.78): Promise<Blob> {
-  const imageUrl = URL.createObjectURL(file);
-  const img = new Image();
-  img.src = imageUrl;
-
-  await new Promise((resolve, reject) => {
-    img.onload = resolve;
-    img.onerror = () => reject(new Error("Failed to load image for resizing"));
-  });
-
-  const scale = Math.min(1, maxSide / Math.max(img.width, img.height));
-  const w = Math.round(img.width * scale);
-  const h = Math.round(img.height * scale);
-
-  const canvas = document.createElement("canvas");
-  canvas.width = w;
-  canvas.height = h;
-  const ctx = canvas.getContext("2d");
-  if (!ctx) {
-    URL.revokeObjectURL(imageUrl);
-    throw new Error("Canvas not supported");
-  }
-
-  ctx.drawImage(img, 0, 0, w, h);
-  URL.revokeObjectURL(imageUrl);
-
-  return await new Promise<Blob>((resolve, reject) => {
-    canvas.toBlob(
-      (blob) => (blob ? resolve(blob) : reject(new Error("Failed to encode image"))),
-      "image/jpeg",
-      quality,
-    );
-  });
-}
 
 export default function AddClothModal({
   open,
@@ -74,51 +21,63 @@ export default function AddClothModal({
   onAdded: (c: Cloth) => void;
 }) {
   const { user } = useAuth();
-  const formRef = useRef<HTMLFormElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
+  const [name, setName] = useState("");
+  const [category, setCategory] = useState("other");
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [askPhoto, setAskPhoto] = useState(false);
 
-  // Intercept the label click on first-ever upload to show the explainer.
-  function handleUploadAreaClick(e: React.MouseEvent) {
+  // First-ever upload on a touch device gets the explainer before the OS picker.
+  function openPicker() {
     if (!hasPhotoConsent()) {
-      e.preventDefault();
       setAskPhoto(true);
+      return;
     }
+    fileRef.current?.click();
   }
+
   function continuePhotoAccess() {
     grantPhotoConsent();
     setAskPhoto(false);
-    // Defer click so the modal can unmount cleanly first.
-    setTimeout(() => fileRef.current?.click(), 50);
+    setTimeout(() => fileRef.current?.click(), 60);
+  }
+
+  function pick(f: File | undefined) {
+    if (!f) return;
+    setFile(f);
+    setPreview((old) => {
+      if (old) URL.revokeObjectURL(old);
+      return URL.createObjectURL(f);
+    });
+    setError(null);
+  }
+
+  function reset() {
+    if (preview) URL.revokeObjectURL(preview);
+    setFile(null);
+    setPreview(null);
+    setName("");
+    setCategory("other");
+    setProgress(null);
+    setError(null);
   }
 
   function close() {
-    formRef.current?.reset();
-    setPreview(null);
-    setProgress(null);
-    setError(null);
+    if (busy) return; // never yank the sheet out mid-upload
+    reset();
     onClose();
   }
 
-  async function submit(e: React.FormEvent<HTMLFormElement>) {
+  async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    if (!user) {
-      setError("Not signed in");
-      return;
-    }
-    const fd = new FormData(e.currentTarget);
-    const file = fd.get("image");
-    if (!(file instanceof File) || file.size === 0) {
-      setError("Choose a photo");
-      return;
-    }
-    const name = String(fd.get("name") ?? "").trim() || "Untitled";
-    const category = String(fd.get("category") ?? "other");
+    if (!user) return setError("You're signed out — sign in again to add pieces.");
+    if (!file) return setError("Choose a photo first.");
+    if (!name.trim()) return setError("Give this piece a name.");
 
     setBusy(true);
     try {
@@ -131,11 +90,12 @@ export default function AddClothModal({
       setProgress(null);
       const r = await api.post<{ cloth: Cloth }>("/clothes", {
         imageUrl: publicUrl,
-        name,
+        name: name.trim(),
         category,
       });
       onAdded(r.cloth);
-      close();
+      reset();
+      onClose();
     } catch (err: any) {
       console.error("[upload] failed", err);
       setError(err.message ?? "Upload failed");
@@ -146,63 +106,113 @@ export default function AddClothModal({
   }
 
   return (
-    <Modal open={open} onClose={close} title="Add a piece">
-      <form ref={formRef} onSubmit={submit} className="space-y-3">
-        <label
-          onClick={handleUploadAreaClick}
-          className="relative aspect-square bg-brand-50 rounded-xl border-2 border-dashed border-brand-200 flex items-center justify-center cursor-pointer overflow-hidden block"
-        >
-          {preview ? (
-            <img src={preview} alt="" className="w-full h-full object-cover" />
-          ) : (
-            <span className="text-brand-600 text-sm text-center px-4">Tap to choose a photo<br /><span className="text-xs text-gray-500">(or take one with your camera)</span></span>
-          )}
-          {/* No `capture` attr — phone OS shows the picker with both
-              "Take photo" and "Choose from gallery". With capture set,
-              gallery is skipped entirely. */}
+    <Sheet
+      open={open}
+      onClose={close}
+      dismissible={!busy}
+      title="Add a piece"
+      description="A clear, well-lit photo works best."
+      footer={
+        <Button block size="lg" loading={busy} onClick={submit} disabled={!file || !name.trim()}>
+          {busy ? (progress !== null ? `Uploading ${progress}%` : "Saving…") : "Add to wardrobe"}
+        </Button>
+      }
+    >
+      <form onSubmit={submit} className="space-y-4">
+        <div>
+          <div className="relative aspect-square rounded-2xl overflow-hidden bg-lilac border-2 border-dashed border-brand-200">
+            {preview ? (
+              <img src={preview} alt="The photo you selected" className="w-full h-full object-cover" />
+            ) : (
+              <button
+                type="button"
+                onClick={openPicker}
+                className="w-full h-full flex flex-col items-center justify-center gap-2 text-brand-700"
+              >
+                <Camera className="w-8 h-8" />
+                <span className="text-sm font-medium">Choose a photo</span>
+                <span className="text-xs text-ink/65">or take one with your camera</span>
+              </button>
+            )}
+
+            {preview && !busy && (
+              <button
+                type="button"
+                onClick={openPicker}
+                className="absolute bottom-3 right-3 inline-flex items-center gap-1.5 h-9 px-3 rounded-full bg-white/95 text-ink text-sm font-medium shadow-card backdrop-blur-sm"
+              >
+                <Refresh className="w-4 h-4" />
+                Replace
+              </button>
+            )}
+
+            {busy && progress !== null && (
+              <div className="absolute inset-x-0 bottom-0 bg-ink/70 px-3 py-2.5 backdrop-blur-sm">
+                <div className="flex items-center justify-between text-white text-xs font-medium mb-1.5">
+                  <span>Uploading…</span>
+                  <span>{progress}%</span>
+                </div>
+                <div
+                  className="h-1.5 rounded-full bg-white/25 overflow-hidden"
+                  role="progressbar"
+                  aria-valuenow={progress}
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-label="Upload progress"
+                >
+                  <div
+                    className="h-full bg-white transition-[width] duration-200"
+                    style={{ width: `${progress}%` }}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* No `capture` attribute — with it the OS skips the gallery entirely. */}
           <input
             ref={fileRef}
-            name="image"
             type="file"
             accept="image/*"
+            className="sr-only"
+            onChange={(e) => pick(e.target.files?.[0])}
+          />
+        </div>
+
+        <label className="block">
+          <Label>Name</Label>
+          <Input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="e.g. blue denim jacket"
+            maxLength={80}
             required
-            className="absolute inset-0 opacity-0 cursor-pointer"
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              setPreview(f ? URL.createObjectURL(f) : null);
-            }}
           />
         </label>
-        <input
-          name="name"
-          placeholder="Name (e.g. blue jeans)"
-          required
-          className="w-full border rounded-lg px-3 py-2"
-        />
-        <select name="category" defaultValue="other" className="w-full border rounded-lg px-3 py-2 capitalize">
-          {CATEGORIES.map((c) => (
-            <option key={c} value={c}>
-              {c}
-            </option>
-          ))}
-        </select>
-        <button
-          disabled={busy}
-          className="w-full bg-brand-600 text-white rounded-lg py-2 font-medium disabled:opacity-60"
-        >
-          {busy
-            ? progress !== null
-              ? `Uploading ${progress}%`
-              : "Adding…"
-            : "Add to wardrobe"}
-        </button>
-        {error && <p className="text-sm text-red-600">{error}</p>}
+
+        <label className="block">
+          <Label>Category</Label>
+          <Select
+            value={category}
+            onChange={(e) => setCategory(e.target.value)}
+            className="capitalize"
+          >
+            {CATEGORIES.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </Select>
+        </label>
+
+        <FieldError>{error}</FieldError>
       </form>
+
       <PhotoAccessPrompt
         open={askPhoto}
         onCancel={() => setAskPhoto(false)}
         onContinue={continuePhotoAccess}
       />
-    </Modal>
+    </Sheet>
   );
 }
