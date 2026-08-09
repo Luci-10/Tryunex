@@ -49,10 +49,26 @@ export default {
         shimmer: {
           "100%": { transform: "translateX(100%)" },
         },
+        // Landing-page product preview.
+        "rise-in": {
+          from: { opacity: "0", transform: "translateY(12px) scale(0.97)" },
+          to: { opacity: "1", transform: "none" },
+        },
+        "slide-in": {
+          from: { opacity: "0", transform: "translateX(16px)" },
+          to: { opacity: "1", transform: "none" },
+        },
+        xfade: {
+          "0%, 40%": { opacity: "0" },
+          "60%, 100%": { opacity: "1" },
+        },
       },
       animation: {
         "sheet-up": "sheet-up 200ms ease-out",
         "fade-in": "fade-in 160ms ease-out",
+        "rise-in": "rise-in 420ms cubic-bezier(0.22,1,0.36,1) both",
+        "slide-in": "slide-in 460ms cubic-bezier(0.22,1,0.36,1) both",
+        xfade: "xfade 5s ease-in-out infinite alternate",
       },
     },
   },
