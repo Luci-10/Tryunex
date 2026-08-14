@@ -1,37 +1,46 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useChat } from "../chat";
-import { useTryOn } from "../tryon";
-import { api, API_BASE, type Cloth } from "../api";
+import { api, type Cloth } from "../api";
 import IconButton from "./ui/IconButton";
 import Button from "./ui/Button";
 import { Input } from "./ui/Field";
-import { Close, Send, Sparkles } from "./ui/icons";
+import { useConfirm } from "./ui/Confirm";
+import { Check, Close, Copy, More, Refresh, Send, Shirt, Sparkles } from "./ui/icons";
+import { parseAssistant } from "./chat/parse";
+import OutfitCard, { OutfitCardSkeleton } from "./chat/OutfitCard";
+import ClothChip from "./chat/ClothChip";
+import StyleContextBar from "./chat/StyleContextBar";
 
-type Msg = { role: "user" | "assistant"; content: string };
-
-const STARTERS = [
+const GENERAL_STARTERS = [
+  "Build an outfit from my clean clothes",
+  "What haven't I worn recently?",
+  "Help me plan this week",
   "What should I wear today?",
-  "I have an event tonight",
-  "What's in my wardrobe?",
 ];
 
-// Matches `[cloth: <id>]` tokens emitted by the model (see the system prompt
-// in backend/src/routes/chat.ts). Tolerant of stray whitespace.
-const CLOTH_TOKEN = /\[cloth:\s*([^\]\s]+)\s*\]/g;
+const ATTACHED_STARTERS = [
+  "How should I style this?",
+  "Make it casual",
+  "Dress it up",
+  "What goes with it?",
+];
 
 export default function ChatPanel() {
-  const { open, attached, closeChat, setAttached } = useChat();
-  const [messages, setMessages] = useState<Msg[]>([]);
+  const { open, attached, messages, streaming, busy, closeChat, setAttached, send, stop, clear, retry } =
+    useChat();
+  const confirm = useConfirm();
+  const nav = useNavigate();
+
   const [input, setInput] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [streaming, setStreaming] = useState("");
-  const [wardrobe, setWardrobe] = useState<Map<string, Cloth>>(new Map());
+  const [wardrobe, setWardrobe] = useState<Map<string, Cloth> | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const restoreRef = useRef<HTMLElement | null>(null);
 
-  // Load the wardrobe once per open so [cloth: id] tokens resolve to a name
-  // and image without a fetch per turn.
+  // Wardrobe is loaded once per open so `[cloth: id]` references resolve to a
+  // name and picture without a fetch per turn.
   useEffect(() => {
     if (!open) return;
     api
@@ -44,79 +53,42 @@ export default function ChatPanel() {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, streaming, open]);
 
-  // Focus the composer on open, hand focus back to the trigger on close.
   useEffect(() => {
     if (open) {
       restoreRef.current = document.activeElement as HTMLElement | null;
       setTimeout(() => inputRef.current?.focus(), 60);
     } else {
-      setAttached(null);
       restoreRef.current?.focus?.();
     }
-  }, [open, setAttached]);
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") closeChat();
+      if (e.key !== "Escape") return;
+      if (menuOpen) setMenuOpen(false);
+      else closeChat();
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [open, closeChat]);
+  }, [open, menuOpen, closeChat]);
 
-  async function send(text: string) {
-    if (!text.trim() || busy) return;
-    const next: Msg[] = [...messages, { role: "user", content: text.trim() }];
-    setMessages(next);
-    setInput("");
-    setBusy(true);
-    setStreaming("");
+  const wardrobeEmpty = wardrobe !== null && wardrobe.size === 0;
+  const starters = attached ? ATTACHED_STARTERS : GENERAL_STARTERS;
 
-    try {
-      const res = await fetch(`${API_BASE}/chat`, {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: next, attachedClothId: attached?.id }),
+  async function newChat() {
+    setMenuOpen(false);
+    if (messages.length > 0) {
+      const ok = await confirm({
+        title: "Start a new chat?",
+        body: "This conversation is cleared. Nothing you've planned or tried on is affected.",
+        confirmLabel: "New chat",
       });
-      if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`);
-      if (!res.body) throw new Error("No response body");
-
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let buf = "";
-      let acc = "";
-
-      while (true) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        buf += decoder.decode(value, { stream: true });
-        const frames = buf.split("\n\n");
-        buf = frames.pop() ?? "";
-        for (const frame of frames) {
-          let evName = "message";
-          let data = "";
-          for (const line of frame.split("\n")) {
-            if (line.startsWith("event:")) evName = line.slice(6).trim();
-            else if (line.startsWith("data:")) data += line.slice(5).trim();
-          }
-          if (!data) continue;
-          const parsed = JSON.parse(data);
-          if (evName === "delta") {
-            acc += parsed.text;
-            setStreaming(acc);
-          } else if (evName === "error") {
-            throw new Error(parsed.message ?? "stream error");
-          }
-        }
-      }
-      if (acc) setMessages([...next, { role: "assistant", content: acc }]);
-    } catch (err: any) {
-      setMessages([...next, { role: "assistant", content: `⚠️ ${err.message ?? "Chat failed"}` }]);
-    } finally {
-      setBusy(false);
-      setStreaming("");
+      if (!ok) return;
     }
+    clear();
+    setAttached(null);
+    setInput("");
   }
 
   if (!open) return null;
@@ -133,10 +105,10 @@ export default function ChatPanel() {
         role="dialog"
         aria-modal="false"
         aria-label="Ask TryUnex"
-        className="fixed z-50 inset-x-0 bottom-0 md:inset-auto md:bottom-6 md:right-6 md:w-[400px]"
+        className="fixed z-50 inset-x-0 bottom-0 md:inset-auto md:bottom-6 md:right-6 md:w-[26rem]"
       >
-        <div className="bg-white rounded-t-sheet md:rounded-sheet border border-ink/[0.07] shadow-lift flex flex-col h-[78dvh] md:h-[min(34rem,72vh)] overflow-hidden animate-sheet-up">
-          <header className="flex items-center gap-2 px-4 py-3 border-b border-ink/[0.07] shrink-0">
+        <div className="bg-white rounded-t-sheet md:rounded-sheet border border-ink/[0.07] shadow-lift flex flex-col h-[82dvh] md:h-[min(38rem,80vh)] overflow-hidden animate-sheet-up">
+          <header className="relative flex items-center gap-2 px-4 py-3 border-b border-ink/[0.07] shrink-0">
             <span className="w-8 h-8 rounded-full bg-lilac text-brand-600 grid place-items-center shrink-0">
               <Sparkles className="w-4 h-4" />
             </span>
@@ -144,9 +116,50 @@ export default function ChatPanel() {
               <p className="font-semibold text-sm leading-tight">Ask TryUnex</p>
               <p className="text-[11px] text-ink/65">Outfit ideas from your own wardrobe</p>
             </div>
+
+            <IconButton
+              label="Chat options"
+              aria-haspopup="menu"
+              aria-expanded={menuOpen}
+              onClick={() => setMenuOpen((v) => !v)}
+            >
+              <More className="w-5 h-5" />
+            </IconButton>
             <IconButton label="Close chat" onClick={closeChat}>
               <Close className="w-5 h-5" />
             </IconButton>
+
+            {menuOpen && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} aria-hidden />
+                <div
+                  role="menu"
+                  className="absolute right-3 top-14 z-20 w-44 bg-white rounded-xl border border-ink/10 shadow-lift p-1 animate-fade-in"
+                >
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={newChat}
+                    className="w-full flex items-center gap-2 h-10 px-3 rounded-lg text-[13.5px] text-left hover:bg-ink/[0.04]"
+                  >
+                    <Refresh className="w-4 h-4 shrink-0" />
+                    New chat
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      closeChat();
+                    }}
+                    className="w-full flex items-center gap-2 h-10 px-3 rounded-lg text-[13.5px] text-left hover:bg-ink/[0.04]"
+                  >
+                    <Close className="w-4 h-4 shrink-0" />
+                    Close chat
+                  </button>
+                </div>
+              </>
+            )}
           </header>
 
           {attached && (
@@ -157,9 +170,7 @@ export default function ChatPanel() {
                   alt={attached.name}
                   className="w-7 h-7 rounded-full object-cover shrink-0"
                 />
-                <span className="text-[13px] font-medium text-brand-700 truncate">
-                  {attached.name}
-                </span>
+                <span className="text-[13px] font-medium text-brand-700 truncate">{attached.name}</span>
                 <IconButton
                   label={`Stop asking about ${attached.name}`}
                   size="sm"
@@ -172,42 +183,58 @@ export default function ChatPanel() {
             </div>
           )}
 
-          <div
-            ref={scrollRef}
-            className="flex-1 overflow-y-auto overscroll-contain px-4 py-3 space-y-3"
-          >
+          <div ref={scrollRef} className="flex-1 overflow-y-auto overscroll-contain px-4 py-3 space-y-3">
             {messages.length === 0 && !streaming && (
-              <div className="space-y-3 pt-2">
-                <p className="text-sm text-ink/70 leading-relaxed">
-                  Hi 👋 I can suggest outfits, help plan your week, or answer questions about what
-                  you own.
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  {STARTERS.map((q) => (
-                    <button
-                      key={q}
-                      type="button"
-                      onClick={() => send(q)}
-                      className="text-[13px] bg-brand-50 hover:bg-brand-100 text-brand-700 px-3 h-9 rounded-full"
-                    >
-                      {q}
-                    </button>
-                  ))}
-                </div>
-              </div>
+              <Welcome
+                wardrobeEmpty={wardrobeEmpty}
+                loading={wardrobe === null}
+                attachedName={attached?.name ?? null}
+                starters={starters}
+                onPick={send}
+                onTryOn={() => {
+                  closeChat();
+                  nav("/tryon");
+                }}
+                onAddFirst={() => {
+                  closeChat();
+                  nav("/");
+                }}
+              />
             )}
 
-            {messages.map((m, i) => (
-              <Bubble key={i} role={m.role} text={m.content} wardrobe={wardrobe} />
-            ))}
-            {streaming && <Bubble role="assistant" text={streaming} wardrobe={wardrobe} />}
+            {messages.map((m, i) =>
+              m.role === "user" ? (
+                <UserBubble key={i} text={m.content} />
+              ) : (
+                <AssistantTurn
+                  key={i}
+                  text={m.content}
+                  wardrobe={wardrobe}
+                  showActions={!busy && i === messages.length - 1}
+                  onRetry={retry}
+                />
+              ),
+            )}
+
+            {streaming && <AssistantTurn text={streaming} wardrobe={wardrobe} showActions={false} />}
             {busy && !streaming && <Typing />}
           </div>
+
+          {busy && (
+            <div className="px-4 pb-2 shrink-0">
+              <Button variant="secondary" size="sm" block onClick={stop}>
+                Stop generating
+              </Button>
+            </div>
+          )}
+
+          {!wardrobeEmpty && <StyleContextBar />}
 
           <form
             onSubmit={(e) => {
               e.preventDefault();
               send(input);
+              setInput("");
             }}
             className="border-t border-ink/[0.07] p-3 flex gap-2 shrink-0 pb-[calc(0.75rem+env(safe-area-inset-bottom))] md:pb-3"
           >
@@ -215,12 +242,16 @@ export default function ChatPanel() {
               ref={inputRef}
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="Ask anything…"
+              placeholder={attached ? `Ask about ${attached.name}…` : "Ask anything…"}
               aria-label="Message"
               disabled={busy}
               className="!rounded-full"
             />
-            <Button type="submit" disabled={busy || !input.trim()} className="!w-11 !px-0 !rounded-full">
+            <Button
+              type="submit"
+              disabled={busy || !input.trim()}
+              className="!w-11 !px-0 !rounded-full shrink-0"
+            >
               <Send className="w-4 h-4" />
               <span className="sr-only">Send</span>
             </Button>
@@ -231,10 +262,221 @@ export default function ChatPanel() {
   );
 }
 
+/* ------------------------------------------------------------- welcome */
+
+function Welcome({
+  wardrobeEmpty,
+  loading,
+  attachedName,
+  starters,
+  onPick,
+  onTryOn,
+  onAddFirst,
+}: {
+  wardrobeEmpty: boolean;
+  loading: boolean;
+  attachedName: string | null;
+  starters: string[];
+  onPick: (s: string) => void;
+  onTryOn: () => void;
+  onAddFirst: () => void;
+}) {
+  if (loading) return null;
+
+  // Nothing to style yet — suggesting outfits would be nonsense.
+  if (wardrobeEmpty) {
+    return (
+      <div className="pt-4 text-center flex flex-col items-center gap-3">
+        <span className="w-12 h-12 rounded-full bg-lilac text-brand-600 grid place-items-center">
+          <Shirt className="w-6 h-6" />
+        </span>
+        <div>
+          <p className="text-[14.5px] font-semibold">Add a piece first</p>
+          <p className="text-[13px] text-ink/65 leading-relaxed mt-1 max-w-[15rem] mx-auto">
+            I can only suggest clothes you actually own. Add your first garment and I'll take it
+            from there.
+          </p>
+        </div>
+        <Button size="sm" onClick={onAddFirst}>
+          Go to my wardrobe
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3 pt-1">
+      <p className="text-sm text-ink/70 leading-relaxed">
+        {attachedName ? (
+          <>
+            Let's work on <strong className="text-ink">{attachedName}</strong>. Ask me anything, or
+            start here:
+          </>
+        ) : (
+          <>Hi 👋 I know what's in your wardrobe. Where shall we start?</>
+        )}
+      </p>
+      <div className="flex flex-wrap gap-2">
+        {starters.map((q) => (
+          <button
+            key={q}
+            type="button"
+            onClick={() => onPick(q)}
+            className="text-[13px] bg-brand-50 hover:bg-brand-100 active:bg-brand-200 text-brand-700 px-3 h-9 rounded-full transition-colors"
+          >
+            {q}
+          </button>
+        ))}
+        {attachedName && (
+          <button
+            type="button"
+            onClick={onTryOn}
+            className="text-[13px] bg-mint hover:brightness-95 text-emerald-800 px-3 h-9 rounded-full inline-flex items-center gap-1.5 transition-[filter]"
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            Try it on
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* -------------------------------------------------------------- turns */
+
+function UserBubble({ text }: { text: string }) {
+  return (
+    <div className="flex justify-end">
+      <div className="max-w-[85%] px-3.5 py-2.5 text-sm whitespace-pre-wrap leading-relaxed bg-brand-500 text-white rounded-2xl rounded-br-md">
+        {text}
+      </div>
+    </div>
+  );
+}
+
+function AssistantTurn({
+  text,
+  wardrobe,
+  showActions,
+  onRetry,
+}: {
+  text: string;
+  wardrobe: Map<string, Cloth> | null;
+  showActions: boolean;
+  onRetry?: () => void;
+}) {
+  const segments = useMemo(() => parseAssistant(text), [text]);
+  const map = wardrobe ?? new Map<string, Cloth>();
+
+  return (
+    <div className="flex gap-2">
+      <span className="w-6 h-6 rounded-full bg-lilac text-brand-600 grid place-items-center shrink-0 mt-0.5">
+        <Sparkles className="w-3.5 h-3.5" />
+      </span>
+      <div className="min-w-0 flex-1">
+        <div className="space-y-1">
+          {segments.map((s, i) => {
+            if (s.type === "text")
+              return (
+                <p key={i} className="text-sm text-ink leading-relaxed whitespace-pre-wrap">
+                  {s.value.trim()}
+                </p>
+              );
+            if (s.type === "outfit-pending") return <OutfitCardSkeleton key={i} />;
+            if (s.type === "outfit") return <OutfitCard key={i} outfit={s.outfit} wardrobe={map} />;
+            const cloth = map.get(s.id);
+            // An id we can't resolve is dropped rather than shown as noise.
+            return cloth ? <ClothChip key={i} cloth={cloth} /> : null;
+          })}
+        </div>
+        {showActions && <TurnActions text={text} onRetry={onRetry} />}
+      </div>
+    </div>
+  );
+}
+
+function TurnActions({ text, onRetry }: { text: string; onRetry?: () => void }) {
+  const [copied, setCopied] = useState(false);
+  const [vote, setVote] = useState<"up" | "down" | null>(null);
+
+  async function copy() {
+    // Strip the machine-readable markers — nobody wants those on their clipboard.
+    const clean = text
+      .replace(/\[\[outfit\]\][\s\S]*?\[\[\/outfit\]\]/g, "")
+      .replace(/\[cloth:\s*[^\]]+\]/g, "")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim();
+    try {
+      await navigator.clipboard.writeText(clean);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      /* clipboard blocked — the message is still on screen to select */
+    }
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-1 mt-1.5">
+      {onRetry && (
+        <MiniAction onClick={onRetry} icon={<Refresh className="w-3.5 h-3.5" />}>
+          Retry
+        </MiniAction>
+      )}
+      <MiniAction
+        onClick={copy}
+        icon={copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+      >
+        {copied ? "Copied" : "Copy"}
+      </MiniAction>
+      <MiniAction onClick={() => setVote("up")} active={vote === "up"}>
+        👍
+      </MiniAction>
+      <MiniAction onClick={() => setVote("down")} active={vote === "down"}>
+        👎
+      </MiniAction>
+      {vote && (
+        // Said plainly: this goes nowhere. Better than implying it trains something.
+        <span className="text-[11px] text-ink/55 ml-0.5" role="status">
+          Noted on this device only
+        </span>
+      )}
+    </div>
+  );
+}
+
+function MiniAction({
+  onClick,
+  icon,
+  active,
+  children,
+}: {
+  onClick: () => void;
+  icon?: React.ReactNode;
+  active?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={`tap-44 inline-flex items-center gap-1 h-8 px-2 rounded-lg text-[12px] transition-colors ${
+        active ? "bg-brand-100 text-brand-700" : "text-ink/60 hover:bg-ink/[0.05] hover:text-ink"
+      }`}
+    >
+      {icon}
+      {children}
+    </button>
+  );
+}
+
 function Typing() {
   return (
-    <div className="flex justify-start" aria-label="TryUnex is typing">
-      <div className="bg-ink/[0.05] rounded-2xl px-3.5 py-3 flex gap-1">
+    <div className="flex gap-2" aria-label="TryUnex is typing">
+      <span className="w-6 h-6 rounded-full bg-lilac text-brand-600 grid place-items-center shrink-0">
+        <Sparkles className="w-3.5 h-3.5" />
+      </span>
+      <div className="bg-ink/[0.05] rounded-2xl rounded-bl-md px-3.5 py-3 flex gap-1">
         {[0, 150, 300].map((d) => (
           <span
             key={d}
@@ -244,142 +486,5 @@ function Typing() {
         ))}
       </div>
     </div>
-  );
-}
-
-function Bubble({
-  role,
-  text,
-  wardrobe,
-}: {
-  role: "user" | "assistant";
-  text: string;
-  wardrobe: Map<string, Cloth>;
-}) {
-  const isUser = role === "user";
-  return (
-    <div className={isUser ? "flex justify-end" : "flex justify-start"}>
-      <div
-        className={`max-w-[85%] px-3.5 py-2.5 text-sm whitespace-pre-wrap leading-relaxed ${
-          isUser
-            ? "bg-brand-500 text-white rounded-2xl rounded-br-md"
-            : "bg-ink/[0.05] text-ink rounded-2xl rounded-bl-md"
-        }`}
-      >
-        {isUser ? text : renderAssistantText(text, wardrobe)}
-      </div>
-    </div>
-  );
-}
-
-function renderAssistantText(text: string, wardrobe: Map<string, Cloth>) {
-  const parts: Array<{ type: "text" | "cloth"; value: string }> = [];
-  let last = 0;
-  let m: RegExpExecArray | null;
-  const re = new RegExp(CLOTH_TOKEN.source, "g");
-  while ((m = re.exec(text)) !== null) {
-    if (m.index > last) parts.push({ type: "text", value: text.slice(last, m.index) });
-    parts.push({ type: "cloth", value: m[1] });
-    last = m.index + m[0].length;
-  }
-  if (last < text.length) parts.push({ type: "text", value: text.slice(last) });
-
-  return (
-    <>
-      {parts.map((p, i) => {
-        if (p.type === "text") return <span key={i}>{p.value}</span>;
-        const cloth = wardrobe.get(p.value);
-        if (!cloth) return <span key={i} className="text-ink/55 italic">[unknown piece]</span>;
-        return <ClothChip key={i} cloth={cloth} />;
-      })}
-    </>
-  );
-}
-
-function ClothChip({ cloth }: { cloth: Cloth }) {
-  const today = new Date().toISOString().slice(0, 10);
-  const [expanded, setExpanded] = useState(false);
-  const [date, setDate] = useState(today);
-  const [busy, setBusy] = useState(false);
-  const [done, setDone] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const { tryOn } = useTryOn();
-
-  async function plan() {
-    setBusy(true);
-    setError(null);
-    try {
-      await api.post("/clothes/plan", { ids: [cloth.id], date });
-      setDone(true);
-      setExpanded(false);
-    } catch (err: any) {
-      setError(err.message ?? "Could not plan that");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <span className="block my-2 bg-white border border-ink/10 rounded-xl p-2">
-      <span className="flex items-center gap-2">
-        <img
-          src={cloth.imageUrl}
-          alt={cloth.name}
-          className="w-11 h-11 rounded-lg object-cover bg-ink/[0.05] shrink-0"
-        />
-        <span className="flex-1 min-w-0">
-          <span className="block text-[13px] font-medium truncate">{cloth.name}</span>
-          <span className="block text-[11px] text-ink/65 capitalize">{cloth.category}</span>
-        </span>
-        {done ? (
-          <span className="text-[12px] text-emerald-700 font-medium px-2">✓ Planned</span>
-        ) : (
-          <span className="flex gap-1 shrink-0">
-            <button
-              type="button"
-              onClick={() => tryOn(cloth)}
-              aria-label={`Try on ${cloth.name}`}
-              className="tap-44 h-8 px-2.5 rounded-lg bg-brand-50 hover:bg-brand-100 text-brand-700 text-[12px] font-medium inline-flex items-center gap-1"
-            >
-              <Sparkles className="w-3.5 h-3.5" />
-              Try
-            </button>
-            <button
-              type="button"
-              onClick={() => setExpanded((v) => !v)}
-              aria-expanded={expanded}
-              className="tap-44 h-8 px-2.5 rounded-lg bg-brand-50 hover:bg-brand-100 text-brand-700 text-[12px] font-medium"
-            >
-              Plan
-            </button>
-          </span>
-        )}
-      </span>
-      {expanded && !done && (
-        <span className="flex items-center gap-2 mt-2">
-          <input
-            type="date"
-            min={today}
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-            aria-label={`Date to plan ${cloth.name}`}
-            className="text-[12px] border border-ink/12 rounded-lg px-2 h-9 flex-1 min-w-0"
-          />
-          <button
-            type="button"
-            disabled={busy}
-            onClick={plan}
-            className="h-9 px-3 rounded-lg bg-brand-500 hover:bg-brand-600 text-white text-[12px] font-medium disabled:opacity-50"
-          >
-            {busy ? "…" : "Confirm"}
-          </button>
-        </span>
-      )}
-      {error && (
-        <span role="alert" className="block text-[12px] text-coral mt-1">
-          {error}
-        </span>
-      )}
-    </span>
   );
 }
