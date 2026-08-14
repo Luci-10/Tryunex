@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useAuth } from "../auth";
+import useMediaQuery from "../useMediaQuery";
 import { ProfileDropdown, ProfileSheet, PROFILE_ROUTES } from "./ProfileMenu";
 import { Calendar, ChevronDown, Shirt, Sparkles } from "./ui/icons";
 
@@ -67,6 +68,7 @@ export function AppHeader() {
   const { user } = useAuth();
   const { open, setOpen, onProfileRoute } = useProfileMenu();
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const isDesktop = useMediaQuery("(min-width: 768px)");
 
   return (
     <header className="sticky top-0 z-30 bg-canvas/85 backdrop-blur-md border-b border-ink/[0.06] pt-safe">
@@ -124,13 +126,15 @@ export function AppHeader() {
               />
             </button>
 
-            {/* Popover on desktop, sheet on phones — one state, two shells. */}
-            <div className="hidden md:block">
+            {/* Popover on desktop, sheet on phones — one state, one shell.
+                The choice is made in JS, not CSS: the sheet portals into
+                <body>, so a `md:hidden` wrapper would not hide it and its
+                full-screen backdrop would swallow every click on the popover. */}
+            {isDesktop ? (
               <ProfileDropdown open={open} onClose={() => setOpen(false)} anchorRef={triggerRef} />
-            </div>
-            <div className="md:hidden">
+            ) : (
               <ProfileSheet open={open} onClose={() => setOpen(false)} />
-            </div>
+            )}
           </div>
         )}
       </div>
