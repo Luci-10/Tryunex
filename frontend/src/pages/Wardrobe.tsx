@@ -6,6 +6,7 @@ import ClothDetailModal from "../components/ClothDetailModal";
 import WardrobeFilters, { type SortMode } from "../components/WardrobeFilters";
 import WardrobeHero from "../components/WardrobeHero";
 import WardrobeSwitcher from "../components/WardrobeSwitcher";
+import WardrobeTabs from "../components/WardrobeTabs";
 import FAB from "../components/FAB";
 import Button from "../components/ui/Button";
 import Surface from "../components/ui/Surface";
@@ -171,6 +172,11 @@ export default function Wardrobe() {
         >
           Add piece
         </Button>
+      </div>
+
+      {/* Laundry has no permanent nav slot, so it lives here. */}
+      <div className="overflow-x-auto no-scrollbar -mx-4 px-4">
+        <WardrobeTabs cleanCount={clean.length} wornCount={wornCount} />
       </div>
 
       {isSunday && wornCount > 0 && (

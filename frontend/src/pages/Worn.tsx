@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import PageShell, { PageTitle } from "../components/PageShell";
 import ClothCard from "../components/ClothCard";
+import WardrobeTabs from "../components/WardrobeTabs";
 import Button from "../components/ui/Button";
 import Surface from "../components/ui/Surface";
 import EmptyState from "../components/ui/EmptyState";
@@ -13,6 +14,7 @@ import { api, type Cloth } from "../api";
 
 export default function Worn() {
   const [worn, setWorn] = useState<Cloth[]>([]);
+  const [cleanCount, setCleanCount] = useState<number | undefined>(undefined);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -22,8 +24,12 @@ export default function Worn() {
   async function load() {
     setError(null);
     try {
-      const r = await api.get<{ clothes: Cloth[] }>("/clothes?status=worn");
-      setWorn(r.clothes);
+      const [w, c] = await Promise.all([
+        api.get<{ clothes: Cloth[] }>("/clothes?status=worn"),
+        api.get<{ clothes: Cloth[] }>("/clothes?status=clean"),
+      ]);
+      setWorn(w.clothes);
+      setCleanCount(c.clothes.length);
     } catch (err: any) {
       setError(err.message ?? "Could not load your worn pile");
     }
@@ -79,6 +85,10 @@ export default function Worn() {
 
   return (
     <PageShell>
+      <div className="overflow-x-auto no-scrollbar -mx-4 px-4">
+        <WardrobeTabs cleanCount={cleanCount} wornCount={worn.length} />
+      </div>
+
       <PageTitle
         title="Laundry basket"
         subtitle="Everything you've worn since the last reset."

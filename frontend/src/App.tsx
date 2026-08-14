@@ -18,6 +18,8 @@ import Friend from "./pages/Friend";
 import History from "./pages/History";
 import Contact from "./pages/Contact";
 import Account from "./pages/Account";
+import SettingsPage from "./pages/Settings";
+import About from "./pages/About";
 
 function Private({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -55,6 +57,8 @@ export default function App() {
               <Route path="/history" element={<Private><History /></Private>} />
               <Route path="/contact" element={<Private><Contact /></Private>} />
               <Route path="/account" element={<Private><Account /></Private>} />
+              <Route path="/settings" element={<Private><SettingsPage /></Private>} />
+              <Route path="/about" element={<Private><About /></Private>} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
             <ChatFab />
