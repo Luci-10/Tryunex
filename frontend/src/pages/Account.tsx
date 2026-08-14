@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import PageShell, { PageTitle } from "../components/PageShell";
 import SectionHeading from "../components/ui/SectionHeading";
 import Button from "../components/ui/Button";
@@ -7,8 +6,8 @@ import EmptyState from "../components/ui/EmptyState";
 import { RowSkeleton } from "../components/ui/Skeleton";
 import { ErrorBanner } from "../components/ui/Field";
 import { useToast } from "../components/ui/Toast";
-import { useConfirm } from "../components/ui/Confirm";
 import { Avatar } from "../components/Nav";
+import { useSignOut } from "../components/ProfileMenu";
 import { Check, Close, Logout, Sparkles } from "../components/ui/icons";
 import { api } from "../api";
 import { useAuth } from "../auth";
@@ -22,10 +21,9 @@ type Sug = {
 };
 
 export default function Account() {
-  const { user, setUser } = useAuth();
-  const nav = useNavigate();
+  const { user } = useAuth();
   const { toast } = useToast();
-  const confirm = useConfirm();
+  const logout = useSignOut();
   const [sugs, setSugs] = useState<Sug[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -56,19 +54,6 @@ export default function Account() {
     } finally {
       setBusy(null);
     }
-  }
-
-  async function logout() {
-    const ok = await confirm({
-      title: "Sign out?",
-      body: "You'll need your email code to get back in.",
-      confirmLabel: "Sign out",
-      tone: "danger",
-    });
-    if (!ok) return;
-    await api.post("/auth/logout");
-    setUser(null);
-    nav("/login", { replace: true });
   }
 
   if (!user) return null;
@@ -194,7 +179,7 @@ export default function Account() {
           <p className="text-[13px] text-ink/65 mt-0.5 mb-3">
             Signing out clears this device. Your wardrobe stays safe.
           </p>
-          <Button variant="destructive" onClick={logout} leading={<Logout className="w-4 h-4" />}>
+          <Button variant="destructive" onClick={() => void logout()} leading={<Logout className="w-4 h-4" />}>
             Sign out
           </Button>
         </div>

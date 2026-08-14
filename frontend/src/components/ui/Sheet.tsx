@@ -1,4 +1,5 @@
 import { useEffect, useRef, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import IconButton from "./IconButton";
 import { Close } from "./icons";
 
@@ -85,7 +86,10 @@ export default function Sheet({
 
   if (!open) return null;
 
-  return (
+  // Rendered into <body>. An ancestor with backdrop-filter (the sticky app
+  // header) would otherwise become the containing block for `position: fixed`
+  // and squash the sheet into the header's own 56px box.
+  return createPortal(
     <div
       className="fixed inset-0 z-40 flex items-end sm:items-center justify-center bg-ink/40 backdrop-blur-[2px] animate-fade-in"
       onMouseDown={(e) => {
@@ -104,7 +108,7 @@ export default function Sheet({
           size === "lg" ? "sm:max-w-2xl" : "sm:max-w-md",
         ].join(" ")}
       >
-        <div className="flex items-start gap-3 px-4 sm:px-5 pt-4 pb-3 border-b border-ink/[0.06]">
+        <div className="relative flex items-start gap-3 px-4 sm:px-5 pt-4 pb-3 border-b border-ink/[0.06]">
           {/* Grab handle reads as "draggable sheet" on touch; purely visual. */}
           <div className="sm:hidden absolute left-1/2 -translate-x-1/2 top-2 w-9 h-1 rounded-full bg-ink/15" />
           <div className="flex-1 min-w-0 pt-1 sm:pt-0">
@@ -122,6 +126,7 @@ export default function Sheet({
           <div className="px-4 sm:px-5 py-3 border-t border-ink/[0.06] bg-white pb-safe">{footer}</div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

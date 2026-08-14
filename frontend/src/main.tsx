@@ -4,6 +4,10 @@ import { BrowserRouter } from "react-router-dom";
 import App from "./App";
 import { AuthProvider } from "./auth";
 import "./index.css";
+import { applyMotionPref, getMotionPref } from "./motion";
+
+// Apply the saved motion preference before the first paint.
+applyMotionPref(getMotionPref());
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
