@@ -13,7 +13,7 @@ import WardrobePicker, { type PickerItem } from "../components/tryon/WardrobePic
 import SelectedLook from "../components/tryon/SelectedLook";
 import { Camera, Download, Refresh, Share, Sparkles, Zoom } from "../components/ui/icons";
 import { api, type Cloth } from "../api";
-import { useTryOn, type AddOutcome } from "../tryon";
+import { useTryOn, roleOf, ROLE_OPTIONS, SLOT_LABEL, type AddOutcome, type Role } from "../tryon";
 import { hasPhotoConsent, grantPhotoConsent } from "../photoConsent";
 import { nativePickerAvailable, pickPhotoNatively, type PickSource } from "../photoPicker";
 import { resizeImage, putWithProgress } from "../upload";
@@ -29,7 +29,7 @@ const PHOTO_GUIDANCE =
   "For the best preview, use a clear, front-facing photo in fitted clothing so the AI can read the garment fit and body outline.";
 
 export default function Tryon() {
-  const { selection, select, commit, clear, locked, setLocked } = useTryOn();
+  const { selection, select, commit, clear, locked, setLocked, roles, setRole } = useTryOn();
   const { toast } = useToast();
   const confirm = useConfirm();
 
@@ -55,6 +55,8 @@ export default function Tryon() {
   const [announcement, setAnnouncement] = useState("");
   const [pending, setPending] = useState<{ cloth: Cloth; outcome: AddOutcome } | null>(null);
   const [sharing, setSharing] = useState<"download" | "share" | null>(null);
+  const [classifying, setClassifying] = useState<Cloth | null>(null);
+  const [rememberRole, setRememberRole] = useState(false);
 
   const fileRef = useRef<HTMLInputElement>(null);
   const wardrobeRef = useRef<HTMLDivElement>(null);
@@ -103,10 +105,33 @@ export default function Tryon() {
         toast(outcome.message, { tone: "error" });
         return;
       }
+      // `other` has no meaningful slot, so ask what part it plays here.
+      if (outcome.status === "needs-role") {
+        setRememberRole(false);
+        setClassifying(cloth);
+        return;
+      }
       if (outcome.status === "needs-confirm") setPending({ cloth, outcome });
     },
     [select, toast],
   );
+
+  function chooseRole(role: Role) {
+    const cloth = classifying;
+    if (!cloth) return;
+    setRole(cloth.id, role, rememberRole);
+    setClassifying(null);
+    setRememberRole(false);
+    // Now that it has a role, run it back through the normal rules.
+    const outcome = select(cloth);
+    if (outcome.status === "blocked") toast(outcome.message, { tone: "error" });
+    else if (outcome.status === "needs-confirm") setPending({ cloth, outcome });
+  }
+
+  function changeRole(cloth: Cloth) {
+    setRememberRole(false);
+    setClassifying(cloth);
+  }
 
   async function resolvePending(accept: boolean) {
     const p = pending;
@@ -186,8 +211,16 @@ export default function Tryon() {
     setGenerating(true);
     setAnnouncement("Creating your look. This usually takes 5 to 15 seconds.");
     try {
+      // Send the role for anything filed under `other` so the prompt places
+      // it correctly instead of guessing from a meaningless category.
+      const roleMap: Record<string, string> = {};
+      for (const c of selection) {
+        const r = roleOf(c, roles);
+        if (r && r !== c.category) roleMap[c.id] = r;
+      }
       const r = await api.post<{ result: Result; cached: boolean }>("/tryon/generate", {
         clothIds: selection.map((c) => c.id),
+        ...(Object.keys(roleMap).length ? { roles: roleMap } : {}),
         ...(force ? { forceRegenerate: true } : {}),
       });
       setResult(r.result);
@@ -497,7 +530,7 @@ export default function Tryon() {
               Selected look
             </h2>
             <div className="surface p-3 sm:p-4">
-              <SelectedLook onPickClothes={goToWardrobe} />
+              <SelectedLook onPickClothes={goToWardrobe} onChangeRole={changeRole} />
             </div>
           </section>
 
@@ -552,6 +585,43 @@ export default function Tryon() {
         onCancel={() => setAskPhoto(false)}
         onContinue={continueFromPrompt}
       />
+
+      {/* `other` garments declare the part they play, for this look only —
+          the wardrobe category is never rewritten. */}
+      <Sheet
+        open={classifying !== null}
+        onClose={() => setClassifying(null)}
+        title="Classify for this look"
+        description={classifying ? `${classifying.name} is filed under Other.` : undefined}
+      >
+        <p className="text-sm text-ink/75 leading-relaxed">
+          What role does this piece play in this outfit?
+        </p>
+        <div className="grid grid-cols-2 gap-2 mt-3">
+          {ROLE_OPTIONS.map((r) => (
+            <button
+              key={r}
+              type="button"
+              onClick={() => chooseRole(r)}
+              className="h-12 rounded-xl border border-ink/12 bg-white text-[14px] font-medium hover:bg-brand-50 hover:border-brand-300 hover:text-brand-700 active:bg-brand-100 transition-colors"
+            >
+              {SLOT_LABEL[r]}
+            </button>
+          ))}
+        </div>
+        <label className="flex items-start gap-2.5 mt-4 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={rememberRole}
+            onChange={(e) => setRememberRole(e.target.checked)}
+            className="w-5 h-5 accent-brand-500 mt-0.5 shrink-0"
+          />
+          <span className="text-[13px] text-ink/70 leading-snug">
+            Use this role by default in Try-on. You can change it any time from the selected
+            list — your wardrobe category stays Other.
+          </span>
+        </label>
+      </Sheet>
 
       {/* Nothing leaves the look without the user agreeing to it. */}
       <Sheet

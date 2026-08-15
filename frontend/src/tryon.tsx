@@ -19,9 +19,28 @@ export type Slot = "top" | "bottom" | "dress" | "outerwear" | "shoes" | "accesso
 
 const SLOTS: Slot[] = ["top", "bottom", "dress", "outerwear", "shoes", "accessory", "other"];
 
+/** The garment's own wardrobe category, for display. */
 export function slotOf(cloth: Cloth): Slot {
   const c = (cloth.category ?? "").toLowerCase();
   return (SLOTS as string[]).includes(c) ? (c as Slot) : "other";
+}
+
+/** Roles a garment can play in a look. "Other" isn't one of them. */
+export type Role = Exclude<Slot, "other">;
+
+export const ROLE_OPTIONS: Role[] = ["top", "bottom", "dress", "outerwear", "shoes", "accessory"];
+
+/**
+ * `other` is a useful wardrobe bucket but a meaningless outfit slot — there is
+ * no sensible rule for "how many others may a look contain". So a garment
+ * filed under `other` is asked to declare the role it plays in *this* look,
+ * and that answer drives the rules and the generation prompt. The garment's
+ * wardrobe category is never rewritten.
+ */
+export function roleOf(cloth: Cloth, roles: Record<string, Role>): Role | null {
+  const own = slotOf(cloth);
+  if (own !== "other") return own;
+  return roles[cloth.id] ?? null;
 }
 
 export const SLOT_LABEL: Record<Slot, string> = {
@@ -43,6 +62,8 @@ export type AddOutcome =
   | { status: "added" }
   | { status: "removed" }
   | { status: "blocked"; message: string }
+  /** An `other` garment with no role yet — ask before applying any rules. */
+  | { status: "needs-role" }
   | {
       status: "needs-confirm";
       kind: "replace" | "layer";
@@ -65,6 +86,11 @@ type TryonState = {
   commit: (cloth: Cloth, removes: Cloth[]) => void;
   remove: (clothId: string) => void;
   clear: () => void;
+  /** Try-on roles for `other` garments, for this session. */
+  roles: Record<string, Role>;
+  /** `remember` stores it as this garment's default role across sessions. */
+  setRole: (clothId: string, role: Role, remember?: boolean) => void;
+  clearRole: (clothId: string) => void;
   /** Replaces the whole look at once — used by a complete outfit suggestion. */
   setLook: (clothes: Cloth[]) => void;
   isSelected: (clothId: string) => boolean;
@@ -76,6 +102,25 @@ type TryonState = {
 const Ctx = createContext<TryonState | null>(null);
 
 const storageKey = (userId: string) => `tryunex.look.${userId}`;
+const rolesKey = (userId: string) => `tryunex.roles.${userId}`;
+// Defaults outlive the session on purpose — "use this role by default".
+const defaultRolesKey = (userId: string) => `tryunex.roles.default.${userId}`;
+
+function loadRoles(store: Storage, key: string): Record<string, Role> {
+  try {
+    const raw = store.getItem(key);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return {};
+    const out: Record<string, Role> = {};
+    for (const [id, role] of Object.entries(parsed)) {
+      if (ROLE_OPTIONS.includes(role as Role)) out[id] = role as Role;
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
 
 function load(userId: string): Cloth[] {
   try {
@@ -92,6 +137,7 @@ export function TryOnProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const { toast } = useToast();
   const [selection, setSelection] = useState<Cloth[]>([]);
+  const [roles, setRoles] = useState<Record<string, Role>>({});
   const [locked, setLocked] = useState(false);
   const hydratedFor = useRef<string | null>(null);
 
@@ -106,26 +152,36 @@ export function TryOnProvider({ children }: { children: ReactNode }) {
     if (hydratedFor.current === user.id) return;
     hydratedFor.current = user.id;
     setSelection(load(user.id));
+    // Session roles win over saved defaults for the current look.
+    setRoles({
+      ...loadRoles(localStorage, defaultRolesKey(user.id)),
+      ...loadRoles(sessionStorage, rolesKey(user.id)),
+    });
   }, [user]);
 
   useEffect(() => {
     if (!user || hydratedFor.current !== user.id) return;
     try {
       sessionStorage.setItem(storageKey(user.id), JSON.stringify(selection));
+      sessionStorage.setItem(rolesKey(user.id), JSON.stringify(roles));
     } catch {
       /* private mode — selection just won't survive a reload */
     }
-  }, [selection, user]);
+  }, [selection, roles, user]);
 
   const selectionRef = useRef(selection);
   selectionRef.current = selection;
+  const rolesRef = useRef(roles);
+  rolesRef.current = roles;
 
   const evaluate = useCallback((cloth: Cloth): AddOutcome => {
     const current = selectionRef.current;
     if (current.some((c) => c.id === cloth.id)) return { status: "removed" };
 
-    const slot = slotOf(cloth);
-    const inSlot = (s: Slot) => current.filter((c) => slotOf(c) === s);
+    const slot = roleOf(cloth, rolesRef.current);
+    // No role yet: the caller asks the user before any rule can apply.
+    if (slot === null) return { status: "needs-role" };
+    const inSlot = (s: Slot) => current.filter((c) => roleOf(c, rolesRef.current) === s);
 
     const dresses = inSlot("dress");
     const bottoms = inSlot("bottom");
@@ -196,19 +252,6 @@ export function TryOnProvider({ children }: { children: ReactNode }) {
       }
     }
 
-    // "Other" is a catch-all, so it gets a ceiling rather than a free pass.
-    if (slot === "other") {
-      const others = inSlot("other");
-      if (others.length >= 2) {
-        return {
-          status: "needs-confirm",
-          kind: "replace",
-          removes: [others[0]],
-          message: `Replace ${others[0].name} with ${cloth.name}?`,
-        };
-      }
-    }
-
     if (current.length >= MAX_OUTFIT_ITEMS) {
       return {
         status: "blocked",
@@ -244,6 +287,33 @@ export function TryOnProvider({ children }: { children: ReactNode }) {
 
   const clear = useCallback(() => setSelection([]), []);
 
+  const setRole = useCallback(
+    (clothId: string, role: Role, remember = false) => {
+      setRoles((prev) => ({ ...prev, [clothId]: role }));
+      rolesRef.current = { ...rolesRef.current, [clothId]: role };
+      if (!remember || !user) return;
+      try {
+        const key = defaultRolesKey(user.id);
+        const saved = loadRoles(localStorage, key);
+        localStorage.setItem(key, JSON.stringify({ ...saved, [clothId]: role }));
+      } catch {
+        /* storage unavailable — the role still holds for this session */
+      }
+    },
+    [user],
+  );
+
+  const clearRole = useCallback((clothId: string) => {
+    setRoles((prev) => {
+      const next = { ...prev };
+      delete next[clothId];
+      return next;
+    });
+    const next = { ...rolesRef.current };
+    delete next[clothId];
+    rolesRef.current = next;
+  }, []);
+
   const setLook = useCallback((clothes: Cloth[]) => {
     // A suggested outfit is complete in itself, so it supersedes whatever was
     // selected rather than merging and tripping the category rules.
@@ -272,6 +342,12 @@ export function TryOnProvider({ children }: { children: ReactNode }) {
         toast(outcome.message, { tone: "error" });
         return;
       }
+      if (outcome.status === "needs-role") {
+        // Classifying needs a sheet, and these entry points have nowhere to
+        // put one — so say what's needed rather than guessing a role.
+        toast(`${cloth.name} needs a role — open Try-on to choose one`, { tone: "error" });
+        return;
+      }
       if (outcome.status === "needs-confirm") {
         toast(`${outcome.message} Open Try-on to decide.`, { tone: "error" });
         return;
@@ -292,11 +368,14 @@ export function TryOnProvider({ children }: { children: ReactNode }) {
       commit,
       remove,
       clear,
+      roles,
+      setRole,
+      clearRole,
       setLook,
       isSelected,
       tryOn,
     }),
-    [selection, locked, evaluate, select, commit, remove, clear, setLook, isSelected, tryOn],
+    [selection, locked, roles, setRole, clearRole, evaluate, select, commit, remove, clear, setLook, isSelected, tryOn],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

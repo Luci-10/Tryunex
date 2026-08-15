@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import type { Cloth } from "../../api";
-import { useTryOn, slotOf, SLOT_LABEL, type Slot } from "../../tryon";
+import { useTryOn, slotOf, roleOf, SLOT_LABEL, type Slot } from "../../tryon";
 import { FilterChip, Badge } from "../ui/Chip";
 import EmptyState from "../ui/EmptyState";
 import { Skeleton } from "../ui/Skeleton";
@@ -31,7 +31,7 @@ export default function WardrobePicker({
   /** Returns the rule outcome so the page can raise a confirmation. */
   onPick: (cloth: PickerItem) => void;
 }) {
-  const { selection, evaluate, locked } = useTryOn();
+  const { selection, evaluate, locked, roles } = useTryOn();
   const [query, setQuery] = useState("");
   const [slot, setSlot] = useState<Slot | "all">("all");
   const [tag, setTag] = useState<string | "all">("all");
@@ -185,11 +185,20 @@ export default function WardrobePicker({
                   <span className="block px-2 py-1.5">
                     <span className="block text-[11px] font-medium truncate">{c.name}</span>
                     <span className="block text-[10px] text-ink/55 truncate">
-                      {c.ownerName ? `${c.ownerName}'s` : SLOT_LABEL[slotOf(c)]}
+                      {c.ownerName
+                        ? `${c.ownerName}'s`
+                        : slotOf(c) === "other" && roleOf(c, roles)
+                          ? `Other · as ${SLOT_LABEL[roleOf(c, roles)!].toLowerCase()}`
+                          : SLOT_LABEL[slotOf(c)]}
                     </span>
                     {replaces && (
                       <span className="block text-[9.5px] text-orange-700 truncate mt-0.5">
                         Replaces {replaces.name}
+                      </span>
+                    )}
+                    {outcome?.status === "needs-role" && (
+                      <span className="block text-[9.5px] text-blue-700 truncate mt-0.5">
+                        Asks for a role
                       </span>
                     )}
                   </span>

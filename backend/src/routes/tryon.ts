@@ -157,7 +157,9 @@ const CATEGORY_ORDER = ["dress", "top", "outerwear", "bottom", "shoes", "accesso
  * reference image and its slot stops the model mixing up which picture goes
  * where, which is the main cause of garments landing on the wrong body part.
  */
-function buildPrompt(items: { name: string; category: string }[]): string {
+function buildPrompt(items: { name: string; category: string; role?: string }[]): string {
+  // The role, where the user gave one, is what the model should place by.
+  items = items.map((c) => ({ ...c, category: c.role ?? c.category }));
   const manifest = items
     .map((c, i) => `- IMAGE ${i + 2}: ${c.category} — "${c.name}"`)
     .join("\n");
@@ -224,6 +226,12 @@ router.post("/generate", async (req, res) => {
       // Set by the Regenerate action. Skips the cache lookup and stores the
       // new image as an additional result — the previous one is untouched.
       forceRegenerate: z.boolean().optional(),
+      // Try-on role per cloth id, for garments whose wardrobe category is
+      // "other" and therefore says nothing about where they belong on the
+      // body. Never written back to the garment.
+      roles: z
+        .record(z.enum(["top", "bottom", "dress", "outerwear", "shoes", "accessory"]))
+        .optional(),
     })
     .refine((v) => v.clothId || (v.clothIds && v.clothIds.length > 0), {
       message: "Provide clothId or clothIds",
@@ -278,7 +286,17 @@ router.post("/generate", async (req, res) => {
   // Cache: if we've already generated this exact outfit on this exact
   // selfie, skip Gemini and return the prior result. Saves $0.04 + 10s
   // per re-apply when the user toggles between outfits.
-  const clothIdsCsv = [...orderedClothes.map((c) => c.id)].sort().join(",");
+  // The role is part of what was generated, so it belongs in the cache key —
+  // the same garments worn as a top versus a scarf are different images.
+  const roleSuffix = parse.data.roles
+    ? Object.entries(parse.data.roles)
+        .filter(([id]) => orderedClothes.some((c) => c.id === id))
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([id, role]) => `${id}:${role}`)
+        .join("|")
+    : "";
+  const clothIdsCsv =
+    [...orderedClothes.map((c) => c.id)].sort().join(",") + (roleSuffix ? `#${roleSuffix}` : "");
   const { neon } = await import("@neondatabase/serverless");
   const sql = neon(process.env.DATABASE_URL!);
   // Ordered newest-first: once Regenerate has run, several rows share this
@@ -329,7 +347,15 @@ router.post("/generate", async (req, res) => {
           parts: [
             { inlineData: { mimeType: selfie.mimeType, data: selfie.data } },
             ...garments.map((g) => ({ inlineData: { mimeType: g.mimeType, data: g.data } })),
-            { text: buildPrompt(orderedClothes.map((c) => ({ name: c.name, category: c.category }))) },
+            {
+              text: buildPrompt(
+                orderedClothes.map((c) => ({
+                  name: c.name,
+                  category: c.category,
+                  role: parse.data.roles?.[c.id],
+                })),
+              ),
+            },
           ],
         },
       ],

@@ -1,5 +1,5 @@
 import type { Cloth } from "../../api";
-import { useTryOn, slotOf, SLOT_LABEL, MAX_OUTFIT_ITEMS } from "../../tryon";
+import { useTryOn, slotOf, roleOf, SLOT_LABEL, MAX_OUTFIT_ITEMS } from "../../tryon";
 import { styleTagOf } from "../../styleTags";
 import IconButton from "../ui/IconButton";
 import Button from "../ui/Button";
@@ -10,13 +10,16 @@ import { Close, Shirt } from "../ui/icons";
 /** The session basket: everything chosen for try-on, from anywhere in the app. */
 export default function SelectedLook({
   onPickClothes,
+  onChangeRole,
   compact = false,
 }: {
   onPickClothes: () => void;
+  /** Re-opens the role sheet for an `other` garment. */
+  onChangeRole?: (cloth: Cloth) => void;
   /** Thumbnails only — used beneath a generated result. */
   compact?: boolean;
 }) {
-  const { selection, remove, clear, locked } = useTryOn();
+  const { selection, remove, clear, locked, roles } = useTryOn();
 
   if (selection.length === 0) {
     return (
@@ -77,9 +80,24 @@ export default function SelectedLook({
               <p className="text-[13.5px] font-medium truncate">{c.name}</p>
               <span className="flex flex-wrap items-center gap-1 mt-0.5">
                 <Badge tone="ink">{SLOT_LABEL[slotOf(c)]}</Badge>
+                {/* A garment filed under Other keeps its wardrobe label and
+                    shows the role it is playing in this particular look. */}
+                {slotOf(c) === "other" && roleOf(c, roles) && (
+                  <Badge tone="sky">Try-on role: {SLOT_LABEL[roleOf(c, roles)!]}</Badge>
+                )}
                 <Badge tone="lilac">{styleTagOf(c.styleTag).label}</Badge>
                 {c.status === "worn" && <Badge tone="peach">Worn</Badge>}
               </span>
+              {slotOf(c) === "other" && onChangeRole && (
+                <button
+                  type="button"
+                  onClick={() => onChangeRole(c)}
+                  disabled={locked}
+                  className="tap-44 text-[11.5px] text-brand-700 hover:underline mt-1 disabled:opacity-40"
+                >
+                  Change role
+                </button>
+              )}
             </div>
             <IconButton
               label={`Remove ${c.name} from your look`}
