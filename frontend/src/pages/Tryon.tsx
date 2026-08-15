@@ -21,6 +21,7 @@ import { downloadLook, shareLook } from "../share";
 
 type Selfie = { id: string; imageUrl: string; createdAt: string };
 type Result = { id: string; imageUrl: string; createdAt: string; clothId: string | null };
+type GenerateResponse = { result: Result; cached: boolean; regenerated?: boolean };
 
 const DISCLAIMER =
   "Virtual try-on is a styling preview. Fit, sizing, fabric drape and colour may not be exact. Choose sizes using your own measurements and the brand's size guide.";
@@ -55,6 +56,7 @@ export default function Tryon() {
   const [announcement, setAnnouncement] = useState("");
   const [pending, setPending] = useState<{ cloth: Cloth; outcome: AddOutcome } | null>(null);
   const [sharing, setSharing] = useState<"download" | "share" | null>(null);
+  const [lastForced, setLastForced] = useState(false);
   const [classifying, setClassifying] = useState<Cloth | null>(null);
   const [rememberRole, setRememberRole] = useState(false);
 
@@ -209,7 +211,12 @@ export default function Tryon() {
     }
     setGenError(null);
     setGenerating(true);
-    setAnnouncement("Creating your look. This usually takes 5 to 15 seconds.");
+    setLastForced(force);
+    setAnnouncement(
+      force
+        ? "Creating a new variation. This usually takes 5 to 15 seconds."
+        : "Creating your look. This usually takes 5 to 15 seconds.",
+    );
     try {
       // Send the role for anything filed under `other` so the prompt places
       // it correctly instead of guessing from a meaningless category.
@@ -218,17 +225,20 @@ export default function Tryon() {
         const r = roleOf(c, roles);
         if (r && r !== c.category) roleMap[c.id] = r;
       }
-      const r = await api.post<{ result: Result; cached: boolean }>("/tryon/generate", {
+      const r = await api.post<GenerateResponse>("/tryon/generate", {
         clothIds: selection.map((c) => c.id),
         ...(Object.keys(roleMap).length ? { roles: roleMap } : {}),
         ...(force ? { forceRegenerate: true } : {}),
       });
       setResult(r.result);
       setResultOf(selection);
-      setCached(r.cached);
+      // A forced run is never a cache hit, so the badge must never show.
+      setCached(force ? false : r.cached);
       setShowingOriginal(false);
-      setAnnouncement("Your look is ready.");
+      setAnnouncement(force ? "New variation ready." : "Your look is ready.");
     } catch (err: any) {
+      // The existing result stays on screen — a failed variation shouldn't
+      // cost the user the look they already had.
       const msg = err?.message ?? "Could not create your look";
       setGenError(msg);
       setAnnouncement(`Try-on failed. ${msg}`);
@@ -438,9 +448,10 @@ export default function Tryon() {
                     variant="secondary"
                     onClick={() => generate(true)}
                     loading={generating}
+                    disabled={generating}
                     leading={!generating ? <Refresh className="w-4 h-4" /> : undefined}
                   >
-                    Regenerate
+                    Regenerate new variation
                   </Button>
                   <Button variant="secondary" onClick={() => setShowingOriginal((v) => !v)}>
                     {showingOriginal ? "Show the look" : "Show original"}
@@ -466,12 +477,12 @@ export default function Tryon() {
               </>
             )}
 
-            {genError && <ErrorBanner onRetry={() => generate()}>{genError}</ErrorBanner>}
+            {genError && <ErrorBanner onRetry={() => generate(lastForced)}>{genError}</ErrorBanner>}
 
             {result && (
               <p className="text-[12px] text-ink/60 leading-relaxed">
-                Regenerating produces a new image, so the result may differ — it's generated fresh
-                each time.
+                Creates a new AI variation using your original photo and selected clothes. Each run
+                is generated from scratch, so the result may differ.
               </p>
             )}
           </div>
