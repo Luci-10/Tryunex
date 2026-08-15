@@ -165,32 +165,30 @@ export default function Plans() {
           <Stat label="Purchased" value={c.pack} />
         </dl>
 
-        <ul className="mt-3.5 space-y-1 text-[12.5px] text-ink/70">
-          <li>A new Try-on or regeneration uses 1 credit.</li>
-          <li>Cached looks are free.</li>
-          <li>Purchased pack credits never expire.</li>
-          <li>Monthly credits reset each month and do not roll over.</li>
-        </ul>
+        <div className="mt-3.5 pt-3.5 border-t border-brand-300/30">
+          <p className="text-[12px] uppercase tracking-wider text-ink/55">AI styling chat</p>
+          <p className="text-[13.5px] font-semibold mt-0.5">
+            {summary.chat.limited
+              ? `${Math.max(0, summary.chat.limit - summary.chat.used)} of ${summary.chat.limit} AI chats remaining this month`
+              : "Unlimited AI styling chat"}
+          </p>
+        </div>
 
-        {(c.nextExpiry || summary.renewsAt) && (
+        {(c.nextExpiry || summary.renewsAt || summary.chat.resetsAt) && (
           <p className="text-[12px] text-ink/60 mt-2.5">
-            {c.nextExpiry && <>Next credit expiry: {dateLabel(c.nextExpiry)}. </>}
+            {c.nextExpiry && <>Next credit reset: {dateLabel(c.nextExpiry)}. </>}
+            {summary.chat.limited && summary.chat.resetsAt && (
+              <>Chats reset {dateLabel(summary.chat.resetsAt)}. </>
+            )}
             {summary.renewsAt && <>Plan renews {dateLabel(summary.renewsAt)}.</>}
           </p>
         )}
       </section>
 
-      {/* Free-tier chat allowance only — paid plans have no normal chat cap. */}
-      {summary.chat.limited && (
-        <Surface tone="mint">
-          <p className="text-[13.5px] font-semibold">
-            {summary.chat.used} of {summary.chat.limit} AI chats used this month
-          </p>
-          {summary.chat.resetsAt && (
-            <p className="text-[12.5px] text-ink/65 mt-0.5">
-              Resets {dateLabel(summary.chat.resetsAt)}.
-            </p>
-          )}
+      {summary.tier === "free" && (
+        <Surface tone="lilac">
+          <p className="text-[13.5px] font-semibold">Free plan</p>
+          <p className="text-[12.5px] text-ink/70 mt-0.5">{catalogue.free.blurb}</p>
         </Surface>
       )}
 
@@ -200,7 +198,7 @@ export default function Plans() {
 
       {/* -------------------------------------------------------- packs */}
       <section className="space-y-3">
-        <SectionHeading title="Credit packs" hint="One-off. Never expires." as="h2" />
+        <SectionHeading title="Need a few more looks?" hint="One-off top-ups." as="h2" />
         <div className="space-y-2">
           {catalogue.packs.map((p) => (
             <div key={p.code} className="surface p-4 flex items-center gap-3">
@@ -209,9 +207,11 @@ export default function Plans() {
                   {p.name}
                   {p.badge && <Badge tone="mint">{p.badge}</Badge>}
                 </p>
-                <p className="text-[12.5px] text-ink/65 mt-0.5">
-                  {p.credits} credits · {p.note}
+                <p className="text-[12.5px] text-ink/70 mt-0.5">{p.blurb}</p>
+                <p className="text-[12px] text-ink/60 mt-1">
+                  {p.credits} Try-on credits · {p.note}
                 </p>
+                <p className="text-[12px] text-ink/60">{p.chatNote}</p>
               </div>
               <div className="text-right shrink-0">
                 <p className="text-[17px] font-bold">{p.priceLabel}</p>
@@ -233,7 +233,7 @@ export default function Plans() {
 
       {/* ------------------------------------------------ subscriptions */}
       <section className="space-y-3">
-        <SectionHeading title="Monthly plans" hint="Credits reset each cycle." as="h2" />
+        <SectionHeading title="Get more Try-on every month" hint="Includes unlimited chat." as="h2" />
         <div className="space-y-2">
           {catalogue.plans.map((p) => {
             const active = summary.tier === p.code && summary.subscriptionStatus === "active";
@@ -251,9 +251,7 @@ export default function Plans() {
                       {p.badge && <Badge tone="lilac">{p.badge}</Badge>}
                       {active && <Badge tone="mint">Current plan</Badge>}
                     </p>
-                    <p className="text-[12.5px] text-ink/65 mt-0.5">
-                      {p.creditsPerMonth} credits each month
-                    </p>
+                    <p className="text-[12.5px] text-ink/70 mt-0.5">{p.blurb}</p>
                   </div>
                   <div className="text-right shrink-0">
                     <p className="text-[17px] font-bold">
@@ -273,7 +271,7 @@ export default function Plans() {
                   </div>
                 </div>
                 <ul className="mt-2.5 space-y-1">
-                  {p.notes.map((n) => (
+                  {[p.creditLine, "+ 1 free credit every month", p.chatNote, p.expiryNote].map((n) => (
                     <li key={n} className="flex items-start gap-1.5 text-[12.5px] text-ink/70">
                       <Check className="w-3.5 h-3.5 text-brand-600 shrink-0 mt-0.5" />
                       {n}
@@ -302,6 +300,40 @@ export default function Plans() {
             Razorpay email to restart the plan.
           </ErrorBanner>
         )}
+      </section>
+
+      {/* ------------------------------------------------ explanations */}
+      <section className="space-y-3">
+        <SectionHeading title="How Try-on credits work" as="h2" />
+        <Surface>
+          <ul className="space-y-1.5 text-[13px] text-ink/75">
+            {[
+              "A new Try-on look uses 1 credit.",
+              "Regenerate new variation uses 1 credit.",
+              "Cached looks are free.",
+              "Purchased pack credits never expire.",
+              "Monthly subscription credits reset each billing cycle.",
+              `Every account gets ${catalogue.free.monthlyCredits} free Try-on credit every month.`,
+              "Wardrobe uploads, outfit planning, sharing and history stay free.",
+            ].map((line) => (
+              <li key={line} className="flex items-start gap-2">
+                <Check className="w-3.5 h-3.5 text-brand-600 shrink-0 mt-1" />
+                {line}
+              </li>
+            ))}
+          </ul>
+        </Surface>
+      </section>
+
+      <section className="space-y-3">
+        <SectionHeading title="AI styling chat" as="h2" />
+        <Surface tone="mint">
+          <ul className="space-y-1.5 text-[13px] text-ink/75">
+            <li>Free plan: {catalogue.free.chatsPerMonth} styling chats each month.</li>
+            <li>Lite, Plus and Style: unlimited AI styling chat while your subscription is active.</li>
+            <li>Credit packs add Try-on credits, but do not change your chat allowance.</li>
+          </ul>
+        </Surface>
       </section>
 
       {/* ---------------------------------------------------- activity */}

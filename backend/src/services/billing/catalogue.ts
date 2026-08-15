@@ -50,11 +50,32 @@ export function findPlan(code: string): Plan | undefined {
   return PLANS.find((p) => p.code === code);
 }
 
+/** Blurbs live beside the numbers so the two can't drift apart. */
+const PACK_BLURB: Record<PackCode, string> = {
+  starter: "A small top-up for 3 extra looks. Credits never expire.",
+  mid: "More room to explore outfits. Credits never expire.",
+  bulk: "10 extra Try-on looks at our best top-up value.",
+};
+
+const PLAN_BLURB: Record<PlanCode, string> = {
+  lite: "For occasional Try-on and unlimited styling chat.",
+  plus: "The everyday plan for regular Try-on and unlimited styling chat.",
+  style: "For frequent Try-on, new variations, and unlimited styling chat.",
+};
+
 /** Everything the client is allowed to know about the catalogue. */
 export function customerCatalogue() {
   return {
     currency: "INR",
     gstIncluded: true,
+    // Mirrors the server's real allowance so the page can describe the free
+    // tier without hardcoding numbers that might change behind it.
+    free: {
+      welcomeCredits: 3,
+      monthlyCredits: 1,
+      chatsPerMonth: 10,
+      blurb: "Start with 3 Try-on credits. Get 1 free credit every month.",
+    },
     packs: PACKS.map((p) => ({
       code: p.code,
       name: p.name,
@@ -63,6 +84,9 @@ export function customerCatalogue() {
       priceLabel: `₹${(p.amountPaise / 100).toFixed(0)}`,
       badge: p.badge ?? null,
       note: "Never expires",
+      blurb: PACK_BLURB[p.code],
+      // A pack adds credits only — it never changes the chat allowance.
+      chatNote: "Uses your current chat allowance",
     })),
     plans: PLANS.map((p) => ({
       code: p.code,
@@ -71,10 +95,10 @@ export function customerCatalogue() {
       amountPaise: p.amountPaise,
       priceLabel: `₹${(p.amountPaise / 100).toFixed(0)}`,
       badge: p.badge ?? null,
-      notes: [
-        "Monthly credits reset each billing cycle",
-        "Includes unlimited normal AI chat",
-      ],
+      blurb: PLAN_BLURB[p.code],
+      creditLine: `${p.creditsPerMonth} plan credits + 1 free monthly credit`,
+      chatNote: "Unlimited AI styling chat",
+      expiryNote: "Monthly plan credits reset each billing cycle",
     })),
   };
 }

@@ -166,15 +166,45 @@ export async function ensureProfile(userId: string): Promise<BillingProfile> {
   };
 }
 
-/** Grants this month's free credit, at most once per user per month. */
+/** Credits a brand-new account receives the first time it is touched. */
+export const WELCOME_CREDITS = 3;
+/** Credits every account receives each month after that. */
+export const MONTHLY_FREE_CREDITS = 1;
+/** How long the welcome credits last. */
+const WELCOME_WINDOW_DAYS = 30;
+
+/**
+ * Grants the free allowance, at most once per user per month.
+ *
+ * A new account gets WELCOME_CREDITS with a 30-day window rather than a
+ * calendar-month one — signing up on the 30th should not mean the welcome
+ * credits vanish the next day. Every month after that grants
+ * MONTHLY_FREE_CREDITS, expiring with the month as before.
+ *
+ * The amount and the expiry are decided inside one statement, so the "is this
+ * their first?" check can't race with a concurrent request, and the monthly
+ * idempotency key still makes a repeat call a no-op.
+ */
 export async function grantFreeMonthlyCredit(userId: string): Promise<void> {
   await ensureBillingSchema();
   const q = sql();
   const { end } = monthPeriod();
+  const welcomeEnd = new Date(Date.now() + WELCOME_WINDOW_DAYS * 86_400_000);
   await q`
     INSERT INTO credit_ledger (user_id, type, credit_amount, source_type, expires_at, idempotency_key)
-    VALUES (${userId}, 'free_monthly_grant', 1, 'free', ${end.toISOString()},
-            ${`free:${userId}:${monthKey()}`})
+    SELECT ${userId}::uuid,
+           'free_monthly_grant'::credit_ledger_type,
+           CASE WHEN first.seen THEN ${MONTHLY_FREE_CREDITS}::int ELSE ${WELCOME_CREDITS}::int END,
+           'free'::credit_source,
+           CASE WHEN first.seen THEN ${end.toISOString()}::timestamptz
+                ELSE ${welcomeEnd.toISOString()}::timestamptz END,
+           ${`free:${userId}:${monthKey()}`}
+      FROM (
+        SELECT EXISTS (
+          SELECT 1 FROM credit_ledger
+           WHERE user_id = ${userId} AND type = 'free_monthly_grant'
+        ) AS seen
+      ) AS first
     ON CONFLICT (idempotency_key) DO NOTHING`;
 }
 

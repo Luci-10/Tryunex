@@ -31,13 +31,18 @@ export type Catalogue = {
   gstIncluded: boolean;
   keyId: string | null;
   configured: boolean;
+  free: {
+    welcomeCredits: number; monthlyCredits: number; chatsPerMonth: number; blurb: string;
+  };
   packs: {
     code: string; name: string; credits: number; amountPaise: number;
     priceLabel: string; badge: string | null; note: string;
+    blurb: string; chatNote: string;
   }[];
   plans: {
     code: string; name: string; creditsPerMonth: number; amountPaise: number;
-    priceLabel: string; badge: string | null; notes: string[];
+    priceLabel: string; badge: string | null;
+    blurb: string; creditLine: string; chatNote: string; expiryNote: string;
   }[];
 };
 

@@ -421,7 +421,7 @@ export default function Tryon() {
 
               {cached && result && !showingOriginal && !generating && (
                 <span className="absolute top-3 left-3">
-                  <Badge tone="sky">Previously generated</Badge>
+                  <Badge tone="sky">Already generated · no credit used</Badge>
                 </span>
               )}
 
@@ -659,9 +659,11 @@ export default function Tryon() {
         }
       >
         <p className="text-sm text-ink/75 leading-relaxed">
-          Choose a small pack or a monthly plan to create another look. Your wardrobe, planning and
-          sharing all keep working either way, and looks you've already generated stay free to
-          revisit.
+          Get more looks with a pack, or choose a monthly plan with unlimited AI styling chat.
+        </p>
+        <p className="text-[13px] text-ink/65 leading-relaxed mt-2">
+          Your wardrobe, planning, sharing and history all keep working, and looks you've already
+          generated stay free to revisit.
         </p>
       </Sheet>
 

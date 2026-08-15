@@ -265,6 +265,9 @@ export default function ChatPanel() {
                   </>
                 )}
               </p>
+              <p className="text-[12.5px] text-ink/65 leading-relaxed mt-1.5">
+                Upgrade to Lite, Plus or Style for unlimited AI styling chat.
+              </p>
               <div className="flex gap-2 mt-2.5">
                 <Button
                   size="sm"
