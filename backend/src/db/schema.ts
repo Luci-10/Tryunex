@@ -19,6 +19,31 @@ export const suggestionStatusEnum = pgEnum("suggestion_status", [
 ]);
 export const genderEnum = pgEnum("gender", ["male", "female", "other", "prefer_not_to_say"]);
 
+// Primary style/formality label for a garment. A real enum column rather
+// than a delimited string, so it can be filtered and validated in the DB.
+/** Shared with the API validators so the enum is defined exactly once. */
+export const STYLE_TAGS = [
+  "casual",
+  "smart_casual",
+  "formal",
+  "party",
+  "sports",
+  "lounge",
+  "traditional",
+  "other",
+] as const;
+
+export const styleTagEnum = pgEnum("style_tag", [
+  "casual",
+  "smart_casual",
+  "formal",
+  "party",
+  "sports",
+  "lounge",
+  "traditional",
+  "other",
+]);
+
 export const users = pgTable(
   "users",
   {
@@ -43,6 +68,9 @@ export const clothes = pgTable(
     category: text("category").notNull().default("other"),
     imageUrl: text("image_url").notNull(),
     status: clothStatusEnum("status").notNull().default("clean"),
+    // NOT NULL with a default so existing rows are backfilled by the
+    // migration and older clients that never send it keep working.
+    styleTag: styleTagEnum("style_tag").notNull().default("casual"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (t) => ({

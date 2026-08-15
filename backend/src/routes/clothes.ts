@@ -6,6 +6,7 @@ import { db } from "../db/client.js";
 import { clothes, wearEvents } from "../db/schema.js";
 import { and, asc, count, desc, eq, gte, inArray, lt, max, notInArray } from "drizzle-orm";
 import { requireAuth } from "../services/auth.js";
+import { STYLE_TAGS } from "../db/schema.js";
 import { presignPut, r2PublicBase } from "../services/r2.js";
 import { settlePastPlans } from "../services/plans.js";
 
@@ -70,6 +71,7 @@ router.get("/", async (req, res) => {
       userId: clothes.userId,
       name: clothes.name,
       category: clothes.category,
+      styleTag: clothes.styleTag,
       imageUrl: clothes.imageUrl,
       status: clothes.status,
       createdAt: clothes.createdAt,
@@ -97,6 +99,7 @@ router.get("/plans", async (req, res) => {
         id: clothes.id,
         name: clothes.name,
         category: clothes.category,
+        styleTag: clothes.styleTag,
         imageUrl: clothes.imageUrl,
         status: clothes.status,
       },
@@ -138,6 +141,9 @@ router.post("/", async (req, res) => {
       imageUrl: z.string().url(),
       name: z.string().trim().min(1).max(80).default("Untitled"),
       category: z.string().trim().min(1).max(40).default("other"),
+      // Optional so older clients that predate tags keep working; the
+      // column default backs this up at the database level too.
+      styleTag: z.enum(STYLE_TAGS).optional(),
     })
     .safeParse(req.body);
   if (!parse.success) return res.status(400).json({ error: "Invalid input" });
@@ -153,6 +159,7 @@ router.post("/", async (req, res) => {
       userId: req.userId!,
       name: parse.data.name,
       category: parse.data.category,
+      ...(parse.data.styleTag !== undefined ? { styleTag: parse.data.styleTag } : {}),
       imageUrl: parse.data.imageUrl,
     })
     .returning();
@@ -185,9 +192,15 @@ router.patch("/:id", async (req, res) => {
     .object({
       name: z.string().trim().min(1).max(80).optional(),
       category: z.string().trim().min(1).max(40).optional(),
+      styleTag: z.enum(STYLE_TAGS).optional(),
     })
     .safeParse(req.body);
-  if (!parse.success || (parse.data.name === undefined && parse.data.category === undefined)) {
+  if (
+    !parse.success ||
+    (parse.data.name === undefined &&
+      parse.data.category === undefined &&
+      parse.data.styleTag === undefined)
+  ) {
     return res.status(400).json({ error: "Nothing to update" });
   }
   const [row] = await db
@@ -195,6 +208,7 @@ router.patch("/:id", async (req, res) => {
     .set({
       ...(parse.data.name !== undefined ? { name: parse.data.name } : {}),
       ...(parse.data.category !== undefined ? { category: parse.data.category } : {}),
+      ...(parse.data.styleTag !== undefined ? { styleTag: parse.data.styleTag } : {}),
     })
     .where(and(eq(clothes.id, id), eq(clothes.userId, req.userId!)))
     .returning();

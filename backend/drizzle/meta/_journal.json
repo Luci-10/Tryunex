@@ -8,6 +8,13 @@
       "when": 1779869202745,
       "tag": "0000_clumsy_shard",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1786770423244,
+      "tag": "0001_thick_nova",
+      "breakpoints": true
     }
   ]
 }

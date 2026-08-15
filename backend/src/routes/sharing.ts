@@ -212,6 +212,7 @@ router.get("/friends/:ownerId/wardrobe", async (req, res) => {
         id: clothes.id,
         name: clothes.name,
         category: clothes.category,
+      styleTag: clothes.styleTag,
         imageUrl: clothes.imageUrl,
         status: clothes.status,
       },

@@ -1,15 +1,29 @@
-import { useRef, useState } from "react";
-import { api, type Cloth } from "../api";
+import { useCallback, useRef, useState } from "react";
+import { api, type Cloth, type StyleTag } from "../api";
 import { useAuth } from "../auth";
 import Sheet from "./ui/Sheet";
 import Button from "./ui/Button";
-import { Input, Label, Select, FieldError } from "./ui/Field";
+import { Input, Label, FieldError } from "./ui/Field";
 import PhotoAccessPrompt from "./PhotoAccessPrompt";
 import { hasPhotoConsent, grantPhotoConsent } from "../photoConsent";
+import { nativePickerAvailable, pickPhotoNatively, type PickSource } from "../photoPicker";
 import { resizeImage, putWithProgress } from "../upload";
-import { Camera, Refresh } from "./ui/icons";
+import { STYLE_TAGS } from "../styleTags";
+import { Camera, Check, ChevronLeft, Refresh } from "./ui/icons";
 
-const CATEGORIES = ["top", "bottom", "dress", "outerwear", "shoes", "accessory", "other"];
+const CATEGORIES = [
+  { value: "top", label: "Top" },
+  { value: "bottom", label: "Bottom" },
+  { value: "dress", label: "Dress" },
+  { value: "outerwear", label: "Outerwear" },
+  { value: "shoes", label: "Shoes" },
+  { value: "accessory", label: "Accessory" },
+  { value: "other", label: "Other" },
+];
+
+// Browsers report ~0 for some HEIC/RAW files; the real guard is the resize
+// step, but rejecting obvious monsters early saves a long wait.
+const MAX_BYTES = 25 * 1024 * 1024;
 
 export default function AddClothModal({
   open,
@@ -22,58 +36,93 @@ export default function AddClothModal({
 }) {
   const { user } = useAuth();
   const fileRef = useRef<HTMLInputElement>(null);
+
+  const [step, setStep] = useState<"photo" | "details">("photo");
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [name, setName] = useState("");
-  const [category, setCategory] = useState("other");
+  const [category, setCategory] = useState("top");
+  const [styleTag, setStyleTag] = useState<StyleTag>("casual");
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [askPhoto, setAskPhoto] = useState(false);
 
-  // First-ever upload on a touch device gets the explainer before the OS picker.
-  function openPicker() {
+  function openWebPicker() {
+    fileRef.current?.click();
+  }
+
+  async function startPick(source: PickSource = "gallery") {
+    setError(null);
+    if (nativePickerAvailable()) {
+      const r = await pickPhotoNatively(source);
+      if (r.ok) return accept(r.file);
+      if (r.reason === "cancelled") return;
+      if (r.reason === "unavailable") return openWebPicker(); // no native half in this build
+      return setError(r.reason === "denied" ? r.message : r.message);
+    }
+    openWebPicker();
+  }
+
+  // First tap on a touch device gets the explainer; after that, straight in.
+  function requestPhoto() {
     if (!hasPhotoConsent()) {
       setAskPhoto(true);
       return;
     }
-    fileRef.current?.click();
+    startPick("gallery");
   }
 
-  function continuePhotoAccess() {
+  function continueFromPrompt(source: PickSource) {
     grantPhotoConsent();
     setAskPhoto(false);
-    setTimeout(() => fileRef.current?.click(), 60);
+    setTimeout(() => startPick(source), 60);
   }
 
-  function pick(f: File | undefined) {
+  function accept(f: File | undefined) {
     if (!f) return;
+    if (f.type && !f.type.startsWith("image/")) {
+      setError("That file isn't an image. Pick a photo instead.");
+      return;
+    }
+    if (f.size > MAX_BYTES) {
+      setError("That photo is over 25 MB. Try a smaller one.");
+      return;
+    }
     setFile(f);
     setPreview((old) => {
       if (old) URL.revokeObjectURL(old);
       return URL.createObjectURL(f);
     });
     setError(null);
+    setStep("details");
   }
 
   function reset() {
-    if (preview) URL.revokeObjectURL(preview);
+    setPreview((old) => {
+      if (old) URL.revokeObjectURL(old);
+      return null;
+    });
     setFile(null);
-    setPreview(null);
     setName("");
-    setCategory("other");
+    setCategory("top");
+    setStyleTag("casual");
+    setStep("photo");
     setProgress(null);
     setError(null);
   }
 
-  function close() {
-    if (busy) return; // never yank the sheet out mid-upload
+  // Stable identity: an inline closure here would change on every keystroke,
+  // and Sheet keys its focus effect on this.
+  const close = useCallback(() => {
+    if (busy) return; // never yank the sheet away mid-upload
     reset();
     onClose();
-  }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [busy, onClose]);
 
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
+  async function submit(e?: React.FormEvent) {
+    e?.preventDefault();
     setError(null);
     if (!user) return setError("You're signed out — sign in again to add pieces.");
     if (!file) return setError("Choose a photo first.");
@@ -92,127 +141,201 @@ export default function AddClothModal({
         imageUrl: publicUrl,
         name: name.trim(),
         category,
+        styleTag,
       });
       onAdded(r.cloth);
       reset();
       onClose();
     } catch (err: any) {
       console.error("[upload] failed", err);
-      setError(err.message ?? "Upload failed");
+      setError(err?.message ?? "Upload failed");
     } finally {
       setBusy(false);
       setProgress(null);
     }
   }
 
+  const canSubmit = Boolean(file) && name.trim().length > 0 && !busy;
+
   return (
     <Sheet
       open={open}
       onClose={close}
       dismissible={!busy}
-      title="Add a piece"
-      description="A clear, well-lit photo works best."
+      title={step === "photo" ? "Add a piece" : "Details"}
+      description={step === "photo" ? "A clear, well-lit photo works best." : undefined}
       footer={
-        <Button block size="lg" loading={busy} onClick={submit} disabled={!file || !name.trim()}>
-          {busy ? (progress !== null ? `Uploading ${progress}%` : "Saving…") : "Add to wardrobe"}
-        </Button>
+        step === "photo" ? (
+          <Button block size="lg" onClick={requestPhoto} leading={<Camera className="w-4 h-4" />}>
+            {file ? "Replace photo" : "Take photo or choose from gallery"}
+          </Button>
+        ) : (
+          <Button block size="lg" loading={busy} onClick={submit} disabled={!canSubmit}>
+            {busy
+              ? progress !== null
+                ? `Uploading ${progress}%`
+                : "Saving…"
+              : "Add to wardrobe"}
+          </Button>
+        )
       }
     >
-      <form onSubmit={submit} className="space-y-4">
-        <div>
-          <div className="relative aspect-square rounded-2xl overflow-hidden bg-lilac border-2 border-dashed border-brand-200">
+      {step === "photo" ? (
+        <div className="space-y-3">
+          <button
+            type="button"
+            onClick={requestPhoto}
+            className="relative block w-full aspect-square rounded-2xl overflow-hidden bg-lilac border-2 border-dashed border-brand-200 active:scale-[0.99] transition-transform"
+          >
             {preview ? (
               <img src={preview} alt="The photo you selected" className="w-full h-full object-cover" />
             ) : (
-              <button
-                type="button"
-                onClick={openPicker}
-                className="w-full h-full flex flex-col items-center justify-center gap-2 text-brand-700"
-              >
-                <Camera className="w-8 h-8" />
-                <span className="text-sm font-medium">Choose a photo</span>
-                <span className="text-xs text-ink/65">or take one with your camera</span>
-              </button>
+              <span className="w-full h-full flex flex-col items-center justify-center gap-2 text-brand-700">
+                <Camera className="w-9 h-9" />
+                <span className="text-sm font-semibold">Take photo or choose from gallery</span>
+                <span className="text-xs text-ink/60">You pick exactly which photo to share</span>
+              </span>
             )}
+          </button>
 
-            {preview && !busy && (
-              <button
-                type="button"
-                onClick={openPicker}
-                className="absolute bottom-3 right-3 inline-flex items-center gap-1.5 h-9 px-3 rounded-full bg-white/95 text-ink text-sm font-medium shadow-card backdrop-blur-sm"
-              >
-                <Refresh className="w-4 h-4" />
-                Replace
-              </button>
-            )}
+          <FieldError>{error}</FieldError>
 
-            {busy && progress !== null && (
-              <div className="absolute inset-x-0 bottom-0 bg-ink/70 px-3 py-2.5 backdrop-blur-sm">
-                <div className="flex items-center justify-between text-white text-xs font-medium mb-1.5">
-                  <span>Uploading…</span>
-                  <span>{progress}%</span>
-                </div>
-                <div
-                  className="h-1.5 rounded-full bg-white/25 overflow-hidden"
-                  role="progressbar"
-                  aria-valuenow={progress}
-                  aria-valuemin={0}
-                  aria-valuemax={100}
-                  aria-label="Upload progress"
-                >
-                  <div
-                    className="h-full bg-white transition-[width] duration-200"
-                    style={{ width: `${progress}%` }}
-                  />
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* No `capture` attribute — with it the OS skips the gallery entirely. */}
+          {/* No `capture` attribute — with it, the OS skips the gallery. */}
           <input
             ref={fileRef}
             type="file"
             accept="image/*"
             className="sr-only"
-            onChange={(e) => pick(e.target.files?.[0])}
+            onChange={(e) => {
+              accept(e.target.files?.[0]);
+              e.target.value = "";
+            }}
           />
         </div>
+      ) : (
+        <form onSubmit={submit} className="space-y-4">
+          <div className="flex items-center gap-3">
+            {preview && (
+              <img
+                src={preview}
+                alt="The photo you selected"
+                className="w-16 h-16 rounded-xl object-cover shrink-0"
+              />
+            )}
+            <div className="flex-1 min-w-0">
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                onClick={() => setStep("photo")}
+                leading={<ChevronLeft className="w-4 h-4" />}
+                disabled={busy}
+              >
+                Change photo
+              </Button>
+            </div>
+          </div>
 
-        <label className="block">
-          <Label>Name</Label>
-          <Input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="e.g. blue denim jacket"
-            maxLength={80}
-            required
-          />
-        </label>
+          {busy && progress !== null && (
+            <div>
+              <div className="flex items-center justify-between text-[12px] text-ink/70 mb-1">
+                <span>Uploading…</span>
+                <span>{progress}%</span>
+              </div>
+              <div
+                className="h-1.5 rounded-full bg-ink/10 overflow-hidden"
+                role="progressbar"
+                aria-valuenow={progress}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-label="Upload progress"
+              >
+                <div
+                  className="h-full bg-brand-500 transition-[width] duration-200"
+                  style={{ width: `${progress}%` }}
+                />
+              </div>
+            </div>
+          )}
 
-        <label className="block">
-          <Label>Category</Label>
-          <Select
+          <label className="block">
+            <Label>Name</Label>
+            <Input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. blue denim jacket"
+              maxLength={80}
+              enterKeyHint="done"
+              required
+            />
+          </label>
+
+          <ChipGroup
+            label="Category"
+            options={CATEGORIES}
             value={category}
-            onChange={(e) => setCategory(e.target.value)}
-            className="capitalize"
-          >
-            {CATEGORIES.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
-          </Select>
-        </label>
+            onChange={setCategory}
+          />
 
-        <FieldError>{error}</FieldError>
-      </form>
+          <ChipGroup
+            label="Style"
+            hint="Helps the assistant match outfits to the occasion"
+            options={STYLE_TAGS}
+            value={styleTag}
+            onChange={(v) => setStyleTag(v as StyleTag)}
+          />
+
+          <FieldError>{error}</FieldError>
+        </form>
+      )}
 
       <PhotoAccessPrompt
         open={askPhoto}
         onCancel={() => setAskPhoto(false)}
-        onContinue={continuePhotoAccess}
+        onContinue={continueFromPrompt}
       />
     </Sheet>
+  );
+}
+
+function ChipGroup({
+  label,
+  hint,
+  options,
+  value,
+  onChange,
+}: {
+  label: string;
+  hint?: string;
+  options: { value: string; label: string }[];
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  return (
+    <div>
+      <Label hint={hint}>{label}</Label>
+      <div role="radiogroup" aria-label={label} className="flex flex-wrap gap-1.5">
+        {options.map((o) => {
+          const active = value === o.value;
+          return (
+            <button
+              key={o.value}
+              type="button"
+              role="radio"
+              aria-checked={active}
+              onClick={() => onChange(o.value)}
+              className={`inline-flex items-center gap-1 h-9 px-3 rounded-full text-[13px] border transition-colors ${
+                active
+                  ? "bg-brand-500 text-white border-brand-500 font-medium"
+                  : "bg-white text-ink/70 border-ink/12 hover:bg-brand-50 hover:text-brand-700"
+              }`}
+            >
+              {active && <Check className="w-3.5 h-3.5" />}
+              {o.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
   );
 }

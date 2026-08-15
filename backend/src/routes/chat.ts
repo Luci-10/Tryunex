@@ -32,6 +32,7 @@ async function buildWardrobeContext(userId: string): Promise<string> {
       name: clothes.name,
       category: clothes.category,
       status: clothes.status,
+      styleTag: clothes.styleTag,
       // Same subquery the clothes list uses, so "what haven't I worn lately"
       // is answerable from real data instead of guesswork.
       lastWornOn: sql<string | null>`(
@@ -54,12 +55,14 @@ async function buildWardrobeContext(userId: string): Promise<string> {
   const today = new Date().toISOString().slice(0, 10);
   const lines: string[] = [
     `Today is ${today}.`,
-    "The user's wardrobe (id · name · status · last worn):",
+    "The user's wardrobe (id · name · status · style tag · last worn):",
   ];
   for (const [cat, items] of byCategory) {
     lines.push(`\n${cat.toUpperCase()}:`);
     for (const it of items) {
-      lines.push(`  - ${it.id} · ${it.name} · ${it.status} · ${it.lastWornOn ?? "never worn"}`);
+      lines.push(
+        `  - ${it.id} · ${it.name} · ${it.status} · ${it.styleTag} · ${it.lastWornOn ?? "never worn"}`,
+      );
     }
   }
   return lines.join("\n");
@@ -73,6 +76,8 @@ Voice:
 
 Hard rules:
 - Only ever mention clothes that appear in the wardrobe list below. Never invent a garment, a brand, a colour you weren't told, or the weather.
+- Each garment carries a style tag the user chose: casual, smart_casual, formal, party, sports, lounge, traditional or other. Match it to the request — an interview or anything formal leans on formal and smart_casual, a casual outing on casual, a party on party. It's a useful label the user picked, not a guarantee; don't describe anything as perfect for an occasion.
+- If nothing carries a fitting tag, say so plainly and offer the closest thing they own.
 - Prefer items marked "clean" for anything the user might wear now. If the best option is "worn", say so plainly and offer the closest clean alternative.
 - If the wardrobe genuinely lacks something the request needs, say that honestly and suggest the nearest thing they do own.
 - Don't claim anything has been saved, planned or scheduled. The user does that themselves from the cards you produce.
