@@ -1,4 +1,5 @@
 import { api } from "./api";
+import { isNative } from "./platform";
 
 export type CreditBalance = {
   total: number;
@@ -64,7 +65,8 @@ function loadCheckout(): Promise<boolean> {
 
 export type CheckoutOutcome =
   | { ok: true; pending: true }
-  | { ok: false; cancelled: true }
+  /** Dismissed, or a WebView flow whose callback we can't rely on. */
+  | { ok: false; cancelled: true; verifyAnyway?: boolean }
   | { ok: false; message: string };
 
 /**
@@ -78,7 +80,12 @@ export async function startCheckout(
   user: { name: string; email: string },
 ): Promise<CheckoutOutcome> {
   const loaded = await loadCheckout();
-  if (!loaded) return { ok: false, message: "Could not load the payment window. Check your connection." };
+  if (!loaded) {
+    return {
+      ok: false,
+      message: "Could not load the payment window. Check your connection and try again.",
+    };
+  }
 
   let order: any;
   try {
@@ -108,7 +115,13 @@ export async function startCheckout(
           resolve({ ok: false, message: err?.message ?? "We couldn't verify that payment" });
         }
       },
-      modal: { ondismiss: () => resolve({ ok: false, cancelled: true }) },
+      // Android WebView does not always deliver the handler callback after a
+      // UPI app switch. That's survivable because the webhook is what grants
+      // credits — so on native we ask the caller to poll the server rather
+      // than treating a dismissal as a definite cancellation.
+      modal: {
+        ondismiss: () => resolve({ ok: false, cancelled: true, verifyAnyway: isNative }),
+      },
     });
     rz.on("payment.failed", (e: any) =>
       resolve({ ok: false, message: e?.error?.description ?? "The payment did not go through" }),

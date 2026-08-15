@@ -21,7 +21,13 @@ import {
   grantFreeMonthlyCredit,
   refundCredit,
   ensureProfile,
+  claimGenerationSlot,
+  releaseGenerationSlot,
+  recentGenerationCount,
+  generationDisabled,
+  GENERATION_RATE_LIMIT,
 } from "../services/billing/credits.js";
+import { metric } from "../services/metrics.js";
 
 const router = Router();
 router.use(requireAuth);
@@ -228,6 +234,7 @@ router.post("/generate", async (req, res) => {
         LIMIT 1
       `) as Array<{ id: string; image_url: string; created_at: string }>);
   if (cached.length > 0) {
+    metric("tryon_cache_hit", { userId: req.userId! });
     const c = cached[0];
     return res.json({
       result: {
@@ -251,6 +258,36 @@ router.post("/generate", async (req, res) => {
     return res.status(500).json({ error: e?.message ?? "try-on misconfigured" });
   }
 
+  // ---- throttles -------------------------------------------------------
+  // All three run before the debit, so a refused request never costs a credit.
+  if (generationDisabled()) {
+    metric("tryon_disabled", { userId: req.userId! });
+    return res.status(503).json({
+      code: "GENERATION_DISABLED",
+      error: "Try-on generation is paused right now. Your credits are safe.",
+    });
+  }
+
+  const recent = await recentGenerationCount(req.userId!);
+  if (recent >= GENERATION_RATE_LIMIT) {
+    metric("tryon_rate_limited", { userId: req.userId!, recent });
+    return res.status(429).json({
+      code: "GENERATION_RATE_LIMIT",
+      error: `That's ${GENERATION_RATE_LIMIT} looks in an hour — give it a few minutes.`,
+    });
+  }
+
+  // One image generation per user at a time: they are slow and expensive,
+  // and a double-tap shouldn't start two.
+  const slot = await claimGenerationSlot(req.userId!);
+  if (!slot) {
+    metric("tryon_busy", { userId: req.userId! });
+    return res.status(409).json({
+      code: "GENERATION_IN_PROGRESS",
+      error: "A look is already being created. Give it a moment.",
+    });
+  }
+
   // ---- credits ---------------------------------------------------------
   // Everything above this line is free: cache hits, uploads, browsing. Only a
   // fresh Gemini call costs a credit, and it is taken before the call so a
@@ -267,14 +304,16 @@ router.post("/generate", async (req, res) => {
 
   const debit = await debitOneCredit(req.userId!, debitKind, debitKey);
   if (!debit.ok) {
+    await releaseGenerationSlot(req.userId!);
     const credits = await getBalance(req.userId!);
-    console.log(`[tryon] refused, no credits user=${req.userId}`);
+    metric("tryon_refused_no_credits", { userId: req.userId! });
     return res.status(402).json({
       code: "NO_TRYON_CREDITS",
       error: "You're out of Try-on credits",
       credits,
     });
   }
+  metric("credits_debited", { userId: req.userId!, kind: debitKind });
 
   try {
     const [selfie, ...garments] = await Promise.all([
@@ -332,7 +371,10 @@ router.post("/generate", async (req, res) => {
       if (outImage) break;
     }
     if (!outImage) {
+      metric("generation_failed_gemini", { userId: req.userId! });
       await refundCredit(req.userId!, debitKey);
+      await releaseGenerationSlot(req.userId!);
+      metric("credits_refunded", { userId: req.userId! });
       return res.status(502).json({
         error: "The model didn't return an image. Your credit hasn't been used.",
         creditUsed: false,
@@ -352,7 +394,10 @@ router.post("/generate", async (req, res) => {
     if (!put.ok) {
       const body = await put.text();
       console.error("[tryon] R2 upload failed", put.status, body);
+      metric("generation_failed_r2", { userId: req.userId!, status: put.status });
       await refundCredit(req.userId!, debitKey);
+      await releaseGenerationSlot(req.userId!);
+      metric("credits_refunded", { userId: req.userId! });
       return res.status(502).json({
         error: "Could not save the generated image. Your credit hasn't been used.",
         creditUsed: false,
@@ -373,6 +418,8 @@ router.post("/generate", async (req, res) => {
         `[tryon] regenerated user=${req.userId} outfit=${clothIdsCsv} seed=${(variationConfig as any).seed} result=${row.id}`,
       );
     }
+    await releaseGenerationSlot(req.userId!);
+    metric(fresh ? "tryon_regenerated" : "tryon_generated", { userId: req.userId! });
     res.json({
       result: {
         id: row.id,
@@ -388,8 +435,10 @@ router.post("/generate", async (req, res) => {
     });
   } catch (e: any) {
     console.error("[tryon] generate failed", e);
+    metric("tryon_failed", { userId: req.userId! });
     // Nothing usable was produced, so the credit goes back exactly once.
     await refundCredit(req.userId!, debitKey);
+    await releaseGenerationSlot(req.userId!);
     res.status(500).json({
       error: e?.message ?? "Generation failed",
       creditUsed: false,

@@ -24,6 +24,7 @@ import {
   verifyWebhookSignature,
 } from "../services/billing/razorpay.js";
 import { monthPeriod } from "../services/billing/period.js";
+import { metric } from "../services/metrics.js";
 
 const router = Router();
 
@@ -85,7 +86,8 @@ router.post("/webhook", raw({ type: "*/*" }), async (req, res) => {
                  webhook_event_id = COALESCE(webhook_event_id, ${eventId || null}),
                  verified_at = now(), updated_at = now()
            WHERE id = ${record.id}`;
-        console.log(`[billing] pack granted=${granted} user=${record.user_id} code=${pack.code}`);
+        metric("purchase_granted", { kind: "pack", code: pack.code, firstTime: granted });
+        if (granted) metric("credits_granted", { source: "pack", amount: pack.credits });
       }
     } else if (kind === "subscription.activated" || kind === "subscription.charged") {
       const sub = event.payload?.subscription?.entity ?? {};
@@ -122,11 +124,15 @@ router.post("/webhook", raw({ type: "*/*" }), async (req, res) => {
                  updated_at = now()
            WHERE user_id = ${record.user_id}`;
         await q`UPDATE payments SET status='paid', verified_at=now(), updated_at=now() WHERE id=${record.id}`;
+        metric(kind === "subscription.activated" ? "subscription_activated" : "subscription_renewed", {
+          code: plan.code,
+        });
       }
     } else if (kind === "subscription.halted" || kind === "payment.failed") {
       const sub = event.payload?.subscription?.entity;
       if (sub?.id) {
         // Past due keeps whatever they already earned; nothing is removed.
+        metric("payment_failed", { reason: "subscription" });
         await q`
           UPDATE billing_profiles SET subscription_status='past_due', updated_at=now()
            WHERE razorpay_subscription_id = ${sub.id}`;
@@ -134,6 +140,7 @@ router.post("/webhook", raw({ type: "*/*" }), async (req, res) => {
     } else if (kind === "subscription.cancelled") {
       const sub = event.payload?.subscription?.entity ?? {};
       // Benefits stand until the period they already paid for ends.
+      metric("subscription_cancelled", {});
       await q`
         UPDATE billing_profiles
            SET subscription_status='cancelled', subscription_cancelled_at=now(), updated_at=now()
@@ -148,6 +155,7 @@ router.post("/webhook", raw({ type: "*/*" }), async (req, res) => {
       // Deliberately not automated: a refund can't safely claw back credits
       // that may already be spent. Flag it and let a human decide.
       const payment = event.payload?.payment?.entity ?? {};
+      metric("payment_failed", { reason: "refund" });
       await q`
         UPDATE payments SET status='refunded', updated_at=now()
          WHERE razorpay_payment_id = ${payment.id ?? null}`;
@@ -206,6 +214,7 @@ router.post("/create-pack-order", async (req, res) => {
   await q`
     INSERT INTO payments (user_id, product_code, kind, amount_paise, razorpay_order_id, status)
     VALUES (${req.userId!}, ${pack.code}, 'pack', ${pack.amountPaise}, ${order.id}, 'pending')`;
+  metric("purchase_started", { kind: "pack", code: pack.code });
 
   res.json({
     orderId: order.id,
@@ -242,6 +251,7 @@ router.post("/create-subscription", async (req, res) => {
        SET subscription_status='pending', razorpay_subscription_id=${sub.id}, updated_at=now()
      WHERE user_id = ${req.userId!}`;
 
+  metric("purchase_started", { kind: "subscription", code: plan.code });
   res.json({ subscriptionId: sub.id, keyId: publicKeyId(), planName: plan.name });
 });
 

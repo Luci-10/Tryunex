@@ -83,7 +83,14 @@ export default function Plans() {
     if (r.ok) {
       setAwaitingWebhook(true);
       toast("Payment received — adding your credits", { tone: "success" });
-    } else if (!("cancelled" in r)) {
+    } else if ("cancelled" in r) {
+      // In the Android app the callback can be lost to a UPI app switch, so
+      // a dismissal there means "check with the server", not "cancelled".
+      if (r.verifyAnyway) {
+        setAwaitingWebhook(true);
+        toast("Checking whether that payment went through…");
+      }
+    } else {
       toast(r.message, { tone: "error" });
     }
   }

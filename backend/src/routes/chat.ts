@@ -12,6 +12,7 @@ import { db } from "../db/client.js";
 import { clothes, wearEvents } from "../db/schema.js";
 import { requireAuth } from "../services/auth.js";
 import { consumeChat, getChatQuota, releaseChat } from "../services/billing/credits.js";
+import { metric } from "../services/metrics.js";
 
 const router = Router();
 router.use(requireAuth);
@@ -164,6 +165,7 @@ router.post("/", async (req, res) => {
   // the model never produced a response.
   const gate = await consumeChat(userId);
   if (!gate.allowed) {
+    metric("chat_limit_reached", { userId });
     return res.status(429).json({
       code: "CHAT_LIMIT_REACHED",
       error: "You've used your free styling chats for this month",
@@ -212,6 +214,7 @@ router.post("/", async (req, res) => {
       }
     }
     if (!produced) await releaseChat(userId);
+    else metric("chat_used", { userId });
     send("done", { usage, chat: await getChatQuota(userId) });
   } catch (e: any) {
     console.error("[chat] error", e);

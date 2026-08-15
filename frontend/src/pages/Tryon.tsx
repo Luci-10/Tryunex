@@ -267,6 +267,16 @@ export default function Tryon() {
         setAnnouncement("You're out of Try-on credits.");
         return;
       }
+      // These three refuse before any credit is taken.
+      if (
+        err?.code === "GENERATION_DISABLED" ||
+        err?.code === "GENERATION_RATE_LIMIT" ||
+        err?.code === "GENERATION_IN_PROGRESS"
+      ) {
+        setGenError(err.message ?? "Try again in a moment. No credit was used.");
+        setAnnouncement(err.message ?? "");
+        return;
+      }
       const msg = err?.message ?? "Could not create your look";
       setGenError(msg);
       // The backend refunds on failure, so re-read rather than guess.

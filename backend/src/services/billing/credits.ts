@@ -56,6 +56,8 @@ export function ensureBillingSchema(): Promise<void> {
       "updated_at" timestamptz NOT NULL DEFAULT now()
     )`;
     await q`CREATE UNIQUE INDEX IF NOT EXISTS "billing_profiles_user_idx" ON "billing_profiles" ("user_id")`;
+    // Held while a generation is in flight; see claimGenerationSlot.
+    await q`ALTER TABLE "billing_profiles" ADD COLUMN IF NOT EXISTS "active_generation_at" timestamptz`;
 
     await q`CREATE TABLE IF NOT EXISTS "credit_ledger" (
       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
@@ -406,4 +408,57 @@ export async function releaseChat(userId: string): Promise<void> {
     UPDATE billing_profiles
        SET free_chat_used = GREATEST(0, free_chat_used - 1), updated_at = now()
      WHERE user_id = ${userId}`;
+}
+
+
+/* -------------------------------------------------- generation throttles */
+
+/** Generations older than this are treated as abandoned, not in-flight. */
+const GENERATION_LEASE_MS = 3 * 60 * 1000;
+
+/** Fresh generations allowed per user per rolling hour. */
+export const GENERATION_RATE_LIMIT = 20;
+
+/**
+ * Claims the user's single generation slot. One conditional UPDATE, so two
+ * simultaneous requests cannot both win. A stale lease (crashed request,
+ * killed function) is reclaimed rather than blocking the user forever.
+ */
+export async function claimGenerationSlot(userId: string): Promise<boolean> {
+  await ensureBillingSchema();
+  const q = sql();
+  const cutoff = new Date(Date.now() - GENERATION_LEASE_MS).toISOString();
+  const rows = (await q`
+    UPDATE billing_profiles
+       SET active_generation_at = now(), updated_at = now()
+     WHERE user_id = ${userId}
+       AND (active_generation_at IS NULL OR active_generation_at < ${cutoff})
+    RETURNING id`) as any[];
+  return rows.length > 0;
+}
+
+export async function releaseGenerationSlot(userId: string): Promise<void> {
+  try {
+    const q = sql();
+    await q`UPDATE billing_profiles SET active_generation_at = NULL WHERE user_id = ${userId}`;
+  } catch {
+    // The lease expires on its own; a failed release is not worth an error.
+  }
+}
+
+/** Fresh generations in the last hour, read from the ledger's debit rows. */
+export async function recentGenerationCount(userId: string): Promise<number> {
+  await ensureBillingSchema();
+  const q = sql();
+  const rows = (await q`
+    SELECT count(*)::int AS n FROM credit_ledger
+     WHERE user_id = ${userId}
+       AND type IN ('tryon_debit','regenerate_debit')
+       AND created_at > now() - interval '1 hour'`) as any[];
+  return Number(rows[0]?.n ?? 0);
+}
+
+/** Emergency stop, flipped with an env var and no redeploy of code paths. */
+export function generationDisabled(): boolean {
+  return process.env.TRYON_GENERATION_DISABLED === "1";
 }
