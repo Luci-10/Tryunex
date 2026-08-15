@@ -7,6 +7,7 @@ import {
   index,
   date,
   boolean,
+  integer,
   uuid,
 } from "drizzle-orm/pg-core";
 
@@ -157,3 +158,96 @@ export type Cloth = typeof clothes.$inferSelect;
 export type Share = typeof shares.$inferSelect;
 export type Suggestion = typeof suggestions.$inferSelect;
 export type TryonAsset = typeof tryonAssets.$inferSelect;
+
+/* ------------------------------------------------------------ billing */
+
+export const tierEnum = pgEnum("billing_tier", ["free", "lite", "plus", "style"]);
+export const subStatusEnum = pgEnum("subscription_status", [
+  "none", "pending", "active", "past_due", "cancelled", "expired",
+]);
+export const ledgerTypeEnum = pgEnum("credit_ledger_type", [
+  "free_monthly_grant", "pack_purchase_grant", "subscription_grant",
+  "tryon_debit", "regenerate_debit", "generation_refund",
+  "admin_adjustment", "expiry",
+]);
+export const creditSourceEnum = pgEnum("credit_source", [
+  "free", "pack", "subscription", "tryon", "regenerate", "refund",
+]);
+export const paymentKindEnum = pgEnum("payment_kind", ["pack", "subscription"]);
+export const paymentStatusEnum = pgEnum("payment_status", [
+  "created", "pending", "paid", "failed", "refunded", "cancelled",
+]);
+
+export const billingProfiles = pgTable(
+  "billing_profiles",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    currentTier: tierEnum("current_tier").notNull().default("free"),
+    subscriptionStatus: subStatusEnum("subscription_status").notNull().default("none"),
+    razorpayCustomerId: text("razorpay_customer_id"),
+    razorpaySubscriptionId: text("razorpay_subscription_id"),
+    subscriptionStartedAt: timestamp("subscription_started_at", { withTimezone: true }),
+    subscriptionCurrentPeriodStart: timestamp("subscription_current_period_start", { withTimezone: true }),
+    subscriptionCurrentPeriodEnd: timestamp("subscription_current_period_end", { withTimezone: true }),
+    subscriptionCancelledAt: timestamp("subscription_cancelled_at", { withTimezone: true }),
+    freeAllowancePeriodStart: timestamp("free_allowance_period_start", { withTimezone: true }),
+    freeAllowancePeriodEnd: timestamp("free_allowance_period_end", { withTimezone: true }),
+    freeChatPeriodStart: timestamp("free_chat_period_start", { withTimezone: true }),
+    freeChatPeriodEnd: timestamp("free_chat_period_end", { withTimezone: true }),
+    freeChatUsed: integer("free_chat_used").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => ({ userIdx: uniqueIndex("billing_profiles_user_idx").on(t.userId) }),
+);
+
+/** Immutable. A balance is always SUM(credit_amount) over unexpired rows. */
+export const creditLedger = pgTable(
+  "credit_ledger",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    type: ledgerTypeEnum("type").notNull(),
+    creditAmount: integer("credit_amount").notNull(),
+    sourceType: creditSourceEnum("source_type").notNull(),
+    productCode: text("product_code"),
+    relatedTryonId: uuid("related_tryon_id"),
+    relatedPaymentId: uuid("related_payment_id"),
+    expiresAt: timestamp("expires_at", { withTimezone: true }),
+    idempotencyKey: text("idempotency_key").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => ({
+    keyIdx: uniqueIndex("credit_ledger_idem_idx").on(t.idempotencyKey),
+    userIdx: index("credit_ledger_user_idx").on(t.userId),
+    expiryIdx: index("credit_ledger_expiry_idx").on(t.userId, t.expiresAt),
+    createdIdx: index("credit_ledger_created_idx").on(t.userId, t.createdAt),
+  }),
+);
+
+export const payments = pgTable(
+  "payments",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    provider: text("provider").notNull().default("razorpay"),
+    productCode: text("product_code").notNull(),
+    kind: paymentKindEnum("kind").notNull(),
+    amountPaise: integer("amount_paise").notNull(),
+    currency: text("currency").notNull().default("INR"),
+    razorpayOrderId: text("razorpay_order_id"),
+    razorpayPaymentId: text("razorpay_payment_id"),
+    razorpaySubscriptionId: text("razorpay_subscription_id"),
+    status: paymentStatusEnum("status").notNull().default("created"),
+    webhookEventId: text("webhook_event_id"),
+    verifiedAt: timestamp("verified_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => ({
+    userIdx: index("payments_user_idx").on(t.userId),
+    orderIdx: uniqueIndex("payments_order_idx").on(t.razorpayOrderId),
+    eventIdx: uniqueIndex("payments_event_idx").on(t.webhookEventId),
+  }),
+);

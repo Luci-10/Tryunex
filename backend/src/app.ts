@@ -11,6 +11,7 @@ import historyRoutes from "./routes/history.js";
 import chatRoutes from "./routes/chat.js";
 import tryonRoutes from "./routes/tryon.js";
 import contactRoutes from "./routes/contact.js";
+import billingRoutes from "./routes/billing.js";
 
 /**
  * Express 4 does not forward a rejected promise from an async handler to the
@@ -97,6 +98,10 @@ export function createApp() {
       credentials: true,
     }),
   );
+
+  // Billing mounts first: its webhook needs the raw body for signature
+  // verification, so it must not pass through express.json().
+  app.use("/api/billing", billingRoutes);
 
   app.use(express.json({ limit: "1mb" }));
   app.use(cookieParser());

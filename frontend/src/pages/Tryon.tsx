@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import PageShell from "../components/PageShell";
 import Lightbox from "../components/Lightbox";
 import PhotoAccessPrompt from "../components/PhotoAccessPrompt";
@@ -18,10 +19,17 @@ import { hasPhotoConsent, grantPhotoConsent } from "../photoConsent";
 import { nativePickerAvailable, pickPhotoNatively, type PickSource } from "../photoPicker";
 import { resizeImage, putWithProgress } from "../upload";
 import { downloadLook, shareLook } from "../share";
+import { getSummary, type CreditBalance } from "../billing";
 
 type Selfie = { id: string; imageUrl: string; createdAt: string };
 type Result = { id: string; imageUrl: string; createdAt: string; clothId: string | null };
-type GenerateResponse = { result: Result; cached: boolean; regenerated?: boolean };
+type GenerateResponse = {
+  result: Result;
+  cached: boolean;
+  regenerated?: boolean;
+  creditUsed?: boolean;
+  credits?: CreditBalance;
+};
 
 const DISCLAIMER =
   "Virtual try-on is a styling preview. Fit, sizing, fabric drape and colour may not be exact. Choose sizes using your own measurements and the brand's size guide.";
@@ -33,6 +41,7 @@ export default function Tryon() {
   const { selection, select, commit, clear, locked, setLocked, roles, setRole } = useTryOn();
   const { toast } = useToast();
   const confirm = useConfirm();
+  const nav = useNavigate();
 
   const [tab, setTab] = useState<"selected" | "wardrobe">("selected");
   const [selfie, setSelfie] = useState<Selfie | null>(null);
@@ -59,6 +68,8 @@ export default function Tryon() {
   const [lastForced, setLastForced] = useState(false);
   const [classifying, setClassifying] = useState<Cloth | null>(null);
   const [rememberRole, setRememberRole] = useState(false);
+  const [credits, setCredits] = useState<CreditBalance | null>(null);
+  const [outOfCredits, setOutOfCredits] = useState(false);
 
   const fileRef = useRef<HTMLInputElement>(null);
   const wardrobeRef = useRef<HTMLDivElement>(null);
@@ -88,6 +99,10 @@ export default function Tryon() {
         ),
       );
       setItems([...mine.clothes, ...friendClothes.flat()]);
+      // Balance is always the server's number; nothing here is authoritative.
+      getSummary()
+        .then((sum) => setCredits(sum.credits))
+        .catch(() => setCredits(null));
     } catch (err: any) {
       setLoadError(err?.message ?? "Could not load the studio");
     }
@@ -209,6 +224,11 @@ export default function Tryon() {
       setGenError("Pick at least one piece to wear.");
       return;
     }
+    // Don't spend a round trip when the server has already told us it's zero.
+    if (credits && credits.total <= 0) {
+      setOutOfCredits(true);
+      return;
+    }
     setGenError(null);
     setGenerating(true);
     setLastForced(force);
@@ -234,13 +254,23 @@ export default function Tryon() {
       setResultOf(selection);
       // A forced run is never a cache hit, so the badge must never show.
       setCached(force ? false : r.cached);
+      if (r.credits) setCredits(r.credits);
       setShowingOriginal(false);
       setAnnouncement(force ? "New variation ready." : "Your look is ready.");
     } catch (err: any) {
       // The existing result stays on screen — a failed variation shouldn't
       // cost the user the look they already had.
+      // 402 carries the balance and means nothing was charged.
+      if (err?.code === "NO_TRYON_CREDITS" || /out of Try-on credits/i.test(String(err?.message))) {
+        if (err?.credits) setCredits(err.credits);
+        setOutOfCredits(true);
+        setAnnouncement("You're out of Try-on credits.");
+        return;
+      }
       const msg = err?.message ?? "Could not create your look";
       setGenError(msg);
+      // The backend refunds on failure, so re-read rather than guess.
+      getSummary().then((sum) => setCredits(sum.credits)).catch(() => {});
       setAnnouncement(`Try-on failed. ${msg}`);
     } finally {
       setGenerating(false);
@@ -451,7 +481,7 @@ export default function Tryon() {
                     disabled={generating}
                     leading={!generating ? <Refresh className="w-4 h-4" /> : undefined}
                   >
-                    Regenerate new variation
+                    Regenerate new variation · 1 credit
                   </Button>
                   <Button variant="secondary" onClick={() => setShowingOriginal((v) => !v)}>
                     {showingOriginal ? "Show the look" : "Show original"}
@@ -577,6 +607,12 @@ export default function Tryon() {
           {blockedReason && !generating && (
             <p className="text-[12px] text-ink/60 text-center mt-1.5">{blockedReason}</p>
           )}
+          {!blockedReason && credits && !generating && (
+            <p className="text-[12px] text-ink/60 text-center mt-1.5">
+              {credits.total} Try-on credit{credits.total === 1 ? "" : "s"} left · cached looks are
+              free
+            </p>
+          )}
         </div>
       </div>
 
@@ -596,6 +632,28 @@ export default function Tryon() {
         onCancel={() => setAskPhoto(false)}
         onContinue={continueFromPrompt}
       />
+
+      <Sheet
+        open={outOfCredits}
+        onClose={() => setOutOfCredits(false)}
+        title="You're out of Try-on credits"
+        footer={
+          <div className="space-y-2">
+            <Button block size="lg" onClick={() => nav("/plans")}>
+              Get 3 credits for ₹29
+            </Button>
+            <Button block variant="secondary" onClick={() => nav("/plans")}>
+              View all plans
+            </Button>
+          </div>
+        }
+      >
+        <p className="text-sm text-ink/75 leading-relaxed">
+          Choose a small pack or a monthly plan to create another look. Your wardrobe, planning and
+          sharing all keep working either way, and looks you've already generated stay free to
+          revisit.
+        </p>
+      </Sheet>
 
       {/* `other` garments declare the part they play, for this look only —
           the wardrobe category is never rewritten. */}

@@ -105,6 +105,10 @@ export default function Settings() {
         <RowLink to="/account" label="My profile" hint="Suggestions and signing out" />
       </Group>
 
+      <Group icon={<Sparkles className="w-4 h-4" />} tone="mint" title="Plan & credits">
+        <RowLink to="/plans" label="Plans & credits" hint="Credits, packs and monthly plans" />
+      </Group>
+
       <Group icon={<Info className="w-4 h-4" />} tone="butter" title="App">
         <RowLink to="/about" label="About TryUnex" hint="What this app is for" />
         <dl className="px-4 py-3 flex gap-6">

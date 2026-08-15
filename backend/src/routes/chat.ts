@@ -11,6 +11,7 @@ import { desc, eq, sql } from "drizzle-orm";
 import { db } from "../db/client.js";
 import { clothes, wearEvents } from "../db/schema.js";
 import { requireAuth } from "../services/auth.js";
+import { consumeChat, getChatQuota, releaseChat } from "../services/billing/credits.js";
 
 const router = Router();
 router.use(requireAuth);
@@ -158,6 +159,19 @@ router.post("/", async (req, res) => {
     return res.status(500).json({ error: e?.message ?? "chat misconfigured" });
   }
 
+  // Free tier gets a monthly chat allowance; paid tiers are uncapped. The
+  // count is taken here, before any tokens are spent, and released below if
+  // the model never produced a response.
+  const gate = await consumeChat(userId);
+  if (!gate.allowed) {
+    return res.status(429).json({
+      code: "CHAT_LIMIT_REACHED",
+      error: "You've used your free styling chats for this month",
+      chat: gate.quota,
+    });
+  }
+  let produced = false;
+
   res.setHeader("Content-Type", "text/event-stream");
   res.setHeader("Cache-Control", "no-cache, no-transform");
   res.setHeader("X-Accel-Buffering", "no");
@@ -186,7 +200,10 @@ router.post("/", async (req, res) => {
     let usage: { input?: number; output?: number } = {};
     for await (const chunk of stream) {
       const text = chunk.text;
-      if (text) send("delta", { text });
+      if (text) {
+        produced = true;
+        send("delta", { text });
+      }
       if (chunk.usageMetadata) {
         usage = {
           input: chunk.usageMetadata.promptTokenCount,
@@ -194,9 +211,12 @@ router.post("/", async (req, res) => {
         };
       }
     }
-    send("done", { usage });
+    if (!produced) await releaseChat(userId);
+    send("done", { usage, chat: await getChatQuota(userId) });
   } catch (e: any) {
     console.error("[chat] error", e);
+    // A failed request must not eat someone's allowance.
+    if (!produced) await releaseChat(userId);
     send("error", { message: e?.message ?? "chat failed" });
   } finally {
     res.end();
