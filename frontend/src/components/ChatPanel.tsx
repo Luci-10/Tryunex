@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useChat } from "../chat";
 import { api, type Cloth } from "../api";
+import { getSummary, type ChatQuota } from "../billing";
 import IconButton from "./ui/IconButton";
 import Button from "./ui/Button";
 import { Input } from "./ui/Field";
@@ -35,6 +36,7 @@ export default function ChatPanel() {
   const [input, setInput] = useState("");
   const [wardrobe, setWardrobe] = useState<Map<string, Cloth> | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [quota, setQuota] = useState<ChatQuota | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const restoreRef = useRef<HTMLElement | null>(null);
@@ -47,11 +49,22 @@ export default function ChatPanel() {
       .get<{ clothes: Cloth[] }>("/clothes")
       .then((r) => setWardrobe(new Map(r.clothes.map((c) => [c.id, c]))))
       .catch(() => setWardrobe(new Map()));
+    getSummary()
+      .then((s) => setQuota(s.chat))
+      .catch(() => setQuota(null));
   }, [open]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, streaming, open]);
+
+  // The server owns the count; refresh it whenever a turn completes.
+  useEffect(() => {
+    if (!open || busy) return;
+    getSummary()
+      .then((s) => setQuota(s.chat))
+      .catch(() => {});
+  }, [open, busy, messages.length]);
 
   useEffect(() => {
     if (open) {
@@ -91,6 +104,8 @@ export default function ChatPanel() {
     setInput("");
   }
 
+  const exhausted = Boolean(quota?.limited && quota.used >= quota.limit);
+
   if (!open) return null;
 
   return (
@@ -114,7 +129,11 @@ export default function ChatPanel() {
             </span>
             <div className="flex-1 min-w-0">
               <p className="font-semibold text-sm leading-tight">Ask TryUnex</p>
-              <p className="text-[11px] text-ink/65">Outfit ideas from your own wardrobe</p>
+              <p className="text-[11px] text-ink/65">
+                {quota?.limited
+                  ? `${Math.max(0, quota.limit - quota.used)} of ${quota.limit} AI chats left this month`
+                  : "Outfit ideas from your own wardrobe"}
+              </p>
             </div>
 
             <IconButton
@@ -230,6 +249,38 @@ export default function ChatPanel() {
 
           {!wardrobeEmpty && <StyleContextBar />}
 
+          {exhausted ? (
+            <div className="border-t border-ink/[0.07] p-3 shrink-0 pb-[calc(0.75rem+env(safe-area-inset-bottom))] md:pb-3">
+              <p className="text-[13px] text-ink/75 leading-relaxed">
+                You've used your {quota?.limit} free styling chats for this month.
+                {quota?.resetsAt && (
+                  <>
+                    {" "}
+                    They reset on{" "}
+                    {new Date(quota.resetsAt).toLocaleDateString(undefined, {
+                      day: "numeric",
+                      month: "short",
+                    })}
+                    .
+                  </>
+                )}
+              </p>
+              <div className="flex gap-2 mt-2.5">
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    closeChat();
+                    nav("/plans");
+                  }}
+                >
+                  View plans
+                </Button>
+                <Button size="sm" variant="secondary" onClick={closeChat}>
+                  Close
+                </Button>
+              </div>
+            </div>
+          ) : (
           <form
             onSubmit={(e) => {
               e.preventDefault();
@@ -256,6 +307,7 @@ export default function ChatPanel() {
               <span className="sr-only">Send</span>
             </Button>
           </form>
+          )}
         </div>
       </div>
     </>

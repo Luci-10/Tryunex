@@ -15,6 +15,13 @@ import { db } from "../db/client.js";
 import { clothes, shares, tryonAssets } from "../db/schema.js";
 import { requireAuth } from "../services/auth.js";
 import { presignPut, r2PublicBase } from "../services/r2.js";
+import {
+  debitOneCredit,
+  getBalance,
+  grantFreeMonthlyCredit,
+  refundCredit,
+  ensureProfile,
+} from "../services/billing/credits.js";
 
 const router = Router();
 router.use(requireAuth);
@@ -232,6 +239,8 @@ router.post("/generate", async (req, res) => {
       clothes: orderedClothes,
       cached: true,
       regenerated: false,
+      creditUsed: false,
+      credits: await getBalance(req.userId!),
     });
   }
 
@@ -240,6 +249,31 @@ router.post("/generate", async (req, res) => {
     client = ai();
   } catch (e: any) {
     return res.status(500).json({ error: e?.message ?? "try-on misconfigured" });
+  }
+
+  // ---- credits ---------------------------------------------------------
+  // Everything above this line is free: cache hits, uploads, browsing. Only a
+  // fresh Gemini call costs a credit, and it is taken before the call so a
+  // user can never generate on an empty balance.
+  await ensureProfile(req.userId!);
+  await grantFreeMonthlyCredit(req.userId!);
+
+  const debitKind = parse.data.forceRegenerate ? "regenerate_debit" : "tryon_debit";
+  // Keyed on user + outfit + selfie + a per-request nonce for forced runs, so
+  // a duplicated click is one charge but a deliberate second variation is two.
+  const debitKey = `gen:${req.userId!}:${selfieRow.id}:${clothIdsCsv}:${
+    parse.data.forceRegenerate ? randomBytes(8).toString("hex") : "first"
+  }`;
+
+  const debit = await debitOneCredit(req.userId!, debitKind, debitKey);
+  if (!debit.ok) {
+    const credits = await getBalance(req.userId!);
+    console.log(`[tryon] refused, no credits user=${req.userId}`);
+    return res.status(402).json({
+      code: "NO_TRYON_CREDITS",
+      error: "You're out of Try-on credits",
+      credits,
+    });
   }
 
   try {
@@ -298,7 +332,12 @@ router.post("/generate", async (req, res) => {
       if (outImage) break;
     }
     if (!outImage) {
-      return res.status(502).json({ error: "Gemini did not return an image" });
+      await refundCredit(req.userId!, debitKey);
+      return res.status(502).json({
+        error: "The model didn't return an image. Your credit hasn't been used.",
+        creditUsed: false,
+        credits: await getBalance(req.userId!),
+      });
     }
 
     // Upload to R2 under tryons/<userId>/.
@@ -312,7 +351,13 @@ router.post("/generate", async (req, res) => {
     });
     if (!put.ok) {
       const body = await put.text();
-      return res.status(502).json({ error: `R2 upload failed: ${put.status} ${body}` });
+      console.error("[tryon] R2 upload failed", put.status, body);
+      await refundCredit(req.userId!, debitKey);
+      return res.status(502).json({
+        error: "Could not save the generated image. Your credit hasn't been used.",
+        creditUsed: false,
+        credits: await getBalance(req.userId!),
+      });
     }
 
     // Insert with cache keys (cloth_ids_csv + selfie_id) via raw SQL so
@@ -338,10 +383,18 @@ router.post("/generate", async (req, res) => {
       clothes: orderedClothes,
       cached: false,
       regenerated: fresh,
+      creditUsed: true,
+      credits: await getBalance(req.userId!),
     });
   } catch (e: any) {
     console.error("[tryon] generate failed", e);
-    res.status(500).json({ error: e?.message ?? "Generation failed" });
+    // Nothing usable was produced, so the credit goes back exactly once.
+    await refundCredit(req.userId!, debitKey);
+    res.status(500).json({
+      error: e?.message ?? "Generation failed",
+      creditUsed: false,
+      credits: await getBalance(req.userId!),
+    });
   }
 });
 

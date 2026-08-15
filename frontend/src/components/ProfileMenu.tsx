@@ -14,6 +14,7 @@ import {
   Mail,
   Settings,
   Shirt,
+  Sparkles,
   UserIcon,
   Users,
 } from "./ui/icons";
@@ -38,6 +39,7 @@ export const PROFILE_ITEMS: MenuItem[] = [
   { to: "/shared", label: "Shared wardrobes", hint: "Who can see yours, and theirs", icon: Users, tone: "sky" },
   { to: "/history", label: "Wear history", hint: "Everything you've worn", icon: Clock, tone: "mint" },
   { to: "/worn", label: "Laundry pile", hint: "Pieces waiting to be washed", icon: Basket, tone: "peach" },
+  { to: "/plans", label: "Plans & credits", hint: "Try-on credits and your plan", icon: Sparkles, tone: "mint" },
   { to: "/settings", label: "Settings", hint: "Motion, privacy and account", icon: Settings, tone: "ink" },
   { to: "/contact", label: "Contact & support", hint: "Questions, bugs, ideas", icon: Mail, tone: "butter" },
   { to: "/about", label: "About TryUnex", hint: "What this app is for", icon: Info, tone: "lilac" },

@@ -1,0 +1,118 @@
+import { api } from "./api";
+
+export type CreditBalance = {
+  total: number;
+  free: number;
+  subscription: number;
+  pack: number;
+  nextExpiry: string | null;
+};
+
+export type ChatQuota = {
+  limited: boolean;
+  used: number;
+  limit: number;
+  resetsAt: string | null;
+};
+
+export type BillingSummary = {
+  tier: "free" | "lite" | "plus" | "style";
+  subscriptionStatus: string;
+  subscriptionStartedAt: string | null;
+  renewsAt: string | null;
+  credits: CreditBalance;
+  chat: ChatQuota;
+  activity: { label: string; amount: number; at: string }[];
+};
+
+export type Catalogue = {
+  currency: string;
+  gstIncluded: boolean;
+  keyId: string | null;
+  configured: boolean;
+  packs: {
+    code: string; name: string; credits: number; amountPaise: number;
+    priceLabel: string; badge: string | null; note: string;
+  }[];
+  plans: {
+    code: string; name: string; creditsPerMonth: number; amountPaise: number;
+    priceLabel: string; badge: string | null; notes: string[];
+  }[];
+};
+
+export const getSummary = () => api.get<BillingSummary>("/billing/summary");
+export const getCatalogue = () => api.get<Catalogue>("/billing/products");
+
+export const TIER_LABEL: Record<string, string> = {
+  free: "Free", lite: "Lite", plus: "Plus", style: "Style",
+};
+
+/** Loads Razorpay's checkout script once, on demand. */
+let checkoutPromise: Promise<boolean> | null = null;
+function loadCheckout(): Promise<boolean> {
+  if (checkoutPromise) return checkoutPromise;
+  checkoutPromise = new Promise((resolve) => {
+    if ((window as any).Razorpay) return resolve(true);
+    const s = document.createElement("script");
+    s.src = "https://checkout.razorpay.com/v1/checkout.js";
+    s.onload = () => resolve(true);
+    s.onerror = () => resolve(false);
+    document.body.appendChild(s);
+  });
+  return checkoutPromise;
+}
+
+export type CheckoutOutcome =
+  | { ok: true; pending: true }
+  | { ok: false; cancelled: true }
+  | { ok: false; message: string };
+
+/**
+ * Opens Razorpay checkout. The signature is verified server-side afterwards,
+ * and credits are only ever granted by the webhook — so a closed tab still
+ * gets what was paid for, and nothing here can grant anything on its own.
+ */
+export async function startCheckout(
+  kind: "pack" | "subscription",
+  code: string,
+  user: { name: string; email: string },
+): Promise<CheckoutOutcome> {
+  const loaded = await loadCheckout();
+  if (!loaded) return { ok: false, message: "Could not load the payment window. Check your connection." };
+
+  let order: any;
+  try {
+    order = kind === "pack"
+      ? await api.post("/billing/create-pack-order", { code })
+      : await api.post("/billing/create-subscription", { code });
+  } catch (err: any) {
+    return { ok: false, message: err?.message ?? "Could not start checkout" };
+  }
+  if (!order?.keyId) return { ok: false, message: "Payments are not configured yet" };
+
+  return new Promise<CheckoutOutcome>((resolve) => {
+    const rz = new (window as any).Razorpay({
+      key: order.keyId,
+      name: "TryUnex",
+      description: order.productName ?? order.planName,
+      ...(kind === "pack"
+        ? { order_id: order.orderId, amount: order.amountPaise, currency: "INR" }
+        : { subscription_id: order.subscriptionId }),
+      prefill: { name: user.name, email: user.email },
+      theme: { color: "#7657E8" },
+      handler: async (resp: any) => {
+        try {
+          await api.post("/billing/verify-payment", resp);
+          resolve({ ok: true, pending: true });
+        } catch (err: any) {
+          resolve({ ok: false, message: err?.message ?? "We couldn't verify that payment" });
+        }
+      },
+      modal: { ondismiss: () => resolve({ ok: false, cancelled: true }) },
+    });
+    rz.on("payment.failed", (e: any) =>
+      resolve({ ok: false, message: e?.error?.description ?? "The payment did not go through" }),
+    );
+    rz.open();
+  });
+}

@@ -13,12 +13,28 @@ export const API_BASE = BASE;
 
 export type ApiError = { error: string } & Record<string, unknown>;
 
+/** Errors keep the server's structured body — callers need `code`, quota and
+ *  credit details from a 402/429, not just a message string. */
+export class ApiRequestError extends Error {
+  status: number;
+  code?: string;
+  body: any;
+  constructor(message: string, status: number, body: any) {
+    super(message);
+    this.name = "ApiRequestError";
+    this.status = status;
+    this.body = body;
+    this.code = body && typeof body === "object" ? body.code : undefined;
+    if (body && typeof body === "object") Object.assign(this, body);
+  }
+}
+
 async function handle(res: Response) {
   const ct = res.headers.get("content-type") ?? "";
   const body = ct.includes("application/json") ? await res.json() : await res.text();
   if (!res.ok) {
     const err = typeof body === "object" && body && "error" in body ? (body as ApiError).error : String(body);
-    throw new Error(err || `HTTP ${res.status}`);
+    throw new ApiRequestError(err || `HTTP ${res.status}`, res.status, body);
   }
   return body;
 }
