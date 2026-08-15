@@ -38,6 +38,14 @@ export default function Sheet({
   const panelRef = useRef<HTMLDivElement>(null);
   const restoreRef = useRef<HTMLElement | null>(null);
 
+  // Read through a ref so a parent re-render (every keystroke in a form
+  // inside the sheet) can't re-run the focus effect below. When onClose was
+  // a dependency, each character tore the effect down — restoring focus to
+  // the trigger — and set it up again, which closed the phone keyboard.
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
+  // Runs once per open/close, never on re-render.
   useEffect(() => {
     if (!open) return;
     restoreRef.current = document.activeElement as HTMLElement | null;
@@ -45,16 +53,34 @@ export default function Sheet({
     const token = Symbol("sheet");
     stack.push(token);
 
-    const panel = panelRef.current;
-    panel?.querySelector<HTMLElement>(FOCUSABLE)?.focus();
+    panelRef.current?.querySelector<HTMLElement>(FOCUSABLE)?.focus();
+
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      const i = stack.indexOf(token);
+      if (i !== -1) stack.splice(i, 1);
+      // Only the last sheet standing releases the page scroll lock.
+      if (stack.length === 0) document.body.style.overflow = prevOverflow;
+      restoreRef.current?.focus?.();
+    };
+  }, [open]);
+
+  // Keyboard handling is separate: it can re-bind freely without touching
+  // focus, and it reaches onClose through the ref.
+  useEffect(() => {
+    if (!open) return;
+    const token = stack[stack.length - 1];
 
     function onKey(e: KeyboardEvent) {
       // Only the topmost sheet reacts, so Escape peels one layer at a time.
       if (stack[stack.length - 1] !== token) return;
       if (e.key === "Escape") {
-        onClose();
+        onCloseRef.current();
         return;
       }
+      const panel = panelRef.current;
       if (e.key !== "Tab" || !panel) return;
       const nodes = [...panel.querySelectorAll<HTMLElement>(FOCUSABLE)].filter(
         (n) => n.offsetParent !== null,
@@ -72,17 +98,8 @@ export default function Sheet({
     }
 
     document.addEventListener("keydown", onKey);
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      const i = stack.indexOf(token);
-      if (i !== -1) stack.splice(i, 1);
-      // Only the last sheet standing releases the page scroll lock.
-      if (stack.length === 0) document.body.style.overflow = prevOverflow;
-      restoreRef.current?.focus?.();
-    };
-  }, [open, onClose]);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [open]);
 
   if (!open) return null;
 

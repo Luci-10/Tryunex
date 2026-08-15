@@ -5,10 +5,12 @@ import Button from "./ui/Button";
 import { Input, Label, Select, FieldError } from "./ui/Field";
 import { Skeleton } from "./ui/Skeleton";
 import { useConfirm } from "./ui/Confirm";
-import { api, type Cloth } from "../api";
+import { api, type Cloth, type StyleTag } from "../api";
+import { STYLE_TAGS, styleTagOf } from "../styleTags";
 import { useChat } from "../chat";
 import { useTryOn } from "../tryon";
-import { Chat, Sparkles, Trash, Zoom } from "./ui/icons";
+import { Badge } from "./ui/Chip";
+import { Chat, Check, Sparkles, Trash, Zoom } from "./ui/icons";
 
 const CATEGORIES = ["top", "bottom", "dress", "outerwear", "shoes", "accessory", "other"];
 
@@ -32,6 +34,7 @@ export default function ClothDetailModal({
   const [data, setData] = useState<Detail | null>(null);
   const [name, setName] = useState("");
   const [category, setCategory] = useState("other");
+  const [styleTag, setStyleTag] = useState<StyleTag>("casual");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [zoom, setZoom] = useState(false);
@@ -49,12 +52,17 @@ export default function ClothDetailModal({
         setData(d);
         setName(d.cloth.name);
         setCategory(d.cloth.category);
+        setStyleTag(d.cloth.styleTag ?? "casual");
       })
       .catch((e) => setError(e.message ?? "Could not load this piece"));
   }, [clothId, open]);
 
   if (!clothId) return null;
-  const dirty = data ? name.trim() !== data.cloth.name || category !== data.cloth.category : false;
+  const dirty = data
+    ? name.trim() !== data.cloth.name ||
+      category !== data.cloth.category ||
+      styleTag !== (data.cloth.styleTag ?? "casual")
+    : false;
 
   async function save() {
     if (!data || !dirty) return;
@@ -64,6 +72,7 @@ export default function ClothDetailModal({
       const r = await api.patch<{ cloth: Cloth }>(`/clothes/${data.cloth.id}`, {
         name: name.trim(),
         category,
+        styleTag,
       });
       onSaved(r.cloth);
       setData({ ...data, cloth: r.cloth });
@@ -167,6 +176,13 @@ export default function ClothDetailModal({
               </button>
             </div>
 
+            <div className="flex flex-wrap gap-1.5">
+              <Badge tone="lilac">{styleTagOf(data.cloth.styleTag).label}</Badge>
+              <Badge tone={data.cloth.status === "clean" ? "mint" : "peach"}>
+                {data.cloth.status === "clean" ? "Clean" : "In the wash"}
+              </Badge>
+            </div>
+
             <dl className="grid grid-cols-3 gap-2 text-center">
               <Fact label="Category" value={data.cloth.category} capitalize />
               <Fact
@@ -228,6 +244,32 @@ export default function ClothDetailModal({
                 ))}
               </Select>
             </label>
+
+            <div>
+              <Label hint="Used by the assistant">Style</Label>
+              <div role="radiogroup" aria-label="Style" className="flex flex-wrap gap-1.5">
+                {STYLE_TAGS.map((t) => {
+                  const active = styleTag === t.value;
+                  return (
+                    <button
+                      key={t.value}
+                      type="button"
+                      role="radio"
+                      aria-checked={active}
+                      onClick={() => setStyleTag(t.value)}
+                      className={`inline-flex items-center gap-1 h-9 px-3 rounded-full text-[13px] border transition-colors ${
+                        active
+                          ? "bg-brand-500 text-white border-brand-500 font-medium"
+                          : "bg-white text-ink/70 border-ink/12 hover:bg-brand-50 hover:text-brand-700"
+                      }`}
+                    >
+                      {active && <Check className="w-3.5 h-3.5" />}
+                      {t.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
 
             <FieldError>{error}</FieldError>
 

@@ -59,11 +59,25 @@ export type User = {
   createdAt: string;
 };
 
+/** Primary style/formality label. Mirrors the backend `style_tag` enum. */
+export type StyleTag =
+  | "casual"
+  | "smart_casual"
+  | "formal"
+  | "party"
+  | "sports"
+  | "lounge"
+  | "traditional"
+  | "other";
+
 export type Cloth = {
   id: string;
   userId: string;
   name: string;
   category: string;
+  // Optional in the type because a friend's wardrobe or an older cached
+  // response may predate the column; the UI falls back to "casual".
+  styleTag?: StyleTag;
   imageUrl: string;
   status: "clean" | "worn";
   createdAt: string;

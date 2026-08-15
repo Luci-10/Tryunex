@@ -16,6 +16,7 @@ router.get("/", async (req, res) => {
       clothName: clothes.name,
       clothImage: clothes.imageUrl,
       category: clothes.category,
+      styleTag: clothes.styleTag,
     })
     .from(wearEvents)
     .innerJoin(clothes, eq(clothes.id, wearEvents.clothId))

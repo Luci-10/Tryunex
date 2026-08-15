@@ -12,6 +12,62 @@ import chatRoutes from "./routes/chat.js";
 import tryonRoutes from "./routes/tryon.js";
 import contactRoutes from "./routes/contact.js";
 
+/**
+ * Express 4 does not forward a rejected promise from an async handler to the
+ * error middleware — the request simply never gets a response. On Vercel that
+ * turns one thrown query into a 30s FUNCTION_INVOCATION_TIMEOUT instead of a
+ * fast 500: expensive, and it hides the actual error.
+ *
+ * Walk the router tree once, after everything is mounted, and wrap each
+ * handler so rejections reach next(err). Error middleware (arity 4) is left
+ * alone. Deliberately defensive: if Express's internals ever change shape
+ * this quietly does nothing rather than breaking startup.
+ */
+export function forwardAsyncErrors(app: express.Express) {
+  const seen = new WeakSet<object>();
+
+  function wrapHandlers(stack: any[]) {
+    for (const layer of stack) {
+      const fn = layer?.handle;
+      if (typeof fn !== "function") continue;
+      // Nested router (app.use("/api/clothes", router)) — recurse into it.
+      if (Array.isArray(fn.stack)) {
+        wrapStack(fn.stack);
+        continue;
+      }
+      if (fn.length >= 4 || seen.has(fn)) continue;
+      const wrapped = function (this: unknown, req: any, res: any, next: any) {
+        let out: unknown;
+        try {
+          out = fn.call(this, req, res, next);
+        } catch (err) {
+          return next(err);
+        }
+        if (out && typeof (out as Promise<unknown>).catch === "function") {
+          (out as Promise<unknown>).catch(next);
+        }
+        return out;
+      };
+      seen.add(wrapped);
+      layer.handle = wrapped;
+    }
+  }
+
+  function wrapStack(stack: any[]) {
+    for (const layer of stack) {
+      if (Array.isArray(layer?.route?.stack)) wrapHandlers(layer.route.stack);
+      else wrapHandlers([layer]);
+    }
+  }
+
+  try {
+    const router = (app as any)._router ?? (app as any).router;
+    if (Array.isArray(router?.stack)) wrapStack(router.stack);
+  } catch (err) {
+    console.error("[app] could not install async error forwarding", err);
+  }
+}
+
 export function createApp() {
   const app = express();
 
@@ -62,6 +118,9 @@ export function createApp() {
     const status = err.status ?? 500;
     res.status(status).json({ error: err.message ?? "Server error" });
   });
+
+  // Must run last: everything above is now mounted.
+  forwardAsyncErrors(app);
 
   return app;
 }
