@@ -25,7 +25,7 @@ export type Plan = {
   name: string;
   creditsPerMonth: number;
   amountPaise: number;
-  /** Razorpay plan id, created in the dashboard and supplied by env. */
+  /** Razorpay plan id env var, created in the dashboard. */
   razorpayPlanIdEnv: string;
   badge?: string;
 };
@@ -37,9 +37,9 @@ export const PACKS: Pack[] = [
 ];
 
 export const PLANS: Plan[] = [
-  { code: "lite", kind: "subscription", name: "Lite", creditsPerMonth: 7, amountPaise: 5500, razorpayPlanIdEnv: "RAZORPAY_PLAN_LITE" },
-  { code: "plus", kind: "subscription", name: "Plus", creditsPerMonth: 14, amountPaise: 9900, razorpayPlanIdEnv: "RAZORPAY_PLAN_PLUS", badge: "Most popular" },
-  { code: "style", kind: "subscription", name: "Style", creditsPerMonth: 30, amountPaise: 19900, razorpayPlanIdEnv: "RAZORPAY_PLAN_STYLE" },
+  { code: "lite", kind: "subscription", name: "Lite", creditsPerMonth: 7, amountPaise: 5500, razorpayPlanIdEnv: "RAZORPAY_PLAN_LITE_ID" },
+  { code: "plus", kind: "subscription", name: "Plus", creditsPerMonth: 14, amountPaise: 9900, razorpayPlanIdEnv: "RAZORPAY_PLAN_PLUS_ID", badge: "Most popular" },
+  { code: "style", kind: "subscription", name: "Style", creditsPerMonth: 30, amountPaise: 19900, razorpayPlanIdEnv: "RAZORPAY_PLAN_STYLE_ID" },
 ];
 
 export function findPack(code: string): Pack | undefined {
@@ -77,4 +77,13 @@ export function customerCatalogue() {
       ],
     })),
   };
+}
+
+
+/**
+ * Reads a plan id, tolerating the older un-suffixed variable name so an
+ * existing deployment doesn't lose its subscriptions on this rename.
+ */
+export function planIdFromEnv(plan: Plan): string | undefined {
+  return process.env[plan.razorpayPlanIdEnv] ?? process.env[plan.razorpayPlanIdEnv.replace(/_ID$/, "")];
 }

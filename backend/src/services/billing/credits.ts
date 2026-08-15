@@ -94,6 +94,13 @@ export function ensureBillingSchema(): Promise<void> {
       "created_at" timestamptz NOT NULL DEFAULT now(),
       "updated_at" timestamptz NOT NULL DEFAULT now()
     )`;
+    // Every delivered webhook id is recorded, so a Razorpay retry is a
+    // no-op even before the per-grant idempotency keys are consulted.
+    await q`CREATE TABLE IF NOT EXISTS "webhook_events" (
+      "event_id" text PRIMARY KEY,
+      "event_type" text,
+      "received_at" timestamptz NOT NULL DEFAULT now()
+    )`;
     await q`CREATE INDEX IF NOT EXISTS "payments_user_idx" ON "payments" ("user_id")`;
     await q`CREATE UNIQUE INDEX IF NOT EXISTS "payments_order_idx" ON "payments" ("razorpay_order_id") WHERE "razorpay_order_id" IS NOT NULL`;
     await q`CREATE UNIQUE INDEX IF NOT EXISTS "payments_event_idx" ON "payments" ("webhook_event_id") WHERE "webhook_event_id" IS NOT NULL`;
@@ -461,4 +468,20 @@ export async function recentGenerationCount(userId: string): Promise<number> {
 /** Emergency stop, flipped with an env var and no redeploy of code paths. */
 export function generationDisabled(): boolean {
   return process.env.TRYON_GENERATION_DISABLED === "1";
+}
+
+
+/**
+ * Records a webhook delivery. Returns false when this event id has already
+ * been handled, which is Razorpay retrying rather than a new event.
+ */
+export async function claimWebhookEvent(eventId: string, eventType: string): Promise<boolean> {
+  if (!eventId) return true; // nothing to dedupe on; grant-level keys still guard
+  await ensureBillingSchema();
+  const q = sql();
+  const rows = (await q`
+    INSERT INTO webhook_events (event_id, event_type) VALUES (${eventId}, ${eventType})
+    ON CONFLICT (event_id) DO NOTHING
+    RETURNING event_id`) as any[];
+  return rows.length > 0;
 }

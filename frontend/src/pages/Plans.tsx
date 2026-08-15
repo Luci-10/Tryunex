@@ -80,9 +80,21 @@ export default function Plans() {
     setBusyCode(code);
     const r = await startCheckout(kind, code, { name: user.name, email: user.email });
     setBusyCode(null);
+    if (!r.ok && "message" in r) {
+      // Surfaced as-is: the backend already words these for a customer.
+      if (/already on|already subscribed/i.test(r.message)) {
+        toast(r.message, { tone: "error" });
+        load();
+        return;
+      }
+      if (/changing plans/i.test(r.message)) {
+        toast(r.message, { tone: "error" });
+        return;
+      }
+    }
     if (r.ok) {
       setAwaitingWebhook(true);
-      toast("Payment received — adding your credits", { tone: "success" });
+      toast("Payment received — confirming your credits…", { tone: "success" });
     } else if ("cancelled" in r) {
       // In the Android app the callback can be lost to a UPI app switch, so
       // a dismissal there means "check with the server", not "cancelled".
@@ -120,11 +132,15 @@ export default function Plans() {
       {error && <ErrorBanner onRetry={load}>{error}</ErrorBanner>}
 
       {awaitingWebhook && (
-        <Surface tone="sky" className="flex items-center gap-3">
-          <Sparkles className="w-5 h-5 text-blue-700 shrink-0" />
-          <p className="text-[13px] text-ink/75">
-            Payment confirmed. Credits usually appear within a few seconds.
-          </p>
+        <Surface tone="sky" className="flex items-start gap-3">
+          <Sparkles className="w-5 h-5 text-blue-700 shrink-0 mt-0.5" />
+          <div className="text-[13px] text-ink/75 leading-relaxed">
+            <p className="font-semibold text-ink">Your payment is being confirmed securely.</p>
+            <p className="mt-0.5">
+              Credits will appear as soon as payment confirmation is complete. If this takes longer
+              than a minute, refresh your Plans &amp; Credits page.
+            </p>
+          </div>
         </Surface>
       )}
 
@@ -268,6 +284,12 @@ export default function Plans() {
             );
           })}
         </div>
+        {summary.subscriptionStatus === "active" && (
+          <p className="text-[12px] text-ink/60">
+            Changing between plans isn't supported yet — cancel first, then subscribe to the new
+            one.{" "}
+          </p>
+        )}
         {summary.subscriptionStatus === "active" && (
           <p className="text-[12px] text-ink/60">
             To cancel, reply to any payment email from Razorpay or contact us — we'll stop the
