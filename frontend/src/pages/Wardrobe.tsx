@@ -18,6 +18,7 @@ import { useConfirm } from "../components/ui/Confirm";
 import { Plus, Shirt, Refresh } from "../components/ui/icons";
 import { useAuth } from "../auth";
 import { api, type Cloth } from "../api";
+import { useGuidedTour } from "../tour/GuidedTourProvider";
 
 const CATEGORY_ORDER = ["top", "bottom", "dress", "outerwear", "shoes", "accessory", "other"];
 
@@ -25,6 +26,7 @@ export default function Wardrobe() {
   const { user } = useAuth();
   const { toast } = useToast();
   const confirm = useConfirm();
+  const tour = useGuidedTour();
 
   const [clean, setClean] = useState<Cloth[]>([]);
   const [wornCount, setWornCount] = useState(0);
@@ -36,6 +38,11 @@ export default function Wardrobe() {
   const [sort, setSort] = useState<SortMode>("newest");
 
   const [addOpen, setAddOpen] = useState(false);
+
+  function openDetail(id: string) {
+    setDetailId(id);
+    tour.signal("cloth:opened");
+  }
   const [detailId, setDetailId] = useState<string | null>(null);
 
   async function load() {
@@ -96,6 +103,7 @@ export default function Wardrobe() {
   function onAdded(c: Cloth) {
     setClean((p) => [c, ...p]);
     toast(`${c.name} added`, { tone: "success" });
+    tour.signal("cloth:added");
   }
 
   function onSaved(c: Cloth) {
@@ -165,6 +173,7 @@ export default function Wardrobe() {
         </div>
         {/* Desktop gets a labelled header action; phones get the FAB. */}
         <Button
+          data-tour-id="add-piece-desktop"
           className="hidden md:inline-flex mt-1"
           size="lg"
           leading={<Plus className="w-4 h-4" />}
@@ -238,12 +247,12 @@ export default function Wardrobe() {
                 {cat}
                 <span className="ml-1.5 text-ink/55 normal-case">· {items.length}</span>
               </h2>
-              <Grid items={items} onOpen={setDetailId} onWearToday={wearToday} />
+              <Grid items={items} onOpen={openDetail} onWearToday={wearToday} />
             </section>
           ))}
         </div>
       ) : (
-        <Grid items={filtered} onOpen={setDetailId} onWearToday={wearToday} />
+        <Grid items={filtered} onOpen={openDetail} onWearToday={wearToday} />
       )}
 
       <FAB onClick={() => setAddOpen(true)} />
@@ -272,8 +281,11 @@ function Grid({
 }) {
   return (
     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
-      {items.map((c) => (
-        <ClothCard key={c.id} cloth={c} onClick={() => onOpen(c.id)} onWearToday={onWearToday} />
+      {items.map((c, i) => (
+        // The first card is the tour's "open your piece" target.
+        <div key={c.id} data-tour-id={i === 0 ? "first-cloth" : undefined}>
+          <ClothCard cloth={c} onClick={() => onOpen(c.id)} onWearToday={onWearToday} />
+        </div>
       ))}
     </div>
   );

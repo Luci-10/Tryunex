@@ -171,6 +171,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       openChat: (cloth) => {
         if (cloth !== undefined) setAttached(cloth ?? null);
         setOpen(true);
+        // The tour listens for the panel actually opening. It never sends a
+        // message on the user's behalf.
+        window.dispatchEvent(new CustomEvent("tryunex:chat-opened"));
       },
       closeChat: () => setOpen(false),
       setAttached,
