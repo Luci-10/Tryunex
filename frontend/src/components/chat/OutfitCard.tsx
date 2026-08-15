@@ -29,7 +29,7 @@ export default function OutfitCard({
   outfit: Outfit;
   wardrobe: Map<string, Cloth>;
 }) {
-  const { newOutfit, addCloth } = useTryOn();
+  const { setLook } = useTryOn();
   const { toast } = useToast();
 
   const today = new Date().toISOString().slice(0, 10);
@@ -61,10 +61,8 @@ export default function OutfitCard({
 
   function tryOnAll() {
     if (chosen.length === 0) return;
-    const id = newOutfit();
-    // newOutfit's state hasn't flushed yet, so defer the adds by a tick.
-    setTimeout(() => chosen.forEach((c) => addCloth(id, c)), 0);
-    toast(`${chosen.length} pieces added to your look`, { tone: "success" });
+    setLook(chosen);
+    toast(`${chosen.length} pieces ready in Try-on`, { tone: "success" });
   }
 
   async function plan() {
