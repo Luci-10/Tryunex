@@ -205,3 +205,19 @@ export const ChevronDown = (p: P) => (
     <path d="m6 9 6 6 6-6" />
   </Svg>
 );
+
+export const Download = (p: P) => (
+  <Svg {...p}>
+    <path d="M12 3v12" />
+    <path d="m7.5 10.5 4.5 4.5 4.5-4.5" />
+    <path d="M4 17.5V19a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-1.5" />
+  </Svg>
+);
+
+export const Share = (p: P) => (
+  <Svg {...p}>
+    <path d="M12 3v12" />
+    <path d="m8 7 4-4 4 4" />
+    <path d="M4 14v5a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-5" />
+  </Svg>
+);

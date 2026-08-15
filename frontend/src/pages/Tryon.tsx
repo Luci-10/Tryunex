@@ -11,12 +11,13 @@ import { useToast } from "../components/ui/Toast";
 import { useConfirm } from "../components/ui/Confirm";
 import WardrobePicker, { type PickerItem } from "../components/tryon/WardrobePicker";
 import SelectedLook from "../components/tryon/SelectedLook";
-import { Camera, Refresh, Sparkles, Zoom } from "../components/ui/icons";
+import { Camera, Download, Refresh, Share, Sparkles, Zoom } from "../components/ui/icons";
 import { api, type Cloth } from "../api";
 import { useTryOn, type AddOutcome } from "../tryon";
 import { hasPhotoConsent, grantPhotoConsent } from "../photoConsent";
 import { nativePickerAvailable, pickPhotoNatively, type PickSource } from "../photoPicker";
 import { resizeImage, putWithProgress } from "../upload";
+import { downloadLook, shareLook } from "../share";
 
 type Selfie = { id: string; imageUrl: string; createdAt: string };
 type Result = { id: string; imageUrl: string; createdAt: string; clothId: string | null };
@@ -53,6 +54,7 @@ export default function Tryon() {
   const [askPhoto, setAskPhoto] = useState(false);
   const [announcement, setAnnouncement] = useState("");
   const [pending, setPending] = useState<{ cloth: Cloth; outcome: AddOutcome } | null>(null);
+  const [sharing, setSharing] = useState<"download" | "share" | null>(null);
 
   const fileRef = useRef<HTMLInputElement>(null);
   const wardrobeRef = useRef<HTMLDivElement>(null);
@@ -224,6 +226,36 @@ export default function Tryon() {
     wardrobeRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
+  async function saveLook() {
+    if (!result || sharing) return;
+    setSharing("download");
+    const r = await downloadLook(result.imageUrl);
+    setSharing(null);
+    if (r.ok) {
+      toast(r.via === "newtab" ? "Opened the image — long-press or right-click to save" : "Saved to your device", {
+        tone: "success",
+      });
+    } else if (!("cancelled" in r)) {
+      toast(r.message, { tone: "error" });
+    }
+  }
+
+  async function shareResult() {
+    if (!result || sharing) return;
+    setSharing("share");
+    const r = await shareLook(result.imageUrl);
+    setSharing(null);
+    if (r.ok) {
+      if (r.via === "clipboard") {
+        toast("Link copied — anyone with it can view this image", { tone: "success" });
+      } else if (r.via === "share") {
+        toast("Shared", { tone: "success" });
+      }
+    } else if (!("cancelled" in r)) {
+      toast(r.message, { tone: "error" });
+    }
+  }
+
   const heroSrc = result && !showingOriginal ? result.imageUrl : selfie?.imageUrl ?? null;
   const canGenerate = Boolean(selfie) && selection.length > 0 && !generating;
   const blockedReason = !selfie
@@ -348,24 +380,45 @@ export default function Tryon() {
             {uploadError && <ErrorBanner onRetry={requestPhoto}>{uploadError}</ErrorBanner>}
 
             {result ? (
-              <div className="grid grid-cols-2 gap-2">
-                <Button
-                  variant="secondary"
-                  onClick={() => generate(true)}
-                  loading={generating}
-                  leading={!generating ? <Refresh className="w-4 h-4" /> : undefined}
-                >
-                  Regenerate
-                </Button>
-                <Button variant="secondary" onClick={() => setShowingOriginal((v) => !v)}>
-                  {showingOriginal ? "Show the look" : "Show original"}
-                </Button>
-                <Button variant="quiet" onClick={goToWardrobe} disabled={generating}>
-                  Edit outfit
-                </Button>
-                <Button onClick={startNewLook} disabled={generating}>
-                  Start new look
-                </Button>
+              <div className="space-y-2">
+                <div className="grid grid-cols-2 gap-2">
+                  <Button
+                    onClick={saveLook}
+                    loading={sharing === "download"}
+                    disabled={Boolean(sharing) || generating}
+                    leading={sharing !== "download" ? <Download className="w-4 h-4" /> : undefined}
+                  >
+                    Save image
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    onClick={shareResult}
+                    loading={sharing === "share"}
+                    disabled={Boolean(sharing) || generating}
+                    leading={sharing !== "share" ? <Share className="w-4 h-4" /> : undefined}
+                  >
+                    Share
+                  </Button>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button
+                    variant="secondary"
+                    onClick={() => generate(true)}
+                    loading={generating}
+                    leading={!generating ? <Refresh className="w-4 h-4" /> : undefined}
+                  >
+                    Regenerate
+                  </Button>
+                  <Button variant="secondary" onClick={() => setShowingOriginal((v) => !v)}>
+                    {showingOriginal ? "Show the look" : "Show original"}
+                  </Button>
+                  <Button variant="quiet" onClick={goToWardrobe} disabled={generating}>
+                    Edit outfit
+                  </Button>
+                  <Button variant="quiet" onClick={startNewLook} disabled={generating}>
+                    Start new look
+                  </Button>
+                </div>
               </div>
             ) : (
               <>
