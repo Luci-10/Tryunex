@@ -49,15 +49,35 @@ export function createOrder(opts: {
   });
 }
 
+/** Creates a Razorpay customer. Reuse is handled by the caller via the id
+ *  stored on the billing profile; Razorpay itself rejects duplicate emails
+ *  with a specific error, which we treat as "already exists". */
+export async function createCustomer(opts: { name: string; email: string; notes: Record<string, string> }) {
+  try {
+    return await call<{ id: string }>("/customers", {
+      name: opts.name,
+      email: opts.email,
+      fail_existing: 0, // return the existing customer instead of erroring
+      notes: opts.notes,
+    });
+  } catch {
+    // A customer is a convenience, not a requirement — a subscription can be
+    // created without one, so never block checkout on this.
+    return null;
+  }
+}
+
 export function createSubscription(opts: {
   planId: string;
   totalCount: number;
+  customerId?: string | null;
   notes: Record<string, string>;
 }) {
   return call<{ id: string; status: string; short_url?: string }>("/subscriptions", {
     plan_id: opts.planId,
     total_count: opts.totalCount,
     customer_notify: 1,
+    ...(opts.customerId ? { customer_id: opts.customerId } : {}),
     notes: opts.notes,
   });
 }

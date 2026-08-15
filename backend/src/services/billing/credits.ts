@@ -56,6 +56,8 @@ export function ensureBillingSchema(): Promise<void> {
       "updated_at" timestamptz NOT NULL DEFAULT now()
     )`;
     await q`CREATE UNIQUE INDEX IF NOT EXISTS "billing_profiles_user_idx" ON "billing_profiles" ("user_id")`;
+    // Held while a generation is in flight; see claimGenerationSlot.
+    await q`ALTER TABLE "billing_profiles" ADD COLUMN IF NOT EXISTS "active_generation_at" timestamptz`;
 
     await q`CREATE TABLE IF NOT EXISTS "credit_ledger" (
       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
@@ -91,6 +93,13 @@ export function ensureBillingSchema(): Promise<void> {
       "verified_at" timestamptz,
       "created_at" timestamptz NOT NULL DEFAULT now(),
       "updated_at" timestamptz NOT NULL DEFAULT now()
+    )`;
+    // Every delivered webhook id is recorded, so a Razorpay retry is a
+    // no-op even before the per-grant idempotency keys are consulted.
+    await q`CREATE TABLE IF NOT EXISTS "webhook_events" (
+      "event_id" text PRIMARY KEY,
+      "event_type" text,
+      "received_at" timestamptz NOT NULL DEFAULT now()
     )`;
     await q`CREATE INDEX IF NOT EXISTS "payments_user_idx" ON "payments" ("user_id")`;
     await q`CREATE UNIQUE INDEX IF NOT EXISTS "payments_order_idx" ON "payments" ("razorpay_order_id") WHERE "razorpay_order_id" IS NOT NULL`;
@@ -157,15 +166,45 @@ export async function ensureProfile(userId: string): Promise<BillingProfile> {
   };
 }
 
-/** Grants this month's free credit, at most once per user per month. */
+/** Credits a brand-new account receives the first time it is touched. */
+export const WELCOME_CREDITS = 3;
+/** Credits every account receives each month after that. */
+export const MONTHLY_FREE_CREDITS = 1;
+/** How long the welcome credits last. */
+const WELCOME_WINDOW_DAYS = 30;
+
+/**
+ * Grants the free allowance, at most once per user per month.
+ *
+ * A new account gets WELCOME_CREDITS with a 30-day window rather than a
+ * calendar-month one — signing up on the 30th should not mean the welcome
+ * credits vanish the next day. Every month after that grants
+ * MONTHLY_FREE_CREDITS, expiring with the month as before.
+ *
+ * The amount and the expiry are decided inside one statement, so the "is this
+ * their first?" check can't race with a concurrent request, and the monthly
+ * idempotency key still makes a repeat call a no-op.
+ */
 export async function grantFreeMonthlyCredit(userId: string): Promise<void> {
   await ensureBillingSchema();
   const q = sql();
   const { end } = monthPeriod();
+  const welcomeEnd = new Date(Date.now() + WELCOME_WINDOW_DAYS * 86_400_000);
   await q`
     INSERT INTO credit_ledger (user_id, type, credit_amount, source_type, expires_at, idempotency_key)
-    VALUES (${userId}, 'free_monthly_grant', 1, 'free', ${end.toISOString()},
-            ${`free:${userId}:${monthKey()}`})
+    SELECT ${userId}::uuid,
+           'free_monthly_grant'::credit_ledger_type,
+           CASE WHEN first.seen THEN ${MONTHLY_FREE_CREDITS}::int ELSE ${WELCOME_CREDITS}::int END,
+           'free'::credit_source,
+           CASE WHEN first.seen THEN ${end.toISOString()}::timestamptz
+                ELSE ${welcomeEnd.toISOString()}::timestamptz END,
+           ${`free:${userId}:${monthKey()}`}
+      FROM (
+        SELECT EXISTS (
+          SELECT 1 FROM credit_ledger
+           WHERE user_id = ${userId} AND type = 'free_monthly_grant'
+        ) AS seen
+      ) AS first
     ON CONFLICT (idempotency_key) DO NOTHING`;
 }
 
@@ -406,4 +445,73 @@ export async function releaseChat(userId: string): Promise<void> {
     UPDATE billing_profiles
        SET free_chat_used = GREATEST(0, free_chat_used - 1), updated_at = now()
      WHERE user_id = ${userId}`;
+}
+
+
+/* -------------------------------------------------- generation throttles */
+
+/** Generations older than this are treated as abandoned, not in-flight. */
+const GENERATION_LEASE_MS = 3 * 60 * 1000;
+
+/** Fresh generations allowed per user per rolling hour. */
+export const GENERATION_RATE_LIMIT = 20;
+
+/**
+ * Claims the user's single generation slot. One conditional UPDATE, so two
+ * simultaneous requests cannot both win. A stale lease (crashed request,
+ * killed function) is reclaimed rather than blocking the user forever.
+ */
+export async function claimGenerationSlot(userId: string): Promise<boolean> {
+  await ensureBillingSchema();
+  const q = sql();
+  const cutoff = new Date(Date.now() - GENERATION_LEASE_MS).toISOString();
+  const rows = (await q`
+    UPDATE billing_profiles
+       SET active_generation_at = now(), updated_at = now()
+     WHERE user_id = ${userId}
+       AND (active_generation_at IS NULL OR active_generation_at < ${cutoff})
+    RETURNING id`) as any[];
+  return rows.length > 0;
+}
+
+export async function releaseGenerationSlot(userId: string): Promise<void> {
+  try {
+    const q = sql();
+    await q`UPDATE billing_profiles SET active_generation_at = NULL WHERE user_id = ${userId}`;
+  } catch {
+    // The lease expires on its own; a failed release is not worth an error.
+  }
+}
+
+/** Fresh generations in the last hour, read from the ledger's debit rows. */
+export async function recentGenerationCount(userId: string): Promise<number> {
+  await ensureBillingSchema();
+  const q = sql();
+  const rows = (await q`
+    SELECT count(*)::int AS n FROM credit_ledger
+     WHERE user_id = ${userId}
+       AND type IN ('tryon_debit','regenerate_debit')
+       AND created_at > now() - interval '1 hour'`) as any[];
+  return Number(rows[0]?.n ?? 0);
+}
+
+/** Emergency stop, flipped with an env var and no redeploy of code paths. */
+export function generationDisabled(): boolean {
+  return process.env.TRYON_GENERATION_DISABLED === "1";
+}
+
+
+/**
+ * Records a webhook delivery. Returns false when this event id has already
+ * been handled, which is Razorpay retrying rather than a new event.
+ */
+export async function claimWebhookEvent(eventId: string, eventType: string): Promise<boolean> {
+  if (!eventId) return true; // nothing to dedupe on; grant-level keys still guard
+  await ensureBillingSchema();
+  const q = sql();
+  const rows = (await q`
+    INSERT INTO webhook_events (event_id, event_type) VALUES (${eventId}, ${eventType})
+    ON CONFLICT (event_id) DO NOTHING
+    RETURNING event_id`) as any[];
+  return rows.length > 0;
 }

@@ -1,7 +1,8 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import PageShell, { PageTitle } from "../components/PageShell";
 import { useAuth } from "../auth";
+import { getSummary, TIER_LABEL, type BillingSummary } from "../billing";
 import {
   MOTION_OPTIONS,
   getMotionPref,
@@ -21,6 +22,11 @@ import {
 export default function Settings() {
   const { user } = useAuth();
   const [motion, setMotion] = useState<MotionPref>(() => getMotionPref());
+  const [billing, setBilling] = useState<BillingSummary | null>(null);
+
+  useEffect(() => {
+    getSummary().then(setBilling).catch(() => setBilling(null));
+  }, []);
 
   function chooseMotion(pref: MotionPref) {
     setMotion(pref);
@@ -106,7 +112,30 @@ export default function Settings() {
       </Group>
 
       <Group icon={<Sparkles className="w-4 h-4" />} tone="mint" title="Plan & credits">
-        <RowLink to="/plans" label="Plans & credits" hint="Credits, packs and monthly plans" />
+        {billing && (
+          <dl className="px-4 py-3 flex gap-6">
+            <Fact label="Plan" value={TIER_LABEL[billing.tier] ?? "Free"} capitalize />
+            <Fact label="Credits left" value={String(billing.credits.total)} />
+            {billing.renewsAt && (
+              <Fact
+                label="Renews"
+                value={new Date(billing.renewsAt).toLocaleDateString(undefined, {
+                  day: "numeric",
+                  month: "short",
+                })}
+              />
+            )}
+          </dl>
+        )}
+        <RowLink
+          to="/plans"
+          label="Plans & credits"
+          hint={
+            billing?.chat.limited
+              ? `${Math.max(0, billing.chat.limit - billing.chat.used)} of ${billing.chat.limit} AI chats left this month`
+              : "Credits, packs and monthly plans"
+          }
+        />
       </Group>
 
       <Group icon={<Info className="w-4 h-4" />} tone="butter" title="App">

@@ -1,7 +1,8 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth";
 import { api, type User } from "../api";
+import { getSummary, TIER_LABEL, type BillingSummary } from "../billing";
 import Sheet from "./ui/Sheet";
 import { useConfirm } from "./ui/Confirm";
 import { Avatar } from "./Nav";
@@ -155,13 +156,29 @@ function SignOutRow({ onSignOut }: { onSignOut: () => void }) {
 /** The list itself — identical on both breakpoints. */
 function MenuBody({ user, onNavigate }: { user: User; onNavigate: () => void }) {
   const signOut = useSignOut(onNavigate);
+  const [billing, setBilling] = useState<BillingSummary | null>(null);
+
+  // Loaded when the menu opens so the plan row can show a live balance.
+  useEffect(() => {
+    getSummary().then(setBilling).catch(() => setBilling(null));
+  }, []);
+
+  const billingHint = billing
+    ? billing.tier === "free"
+      ? `${billing.credits.total} Try-on credit${billing.credits.total === 1 ? "" : "s"} left`
+      : `${TIER_LABEL[billing.tier]} plan active · ${billing.credits.total} credits`
+    : undefined;
+
   return (
     <>
       <IdentityCard user={user} onNavigate={onNavigate} />
       <ul className="mt-2 space-y-0.5" role="none">
         {PROFILE_ITEMS.map((item) => (
           <li key={item.to} role="none">
-            <MenuRow item={item} onNavigate={onNavigate} />
+            <MenuRow
+              item={item.to === "/plans" && billingHint ? { ...item, hint: billingHint } : item}
+              onNavigate={onNavigate}
+            />
           </li>
         ))}
       </ul>
