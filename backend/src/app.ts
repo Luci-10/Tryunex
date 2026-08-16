@@ -108,7 +108,23 @@ export function createApp() {
   app.use(express.json({ limit: "1mb" }));
   app.use(cookieParser());
 
-  app.get("/api/health", (_req, res) => res.json({ ok: true }));
+  // Booleans only — never a value, a length, or a prefix. Enough to tell
+  // "the env var never reached this deployment" apart from "the key is wrong",
+  // which is otherwise guesswork against a serverless deploy.
+  app.get("/api/health", (_req, res) =>
+    res.json({
+      ok: true,
+      commit: process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? null,
+      env: process.env.VERCEL_ENV ?? "local",
+      configured: {
+        fal: Boolean(process.env.FAL_KEY ?? process.env.FAL_API_KEY),
+        gemini: Boolean(process.env.GEMINI_API_KEY),
+        database: Boolean(process.env.DATABASE_URL),
+        r2: Boolean(process.env.R2_ACCOUNT_ID && process.env.R2_BUCKET),
+        razorpay: Boolean(process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET),
+      },
+    }),
+  );
 
   app.use("/api/auth", authRoutes);
   app.use("/api/clothes", clothesRoutes);
