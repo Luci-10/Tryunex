@@ -36,6 +36,19 @@ function key(): string {
   return k;
 }
 
+/**
+ * Preview mode: skip the provider and return a visibly-marked stand-in, so the
+ * rest of the flow (selection, cost, credits, cache, download, share) can be
+ * exercised without a funded fal account.
+ *
+ * Refused outright in production regardless of the flag. A fake try-on result
+ * reaching a paying user is not a risk worth a config mistake.
+ */
+export function tryonMockEnabled(): boolean {
+  if (process.env.VERCEL_ENV === "production") return false;
+  return process.env.TRYON_MOCK === "1";
+}
+
 export function falConfigured(): boolean {
   return Boolean(process.env.FAL_KEY ?? process.env.FAL_API_KEY);
 }

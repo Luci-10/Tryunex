@@ -151,3 +151,46 @@ export async function normalisePersonImage(url: string): Promise<{
   const meta = await sharp(buffer).metadata();
   return { buffer, width: meta.width ?? 0, height: meta.height ?? 0 };
 }
+
+/**
+ * Stand-in result for preview mode — see `tryonMockEnabled()`.
+ *
+ * Deliberately, visibly marked. A mock that looked like a real result would be
+ * the single most dangerous thing in this codebase: it would misrepresent a
+ * paid feature to whoever saw it. It composites the garment sheet onto the
+ * person image and stamps a banner across the top, so it is useful for
+ * checking layout, credits, caching, download and share — and impossible to
+ * mistake for a generation.
+ */
+export async function buildMockResult(
+  personBuffer: Buffer,
+  garmentBuffer: Buffer,
+): Promise<Buffer> {
+  const base = sharp(personBuffer);
+  const meta = await base.metadata();
+  const w = meta.width ?? 768;
+  const h = meta.height ?? 1024;
+
+  const thumbW = Math.round(w * 0.34);
+  const thumb = await sharp(garmentBuffer)
+    .resize(thumbW, thumbW, { fit: "inside" })
+    .toBuffer();
+  const thumbMeta = await sharp(thumb).metadata();
+
+  const banner = Buffer.from(
+    `<svg width="${w}" height="${h}">
+       <rect x="0" y="0" width="${w}" height="${Math.round(h * 0.085)}" fill="#20212A" opacity="0.88"/>
+       <text x="${w / 2}" y="${Math.round(h * 0.055)}" font-family="Helvetica,Arial,sans-serif"
+             font-size="${Math.round(w * 0.045)}" font-weight="bold" fill="#ffffff"
+             text-anchor="middle">PREVIEW MODE — NOT A REAL TRY-ON</text>
+     </svg>`,
+  );
+
+  return sharp(personBuffer)
+    .composite([
+      { input: thumb, left: w - (thumbMeta.width ?? thumbW) - 16, top: h - (thumbMeta.height ?? thumbW) - 16 },
+      { input: banner, left: 0, top: 0 },
+    ])
+    .jpeg({ quality: 90 })
+    .toBuffer();
+}

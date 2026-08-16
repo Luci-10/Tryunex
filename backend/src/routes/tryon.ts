@@ -15,8 +15,8 @@ import { clothes, shares, tryonAssets, thriftListings } from "../db/schema.js";
 import { requireAuth } from "../services/auth.js";
 import { ensureThriftSchema } from "../services/thrift.js";
 import { presignPut, r2PublicBase } from "../services/r2.js";
-import { falConfigured, runVirtualTryOn, FalError } from "../services/fal.js";
-import { buildGarmentSheet, normalisePersonImage } from "../services/garmentSheet.js";
+import { falConfigured, runVirtualTryOn, FalError, tryonMockEnabled } from "../services/fal.js";
+import { buildGarmentSheet, normalisePersonImage, buildMockResult } from "../services/garmentSheet.js";
 import {
   debitCredits,
   creditsForItems,
@@ -308,7 +308,7 @@ router.post("/generate", async (req, res) => {
     });
   }
 
-  if (!falConfigured()) {
+  if (!falConfigured() && !tryonMockEnabled()) {
     return res.status(500).json({ error: "Try-on is not configured" });
   }
 
@@ -414,6 +414,13 @@ router.post("/generate", async (req, res) => {
       ON CONFLICT (idempotency_key) DO NOTHING`;
 
     let vto;
+    if (tryonMockEnabled()) {
+      // Everything up to here is the real path — sizing, compositing, R2
+      // upload, credits. Only the provider call is replaced.
+      const mock = await buildMockResult(person.buffer, sheet.buffer);
+      const mockUrl = await putBuffer(`tryons/${req.userId}/${stamp}.jpg`, mock, "image/jpeg");
+      vto = { imageUrl: mockUrl, contentType: "image/jpeg", seed: seed ?? null, requestId: "mock", nsfw: false };
+    } else {
     try {
       vto = await runVirtualTryOn({
         prompt: buildPrompt(
@@ -445,6 +452,7 @@ router.post("/generate", async (req, res) => {
         creditUsed: false,
         credits: await getBalance(req.userId!),
       });
+    }
     }
 
     // Pull the result off the provider's CDN and store it in our own bucket,
