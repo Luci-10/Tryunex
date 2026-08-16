@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import PageShell, { PageTitle } from "../components/PageShell";
 import { useAuth } from "../auth";
 import { getSummary, TIER_LABEL, type BillingSummary } from "../billing";
+import { useOnboarding } from "../tour/OnboardingProvider";
 import {
   MOTION_OPTIONS,
   getMotionPref,
@@ -23,6 +24,7 @@ export default function Settings() {
   const { user } = useAuth();
   const [motion, setMotion] = useState<MotionPref>(() => getMotionPref());
   const [billing, setBilling] = useState<BillingSummary | null>(null);
+  const onboarding = useOnboarding();
 
   useEffect(() => {
     getSummary().then(setBilling).catch(() => setBilling(null));
@@ -136,6 +138,25 @@ export default function Settings() {
               : "Credits, packs and monthly plans"
           }
         />
+      </Group>
+
+      <Group icon={<Sparkles className="w-4 h-4" />} tone="sky" title="Getting started">
+        <button
+          type="button"
+          onClick={onboarding.replay}
+          className="w-full flex items-center gap-3 px-4 min-h-[52px] py-2.5 text-left hover:bg-ink/[0.03] active:bg-ink/[0.05] transition-colors"
+        >
+          <span className="min-w-0 flex-1">
+            <span className="block text-[14px] font-medium leading-tight">
+              Replay app walkthrough
+            </span>
+            <span className="block text-[12px] text-ink/60 mt-0.5">
+              A guided tour of adding clothes, Try-on, planning and chat. Nothing in your wardrobe,
+              credits or plans changes.
+            </span>
+          </span>
+          <ChevronRight className="w-4 h-4 text-ink/25 shrink-0" />
+        </button>
       </Group>
 
       <Group icon={<Info className="w-4 h-4" />} tone="butter" title="App">

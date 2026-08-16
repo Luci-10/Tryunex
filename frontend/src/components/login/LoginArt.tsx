@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import IconButton from "../ui/IconButton";
+import Photo from "../ui/Photo";
+import BeforeAfter from "../marketing/BeforeAfter";
+import type { SlotName } from "../../marketing/assets";
 import {
   Calendar,
   Check,
@@ -68,12 +71,27 @@ function prefersReducedMotion() {
 
 /* ------------------------------------------------------------------ scenes */
 
-/** Each scene is drawn from tokens — no image assets, nothing to load. */
+/**
+ * Each scene leads with a photograph; the token-drawn version is kept only as
+ * <Photo>'s fallback so a missing asset degrades instead of leaving a hole.
+ */
 function Scene({ index }: { index: number }) {
   if (index === 1) return <PlanScene />;
   if (index === 2) return <TryOnScene />;
   if (index === 3) return <ShareScene />;
   return <WardrobeScene />;
+}
+
+/** Photo filling a scene slot, with the old drawing behind it as fallback. */
+function ScenePhoto({ slot, fallback }: { slot: SlotName; fallback: React.ReactNode }) {
+  return (
+    <Photo
+      slot={slot}
+      fill
+      fallback={fallback}
+      rounded="rounded-xl"
+    />
+  );
 }
 
 function SceneLabel({ children }: { children: React.ReactNode }) {
@@ -98,17 +116,22 @@ function WardrobeScene() {
   const tones: Tone[] = ["lilac", "peach", "mint", "sky", "lilac", "mint"];
   return (
     <SceneFrame label="12 pieces · 8 clean">
-      <div className="grid grid-cols-3 grid-rows-2 gap-2 flex-1 min-h-0">
-        {tones.map((t, i) => (
-          <div
-            key={i}
-            style={{ animationDelay: `${i * 70}ms` }}
-            className={`rounded-xl grid place-items-center animate-rise-in ${BLOCK[t]}`}
-          >
-            <Shirt className="w-5 h-5" />
+      <ScenePhoto
+        slot="login-wardrobe"
+        fallback={
+          <div className="grid grid-cols-3 grid-rows-2 gap-2 w-full h-full">
+            {tones.map((t, i) => (
+              <div
+                key={i}
+                style={{ animationDelay: `${i * 70}ms` }}
+                className={`rounded-xl grid place-items-center animate-rise-in ${BLOCK[t]}`}
+              >
+                <Shirt className="w-5 h-5" />
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
+        }
+      />
     </SceneFrame>
   );
 }
@@ -130,20 +153,24 @@ function PlanScene() {
           </span>
         ))}
       </div>
-      <div
-        style={{ animationDelay: "340ms" }}
-        className="mt-2.5 rounded-xl bg-peach/70 p-2.5 flex-1 min-h-0 flex flex-col animate-slide-in"
-      >
-        <p className="text-[11px] font-semibold text-orange-900 shrink-0">
-          Friday · 3 pieces planned
-        </p>
-        <div className="flex gap-2 mt-2 flex-1 min-h-0">
-          {(["lilac", "mint", "sky"] as Tone[]).map((t, i) => (
-            <span key={i} className={`flex-1 rounded-lg grid place-items-center ${BLOCK[t]}`}>
-              <Shirt className="w-4 h-4" />
-            </span>
-          ))}
-        </div>
+      <div className="mt-2.5 flex-1 min-h-0">
+        <ScenePhoto
+          slot="login-plan"
+          fallback={
+            <div className="rounded-xl bg-peach/70 p-2.5 w-full h-full flex flex-col">
+              <p className="text-[11px] font-semibold text-orange-900 shrink-0">
+                Friday · 3 pieces planned
+              </p>
+              <div className="flex gap-2 mt-2 flex-1 min-h-0">
+                {(["lilac", "mint", "sky"] as Tone[]).map((t, i) => (
+                  <span key={i} className={`flex-1 rounded-lg grid place-items-center ${BLOCK[t]}`}>
+                    <Shirt className="w-4 h-4" />
+                  </span>
+                ))}
+              </div>
+            </div>
+          }
+        />
       </div>
     </SceneFrame>
   );
@@ -151,31 +178,20 @@ function PlanScene() {
 
 function TryOnScene() {
   return (
-    <SceneFrame label="Before · after">
-      <div className="flex-1 min-h-0 flex gap-2.5">
-        <div className="relative flex-1 rounded-xl overflow-hidden bg-ink/[0.05]">
-          <div className="absolute inset-0 grid place-items-center bg-gradient-to-b from-ink/[0.05] to-ink/[0.12]">
+    <SceneFrame label="Drag to compare">
+      <BeforeAfter
+        fill
+        beforeFallback={
+          <div className="w-full h-full grid place-items-center bg-gradient-to-b from-ink/[0.05] to-ink/[0.12]">
             <UserIcon className="w-9 h-9 text-ink/30" />
           </div>
-          <div className="absolute inset-0 grid place-items-center bg-gradient-to-b from-brand-400 to-brand-600 animate-xfade">
+        }
+        afterFallback={
+          <div className="w-full h-full grid place-items-center bg-gradient-to-b from-brand-400 to-brand-600">
             <UserIcon className="w-9 h-9 text-white/90" />
           </div>
-        </div>
-        <div className="w-[38%] flex flex-col gap-1.5">
-          {(["lilac", "mint"] as Tone[]).map((t, i) => (
-            <span
-              key={i}
-              style={{ animationDelay: `${i * 110}ms` }}
-              className={`flex-1 rounded-xl grid place-items-center animate-rise-in ${BLOCK[t]}`}
-            >
-              <Shirt className="w-4 h-4" />
-            </span>
-          ))}
-          <span className="shrink-0 rounded-lg bg-brand-500 text-white text-[10px] font-semibold text-center py-1.5">
-            Put it on me
-          </span>
-        </div>
-      </div>
+        }
+      />
     </SceneFrame>
   );
 }
@@ -183,41 +199,51 @@ function TryOnScene() {
 function ShareScene() {
   return (
     <SceneFrame label="A friend suggests">
-      <div className="rounded-xl bg-sky/60 p-2.5 flex-1 min-h-0 flex flex-col animate-rise-in">
-        <div className="flex items-center gap-2 shrink-0">
-          <span className="w-7 h-7 rounded-full bg-brand-500 text-white grid place-items-center text-[10px] font-bold shrink-0">
-            PN
-          </span>
-          <p className="text-[11.5px] font-semibold text-blue-900 truncate">
-            Priya picked a look for Friday
-          </p>
-        </div>
-        <div className="flex gap-2 mt-2.5 flex-1 min-h-0">
-          {(["lilac", "peach", "mint"] as Tone[]).map((t, i) => (
-            <span
-              key={i}
-              style={{ animationDelay: `${100 + i * 90}ms` }}
-              className={`flex-1 rounded-lg grid place-items-center animate-rise-in ${BLOCK[t]}`}
+      <ScenePhoto
+        slot="login-share"
+        fallback={
+          <div className="w-full h-full flex flex-col">
+            <div className="rounded-xl bg-sky/60 p-2.5 flex-1 min-h-0 flex flex-col animate-rise-in">
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="w-7 h-7 rounded-full bg-brand-500 text-white grid place-items-center text-[10px] font-bold shrink-0">
+                  PN
+                </span>
+                <p className="text-[11.5px] font-semibold text-blue-900 truncate">
+                  Priya picked a look for Friday
+                </p>
+              </div>
+              <div className="flex gap-2 mt-2.5 flex-1 min-h-0">
+                {(["lilac", "peach", "mint"] as Tone[]).map((t, i) => (
+                  <span
+                    key={i}
+                    style={{ animationDelay: `${100 + i * 90}ms` }}
+                    className={`flex-1 rounded-lg grid place-items-center animate-rise-in ${BLOCK[t]}`}
+                  >
+                    <Shirt className="w-4 h-4" />
+                  </span>
+                ))}
+              </div>
+            </div>
+            <div
+              style={{ animationDelay: "380ms" }}
+              className="flex gap-2 mt-2.5 shrink-0 animate-slide-in"
             >
-              <Shirt className="w-4 h-4" />
-            </span>
-          ))}
-        </div>
-      </div>
-      <div style={{ animationDelay: "380ms" }} className="flex gap-2 mt-2.5 shrink-0 animate-slide-in">
-        <span className="flex-1 h-8 rounded-lg bg-brand-500 text-white text-[11px] font-semibold grid place-items-center">
-          <span className="flex items-center gap-1">
-            <Check className="w-3.5 h-3.5" />
-            Accept
-          </span>
-        </span>
-        <span className="flex-1 h-8 rounded-lg bg-ink/[0.05] text-ink/65 text-[11px] font-semibold grid place-items-center">
-          <span className="flex items-center gap-1">
-            <Close className="w-3.5 h-3.5" />
-            Not today
-          </span>
-        </span>
-      </div>
+              <span className="flex-1 h-8 rounded-lg bg-brand-500 text-white text-[11px] font-semibold grid place-items-center">
+                <span className="flex items-center gap-1">
+                  <Check className="w-3.5 h-3.5" />
+                  Accept
+                </span>
+              </span>
+              <span className="flex-1 h-8 rounded-lg bg-ink/[0.05] text-ink/65 text-[11px] font-semibold grid place-items-center">
+                <span className="flex items-center gap-1">
+                  <Close className="w-3.5 h-3.5" />
+                  Not today
+                </span>
+              </span>
+            </div>
+          </div>
+        }
+      />
     </SceneFrame>
   );
 }
@@ -309,14 +335,28 @@ export function HeroPanel() {
 
   return (
     <aside className="relative hidden lg:flex flex-col justify-center overflow-hidden bg-[#2A1B5E] p-8 xl:p-10">
+      {/* The hero photograph fills the panel. It is the one marketing image
+          above the fold, so it loads eagerly; everything else is lazy. The
+          deep plum ground stays behind it as the backdrop for the fallback
+          and for the moments before the image decodes. */}
+      <div className="absolute inset-0">
+        <Photo slot="login-hero" priority fill rounded="rounded-none" alt="" />
+      </div>
+
+      {/* Scrim. The panel carries white text across its whole height, and the
+          photo behind it is not known at build time, so this keeps a hard
+          contrast floor rather than trusting the crop: never lighter than
+          ~50% plum, heaviest at the bottom where the feature cards sit. The
+          hero therefore reads as a tinted backdrop, which is deliberate. */}
       <div
         aria-hidden
         className="pointer-events-none absolute inset-0"
         style={{
           background:
-            "radial-gradient(26rem 20rem at 8% -4%, rgba(155,130,240,0.45), transparent 60%)," +
-            "radial-gradient(20rem 16rem at 100% 18%, rgba(255,225,210,0.20), transparent 60%)," +
-            "radial-gradient(24rem 20rem at 60% 108%, rgba(207,244,223,0.18), transparent 60%)",
+            "radial-gradient(26rem 20rem at 8% -4%, rgba(155,130,240,0.38), transparent 60%)," +
+            "radial-gradient(20rem 16rem at 100% 18%, rgba(255,225,210,0.16), transparent 60%)," +
+            "radial-gradient(24rem 20rem at 60% 108%, rgba(207,244,223,0.14), transparent 60%)," +
+            "linear-gradient(to top, rgba(26,15,62,0.94) 0%, rgba(30,18,70,0.82) 42%, rgba(38,24,86,0.72) 100%)",
         }}
       />
 

@@ -18,6 +18,7 @@ import { useConfirm } from "../components/ui/Confirm";
 import { Plus, Shirt, Refresh } from "../components/ui/icons";
 import { useAuth } from "../auth";
 import { api, type Cloth } from "../api";
+import { OPEN_ADD_CLOTH_EVENT } from "../tour/OnboardingProvider";
 
 const CATEGORY_ORDER = ["top", "bottom", "dress", "outerwear", "shoes", "accessory", "other"];
 
@@ -36,6 +37,10 @@ export default function Wardrobe() {
   const [sort, setSort] = useState<SortMode>("newest");
 
   const [addOpen, setAddOpen] = useState(false);
+
+  function openDetail(id: string) {
+    setDetailId(id);
+  }
   const [detailId, setDetailId] = useState<string | null>(null);
 
   async function load() {
@@ -54,6 +59,14 @@ export default function Wardrobe() {
 
   useEffect(() => {
     load().finally(() => setLoading(false));
+  }, []);
+
+  // The onboarding slideshow's "Add my first piece" opens the existing sheet
+  // through the normal path — no photo picker or permission is triggered.
+  useEffect(() => {
+    const onOpen = () => setAddOpen(true);
+    window.addEventListener(OPEN_ADD_CLOTH_EVENT, onOpen);
+    return () => window.removeEventListener(OPEN_ADD_CLOTH_EVENT, onOpen);
   }, []);
 
   const isSunday = new Date().getDay() === 0;
@@ -165,7 +178,7 @@ export default function Wardrobe() {
         </div>
         {/* Desktop gets a labelled header action; phones get the FAB. */}
         <Button
-          className="hidden md:inline-flex mt-1"
+                   className="hidden md:inline-flex mt-1"
           size="lg"
           leading={<Plus className="w-4 h-4" />}
           onClick={() => setAddOpen(true)}
@@ -238,12 +251,12 @@ export default function Wardrobe() {
                 {cat}
                 <span className="ml-1.5 text-ink/55 normal-case">· {items.length}</span>
               </h2>
-              <Grid items={items} onOpen={setDetailId} onWearToday={wearToday} />
+              <Grid items={items} onOpen={openDetail} onWearToday={wearToday} />
             </section>
           ))}
         </div>
       ) : (
-        <Grid items={filtered} onOpen={setDetailId} onWearToday={wearToday} />
+        <Grid items={filtered} onOpen={openDetail} onWearToday={wearToday} />
       )}
 
       <FAB onClick={() => setAddOpen(true)} />
@@ -273,6 +286,7 @@ function Grid({
   return (
     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
       {items.map((c) => (
+        // The first card is the tour's "open your piece" target.
         <ClothCard key={c.id} cloth={c} onClick={() => onOpen(c.id)} onWearToday={onWearToday} />
       ))}
     </div>
