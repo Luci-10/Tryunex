@@ -87,7 +87,6 @@ export function AppHeader() {
               key={t.to}
               to={t.to}
               end={t.end}
-              data-tour-id={t.to === "/tryon" ? "nav-tryon" : undefined}
               className={({ isActive }) =>
                 `px-3.5 h-9 inline-flex items-center rounded-full text-sm transition-colors ${
                   isActive

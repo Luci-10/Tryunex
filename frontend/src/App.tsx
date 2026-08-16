@@ -4,7 +4,7 @@ import { ChatProvider } from "./chat";
 import { TryOnProvider } from "./tryon";
 import { ToastProvider } from "./components/ui/Toast";
 import { ConfirmProvider } from "./components/ui/Confirm";
-import { GuidedTourProvider } from "./tour/GuidedTourProvider";
+import { OnboardingProvider } from "./tour/OnboardingProvider";
 import { Skeleton } from "./components/ui/Skeleton";
 import ChatFab from "./components/ChatFab";
 import ChatPanel from "./components/ChatPanel";
@@ -47,7 +47,7 @@ export default function App() {
       <ConfirmProvider>
         <ChatProvider>
           <TryOnProvider>
-            <GuidedTourProvider>
+            <OnboardingProvider>
             <Routes>
               <Route path="/login" element={user && !loading ? <Navigate to="/" replace /> : <Login />} />
               <Route path="/register" element={user && !loading ? <Navigate to="/" replace /> : <Register />} />
@@ -67,7 +67,7 @@ export default function App() {
             </Routes>
             <ChatFab />
             <ChatPanel />
-            </GuidedTourProvider>
+            </OnboardingProvider>
           </TryOnProvider>
         </ChatProvider>
       </ConfirmProvider>

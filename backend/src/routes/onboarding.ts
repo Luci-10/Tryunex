@@ -15,6 +15,7 @@ router.patch("/", async (req, res) => {
     .object({
       status: z.enum(["not_started", "offered", "active", "completed", "skipped"]).optional(),
       currentStep: z.string().max(60).nullable().optional(),
+      currentSlide: z.number().int().min(0).max(20).nullable().optional(),
       hint: z.enum(["wardrobe", "tryon", "plan", "chat"]).optional(),
     })
     .safeParse(req.body ?? {});

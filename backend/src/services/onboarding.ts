@@ -14,6 +14,7 @@ export type OnboardingStatus = "not_started" | "offered" | "active" | "completed
 export type OnboardingState = {
   status: OnboardingStatus;
   currentStep: string | null;
+  currentSlide: number | null;
   seenWardrobeHint: boolean;
   seenTryonHint: boolean;
   seenPlanHint: boolean;
@@ -48,6 +49,8 @@ export function ensureOnboardingSchema(): Promise<void> {
       "created_at" timestamptz NOT NULL DEFAULT now(),
       "updated_at" timestamptz NOT NULL DEFAULT now()
     )`;
+    // Slide index for the modal walkthrough that replaced the spotlight tour.
+    await q`ALTER TABLE "onboarding_state" ADD COLUMN IF NOT EXISTS "current_slide" integer`;
   })();
   return ready;
 }
@@ -70,13 +73,14 @@ export async function getOnboarding(userId: string): Promise<OnboardingState> {
     ON CONFLICT (user_id) DO NOTHING`;
 
   const rows = (await q`
-    SELECT status, current_step, seen_wardrobe_hint, seen_tryon_hint,
+    SELECT status, current_step, current_slide, seen_wardrobe_hint, seen_tryon_hint,
            seen_plan_hint, seen_chat_hint
       FROM onboarding_state WHERE user_id = ${userId} LIMIT 1`) as any[];
   const r = rows[0] ?? {};
   return {
     status: r.status ?? "not_started",
     currentStep: r.current_step ?? null,
+    currentSlide: r.current_slide === null || r.current_slide === undefined ? null : Number(r.current_slide),
     seenWardrobeHint: Boolean(r.seen_wardrobe_hint),
     seenTryonHint: Boolean(r.seen_tryon_hint),
     seenPlanHint: Boolean(r.seen_plan_hint),
@@ -86,7 +90,12 @@ export async function getOnboarding(userId: string): Promise<OnboardingState> {
 
 export async function updateOnboarding(
   userId: string,
-  patch: { status?: OnboardingStatus; currentStep?: string | null; hint?: string },
+  patch: {
+    status?: OnboardingStatus;
+    currentStep?: string | null;
+    currentSlide?: number | null;
+    hint?: string;
+  },
 ): Promise<OnboardingState> {
   await ensureOnboardingSchema();
   await getOnboarding(userId); // guarantees the row exists
@@ -104,6 +113,10 @@ export async function updateOnboarding(
              skipped_at   = CASE WHEN ${patch.status} = 'skipped'   THEN now()                          ELSE skipped_at END,
              updated_at = now()
        WHERE user_id = ${userId}`;
+  }
+  if (patch.currentSlide !== undefined) {
+    await q`UPDATE onboarding_state SET current_slide = ${patch.currentSlide}, updated_at = now()
+             WHERE user_id = ${userId}`;
   }
   if (patch.currentStep !== undefined) {
     await q`UPDATE onboarding_state SET current_step = ${patch.currentStep}, updated_at = now()

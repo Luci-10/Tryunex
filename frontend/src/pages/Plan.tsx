@@ -15,7 +15,6 @@ import { useToast } from "../components/ui/Toast";
 import { useConfirm } from "../components/ui/Confirm";
 import { Calendar, Close } from "../components/ui/icons";
 import { api, type Cloth } from "../api";
-import { useGuidedTour } from "../tour/GuidedTourProvider";
 
 type PlanEntry = {
   id: string;
@@ -43,7 +42,6 @@ export default function Plan() {
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
   const confirm = useConfirm();
-  const tour = useGuidedTour();
 
   async function load() {
     setError(null);
@@ -140,14 +138,10 @@ export default function Plan() {
         </div>
         <Input
           id="plan-date"
-          data-tour-id="plan-date"
           type="date"
           min={today}
           value={date}
-          onChange={(e) => {
-            setDate(e.target.value);
-            tour.signal("plan:interacted");
-          }}
+          onChange={(e) => setDate(e.target.value)}
           className="!w-auto max-w-[10.5rem] bg-white/80"
         />
       </Surface>

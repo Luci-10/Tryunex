@@ -18,7 +18,7 @@ import { useConfirm } from "../components/ui/Confirm";
 import { Plus, Shirt, Refresh } from "../components/ui/icons";
 import { useAuth } from "../auth";
 import { api, type Cloth } from "../api";
-import { useGuidedTour } from "../tour/GuidedTourProvider";
+import { OPEN_ADD_CLOTH_EVENT } from "../tour/OnboardingProvider";
 
 const CATEGORY_ORDER = ["top", "bottom", "dress", "outerwear", "shoes", "accessory", "other"];
 
@@ -26,7 +26,6 @@ export default function Wardrobe() {
   const { user } = useAuth();
   const { toast } = useToast();
   const confirm = useConfirm();
-  const tour = useGuidedTour();
 
   const [clean, setClean] = useState<Cloth[]>([]);
   const [wornCount, setWornCount] = useState(0);
@@ -41,7 +40,6 @@ export default function Wardrobe() {
 
   function openDetail(id: string) {
     setDetailId(id);
-    tour.signal("cloth:opened");
   }
   const [detailId, setDetailId] = useState<string | null>(null);
 
@@ -61,6 +59,14 @@ export default function Wardrobe() {
 
   useEffect(() => {
     load().finally(() => setLoading(false));
+  }, []);
+
+  // The onboarding slideshow's "Add my first piece" opens the existing sheet
+  // through the normal path — no photo picker or permission is triggered.
+  useEffect(() => {
+    const onOpen = () => setAddOpen(true);
+    window.addEventListener(OPEN_ADD_CLOTH_EVENT, onOpen);
+    return () => window.removeEventListener(OPEN_ADD_CLOTH_EVENT, onOpen);
   }, []);
 
   const isSunday = new Date().getDay() === 0;
@@ -103,7 +109,6 @@ export default function Wardrobe() {
   function onAdded(c: Cloth) {
     setClean((p) => [c, ...p]);
     toast(`${c.name} added`, { tone: "success" });
-    tour.signal("cloth:added");
   }
 
   function onSaved(c: Cloth) {
@@ -173,8 +178,7 @@ export default function Wardrobe() {
         </div>
         {/* Desktop gets a labelled header action; phones get the FAB. */}
         <Button
-          data-tour-id="add-piece-desktop"
-          className="hidden md:inline-flex mt-1"
+                   className="hidden md:inline-flex mt-1"
           size="lg"
           leading={<Plus className="w-4 h-4" />}
           onClick={() => setAddOpen(true)}
@@ -281,11 +285,9 @@ function Grid({
 }) {
   return (
     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
-      {items.map((c, i) => (
+      {items.map((c) => (
         // The first card is the tour's "open your piece" target.
-        <div key={c.id} data-tour-id={i === 0 ? "first-cloth" : undefined}>
-          <ClothCard cloth={c} onClick={() => onOpen(c.id)} onWearToday={onWearToday} />
-        </div>
+        <ClothCard key={c.id} cloth={c} onClick={() => onOpen(c.id)} onWearToday={onWearToday} />
       ))}
     </div>
   );

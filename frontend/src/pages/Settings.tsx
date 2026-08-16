@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import PageShell, { PageTitle } from "../components/PageShell";
 import { useAuth } from "../auth";
 import { getSummary, TIER_LABEL, type BillingSummary } from "../billing";
-import { useGuidedTour } from "../tour/GuidedTourProvider";
+import { useOnboarding } from "../tour/OnboardingProvider";
 import {
   MOTION_OPTIONS,
   getMotionPref,
@@ -24,7 +24,7 @@ export default function Settings() {
   const { user } = useAuth();
   const [motion, setMotion] = useState<MotionPref>(() => getMotionPref());
   const [billing, setBilling] = useState<BillingSummary | null>(null);
-  const tour = useGuidedTour();
+  const onboarding = useOnboarding();
 
   useEffect(() => {
     getSummary().then(setBilling).catch(() => setBilling(null));
@@ -143,7 +143,7 @@ export default function Settings() {
       <Group icon={<Sparkles className="w-4 h-4" />} tone="sky" title="Getting started">
         <button
           type="button"
-          onClick={tour.replay}
+          onClick={onboarding.replay}
           className="w-full flex items-center gap-3 px-4 min-h-[52px] py-2.5 text-left hover:bg-ink/[0.03] active:bg-ink/[0.05] transition-colors"
         >
           <span className="min-w-0 flex-1">

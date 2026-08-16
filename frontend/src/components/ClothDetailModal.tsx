@@ -9,7 +9,6 @@ import { api, type Cloth, type StyleTag } from "../api";
 import { STYLE_TAGS, styleTagOf } from "../styleTags";
 import { useChat } from "../chat";
 import { useTryOn } from "../tryon";
-import { useGuidedTour } from "../tour/GuidedTourProvider";
 import { Badge } from "./ui/Chip";
 import { Chat, Check, Sparkles, Trash, Zoom } from "./ui/icons";
 
@@ -42,7 +41,6 @@ export default function ClothDetailModal({
   const { openChat } = useChat();
   const { tryOn } = useTryOn();
   const confirm = useConfirm();
-  const tour = useGuidedTour();
 
   useEffect(() => {
     if (!open || !clothId) return;
@@ -206,12 +204,10 @@ export default function ClothDetailModal({
 
             <div className="grid grid-cols-2 gap-2">
               <Button
-                data-tour-id="detail-try-on"
                 variant="quiet"
                 leading={<Sparkles className="w-4 h-4" />}
                 onClick={() => {
                   tryOn(data.cloth);
-                  tour.signal("tryon:added");
                   onClose();
                 }}
               >
