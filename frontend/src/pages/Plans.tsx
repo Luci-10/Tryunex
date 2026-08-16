@@ -127,7 +127,7 @@ export default function Plans() {
 
   return (
     <PageShell width="narrow">
-      <PageTitle title="Plans & credits" subtitle="Try-on credits, your plan, and recent activity." />
+      <PageTitle title="Plans & credits" subtitle="Your Try-on credits and plan." />
 
       {error && <ErrorBanner onRetry={load}>{error}</ErrorBanner>}
 
@@ -335,30 +335,6 @@ export default function Plans() {
           </ul>
         </Surface>
       </section>
-
-      {/* ---------------------------------------------------- activity */}
-      {summary.activity.length > 0 && (
-        <section className="space-y-3">
-          <SectionHeading title="Recent activity" as="h2" />
-          <ul className="surface p-0 overflow-hidden divide-y divide-ink/[0.06]">
-            {summary.activity.map((a, i) => (
-              <li key={i} className="flex items-center gap-3 px-4 py-2.5">
-                <span className="min-w-0 flex-1">
-                  <span className="block text-[13.5px]">{a.label}</span>
-                  <span className="block text-[11.5px] text-ink/55">{dateLabel(a.at)}</span>
-                </span>
-                <span
-                  className={`text-[14px] font-semibold shrink-0 ${
-                    a.amount > 0 ? "text-emerald-700" : "text-ink/60"
-                  }`}
-                >
-                  {a.amount > 0 ? `+${a.amount}` : a.amount}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
     </PageShell>
   );
 }
