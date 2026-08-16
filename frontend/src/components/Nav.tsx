@@ -3,7 +3,7 @@ import { NavLink, useLocation } from "react-router-dom";
 import { useAuth } from "../auth";
 import useMediaQuery from "../useMediaQuery";
 import { ProfileDropdown, ProfileSheet, PROFILE_ROUTES } from "./ProfileMenu";
-import { Calendar, ChevronDown, Shirt, Sparkles } from "./ui/icons";
+import { Calendar, ChevronDown, Shirt, Sparkles, Tag } from "./ui/icons";
 
 type Item = { to: string; label: string; icon: typeof Shirt; end?: boolean };
 
@@ -17,6 +17,7 @@ export const PRIMARY_NAV: Item[] = [
   { to: "/", label: "Wardrobe", icon: Shirt, end: true },
   { to: "/plan", label: "Plan", icon: Calendar },
   { to: "/tryon", label: "Try-on", icon: Sparkles },
+  { to: "/thrift", label: "Thrift", icon: Tag },
 ];
 
 export function initialsOf(name: string) {

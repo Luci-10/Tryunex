@@ -10,11 +10,22 @@ import { STYLE_TAGS, styleTagOf } from "../styleTags";
 import { useChat } from "../chat";
 import { useTryOn } from "../tryon";
 import { Badge } from "./ui/Chip";
-import { Chat, Check, Sparkles, Trash, Zoom } from "./ui/icons";
+import { Chat, Check, Sparkles, Tag, Trash, Zoom } from "./ui/icons";
+import { useNavigate } from "react-router-dom";
+import CreateListingSheet from "./thrift/CreateListingSheet";
+import { STATUS_LABEL, STATUS_TONE, formatPrice, type ListingStatus } from "../thrift";
 
 const CATEGORIES = ["top", "bottom", "dress", "outerwear", "shoes", "accessory", "other"];
 
-type Detail = { cloth: Cloth; wearCount: number; lastWornOn: string | null };
+type ClothListing = { id: string; status: ListingStatus; pricePaise: number };
+
+type Detail = {
+  cloth: Cloth;
+  wearCount: number;
+  lastWornOn: string | null;
+  /** Present when this piece is (or was) on the thrift marketplace. */
+  listing: ClothListing | null;
+};
 
 export default function ClothDetailModal({
   clothId,
@@ -38,6 +49,8 @@ export default function ClothDetailModal({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [zoom, setZoom] = useState(false);
+  const [sellOpen, setSellOpen] = useState(false);
+  const nav = useNavigate();
   const { openChat } = useChat();
   const { tryOn } = useTryOn();
   const confirm = useConfirm();
@@ -122,6 +135,19 @@ export default function ClothDetailModal({
         alt={data?.cloth.name}
         onClose={() => setZoom(false)}
       />
+      <CreateListingSheet
+        open={sellOpen}
+        onClose={() => setSellOpen(false)}
+        cloth={data?.cloth ?? null}
+        onSaved={(listing) => {
+          if (data) {
+            setData({
+              ...data,
+              listing: { id: listing.id, status: listing.status, pricePaise: listing.pricePaise },
+            });
+          }
+        }}
+      />
       <Sheet
         open={open}
         onClose={onClose}
@@ -181,6 +207,13 @@ export default function ClothDetailModal({
               <Badge tone={data.cloth.status === "clean" ? "mint" : "peach"}>
                 {data.cloth.status === "clean" ? "Clean" : "In the wash"}
               </Badge>
+              {data.listing && data.listing.status !== "removed" && (
+                <Badge tone={STATUS_TONE[data.listing.status]}>
+                  {data.listing.status === "sold"
+                    ? "Sold"
+                    : `Listed for sale · ${formatPrice(data.listing.pricePaise)}`}
+                </Badge>
+              )}
             </div>
 
             <dl className="grid grid-cols-3 gap-2 text-center">
@@ -224,6 +257,31 @@ export default function ClothDetailModal({
                 Ask AI
               </Button>
             </div>
+
+            {/* Listing the piece never removes it from the wardrobe — it stays
+                here, marked, so it can still be worn, planned and tried on. */}
+            {data.listing && data.listing.status !== "removed" ? (
+              <Button
+                block
+                variant="quiet"
+                leading={<Tag className="w-4 h-4" />}
+                onClick={() => {
+                  onClose();
+                  nav("/my-listings");
+                }}
+              >
+                {data.listing.status === "sold" ? "View sold listing" : "Manage listing"}
+              </Button>
+            ) : (
+              <Button
+                block
+                variant="quiet"
+                leading={<Tag className="w-4 h-4" />}
+                onClick={() => setSellOpen(true)}
+              >
+                Sell this piece
+              </Button>
+            )}
 
             <label className="block">
               <Label>Name</Label>

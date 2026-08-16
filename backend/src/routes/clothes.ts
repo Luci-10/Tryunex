@@ -3,12 +3,13 @@ import { z } from "zod";
 import { randomBytes } from "node:crypto";
 import { sql } from "drizzle-orm";
 import { db } from "../db/client.js";
-import { clothes, wearEvents } from "../db/schema.js";
+import { clothes, wearEvents, thriftListings } from "../db/schema.js";
 import { and, asc, count, desc, eq, gte, inArray, lt, max, notInArray } from "drizzle-orm";
 import { requireAuth } from "../services/auth.js";
 import { STYLE_TAGS } from "../db/schema.js";
 import { presignPut, r2PublicBase } from "../services/r2.js";
 import { settlePastPlans } from "../services/plans.js";
+import { ensureThriftSchema } from "../services/thrift.js";
 
 const router = Router();
 router.use(requireAuth);
@@ -181,7 +182,33 @@ router.get("/:id", async (req, res) => {
     .select({ wearCount: count(), lastWornOn: max(wearEvents.wornOn) })
     .from(wearEvents)
     .where(and(eq(wearEvents.userId, req.userId!), eq(wearEvents.clothId, id), eq(wearEvents.settled, true)));
-  res.json({ cloth, wearCount: Number(stats?.wearCount ?? 0), lastWornOn: stats?.lastWornOn ?? null });
+
+  // Whether this piece is on the thrift marketplace. Derived from the listing
+  // rather than stored on the cloth, so there is one source of truth and the
+  // wardrobe never drifts out of step with the listing's real status.
+  await ensureThriftSchema();
+  const [listing] = await db
+    .select({
+      id: thriftListings.id,
+      status: thriftListings.status,
+      pricePaise: thriftListings.pricePaise,
+    })
+    .from(thriftListings)
+    .where(
+      and(
+        eq(thriftListings.sourceClothId, id),
+        inArray(thriftListings.status, ["draft", "active", "paused", "sold"] as const),
+      ),
+    )
+    .orderBy(desc(thriftListings.createdAt))
+    .limit(1);
+
+  res.json({
+    cloth,
+    wearCount: Number(stats?.wearCount ?? 0),
+    lastWornOn: stats?.lastWornOn ?? null,
+    listing: listing ?? null,
+  });
 });
 
 // PATCH /clothes/:id — rename / recategorize

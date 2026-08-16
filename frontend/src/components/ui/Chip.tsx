@@ -18,7 +18,7 @@ export function FilterChip({
       onClick={onClick}
       aria-pressed={active}
       className={[
-        "h-9 px-3.5 rounded-full text-sm whitespace-nowrap border transition-colors shrink-0",
+        "tap-44 h-9 px-3.5 rounded-full text-sm whitespace-nowrap border transition-colors shrink-0",
         active
           ? "bg-brand-500 text-white border-brand-500 font-medium"
           : "bg-white text-ink/70 border-ink/10 hover:bg-brand-50 hover:text-brand-700",

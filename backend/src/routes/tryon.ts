@@ -12,8 +12,9 @@ import { randomBytes } from "node:crypto";
 import { GoogleGenAI } from "@google/genai";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { db } from "../db/client.js";
-import { clothes, shares, tryonAssets } from "../db/schema.js";
+import { clothes, shares, tryonAssets, thriftListings } from "../db/schema.js";
 import { requireAuth } from "../services/auth.js";
+import { ensureThriftSchema } from "../services/thrift.js";
 import { presignPut, r2PublicBase } from "../services/r2.js";
 import {
   debitOneCredit,
@@ -192,8 +193,37 @@ router.post("/generate", async (req, res) => {
       .where(and(eq(shares.viewerId, req.userId!), inArray(shares.ownerId, foreignOwnerIds)));
     tryonAllowedOwners = new Set(shareRows.filter((s) => s.allowTryon).map((s) => s.ownerId));
   }
+
+  // Second route to a stranger's garment: it is actively listed on the thrift
+  // marketplace. Anyone may preview a listed piece against their own selfie,
+  // which is the whole point of "Try with my wardrobe" — and it reuses the
+  // seller's existing R2 image rather than copying anything.
+  //
+  // The listing must still be `active` and the seller must still own the
+  // piece, so pausing, selling or removing a listing withdraws try-on access
+  // on the next request.
+  const listedClothIds = new Set<string>();
+  const foreignClothIds = clothRows.filter((c) => c.userId !== req.userId).map((c) => c.id);
+  if (foreignClothIds.length > 0) {
+    await ensureThriftSchema();
+    const listed = await db
+      .select({ clothId: thriftListings.sourceClothId, sellerId: thriftListings.sellerUserId })
+      .from(thriftListings)
+      .where(
+        and(
+          inArray(thriftListings.sourceClothId, foreignClothIds),
+          eq(thriftListings.status, "active"),
+        ),
+      );
+    const ownerOf = new Map(clothRows.map((c) => [c.id, c.userId]));
+    for (const l of listed) {
+      if (ownerOf.get(l.clothId) === l.sellerId) listedClothIds.add(l.clothId);
+    }
+  }
+
   const accessible = clothRows.filter(
-    (c) => c.userId === req.userId || tryonAllowedOwners.has(c.userId),
+    (c) =>
+      c.userId === req.userId || tryonAllowedOwners.has(c.userId) || listedClothIds.has(c.id),
   );
   if (accessible.length !== clothRows.length) {
     return res
