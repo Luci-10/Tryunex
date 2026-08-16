@@ -1,6 +1,5 @@
 import type { ReactNode } from "react";
 import Photo from "../components/ui/Photo";
-import BeforeAfter from "../components/marketing/BeforeAfter";
 import { Calendar, Camera, Chat, Shirt, Sparkles, UserIcon } from "../components/ui/icons";
 
 /**
@@ -41,6 +40,37 @@ function Tile({ tone, children }: { tone: string; children: ReactNode }) {
     <span className={`w-12 h-12 rounded-xl grid place-items-center shadow-card ${TILE[tone]}`}>
       {children}
     </span>
+  );
+}
+
+/**
+ * A landing illustration reused inside a slide.
+ *
+ * The frame keeps the slides' existing 16:9 footprint, so nothing about the
+ * modal's height, spacing or scroll behaviour changes. The artwork sits inside
+ * it with `object-contain`, which is why it is never cropped — the tinted
+ * panel simply shows either side of it. `mix-blend-multiply` dissolves the
+ * illustration's cream background into that panel.
+ */
+function IllustrationArt({
+  slot,
+  tone,
+  fallback,
+}: {
+  slot: "landing-wardrobe" | "landing-fitting";
+  tone: string;
+  fallback: ReactNode;
+}) {
+  return (
+    <div className={`rounded-2xl border p-2.5 aspect-[16/9] ${tone}`}>
+      <Photo
+        slot={slot}
+        fill
+        rounded="rounded-xl"
+        className="bg-transparent [&_img]:object-contain [&_img]:mix-blend-multiply"
+        fallback={fallback}
+      />
+    </div>
   );
 }
 
@@ -104,8 +134,9 @@ export const SLIDES: Slide[] = [
     title: "Pick clothes for your look",
     text: "Choose items from your wardrobe and keep them together in your selected Try-on look.",
     art: (
-      <Photo
-        slot="slide-look"
+      <IllustrationArt
+        slot="landing-wardrobe"
+        tone="bg-mint/40 border-emerald-600/10"
         fallback={
           <Frame tone="mint">
             <div className="flex gap-2.5">
@@ -127,18 +158,11 @@ export const SLIDES: Slide[] = [
     // disclaimer, not two saying the same thing.
     note: "AI previews help with styling. Fit, sizing, and fabric details may vary.",
     art: (
-      <BeforeAfter
-        compact
-        disclaimer={null}
-        beforeFallback={
+      <IllustrationArt
+        slot="landing-fitting"
+        tone="bg-sky/40 border-blue-600/10"
+        fallback={
           <Frame tone="sky">
-            <span className="w-16 h-24 rounded-xl bg-ink/[0.08] grid place-items-center text-ink/30">
-              <UserIcon className="w-7 h-7" />
-            </span>
-          </Frame>
-        }
-        afterFallback={
-          <Frame tone="lilac">
             <span className="w-16 h-24 rounded-xl bg-gradient-to-b from-brand-400 to-brand-600 grid place-items-center text-white/90">
               <UserIcon className="w-7 h-7" />
             </span>
