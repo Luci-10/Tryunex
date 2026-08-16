@@ -86,6 +86,11 @@ export async function runVirtualTryOn(input: {
       headers: {
         Authorization: `Key ${key()}`,
         "Content-Type": "application/json",
+        // Ask fal not to retain the request input/output in its own storage.
+        // The result is copied into our bucket immediately below, so there is
+        // nothing we need them to keep. Honoured where the provider supports
+        // it; harmless where it is not.
+        "X-Fal-Store-IO": "0",
       },
       body: JSON.stringify(body),
       signal: controller.signal,
