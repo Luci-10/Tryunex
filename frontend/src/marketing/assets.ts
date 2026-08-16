@@ -38,6 +38,39 @@ const PAIR_WIDTHS = [600, 900];
 const CARD_WIDTHS = [800];
 
 export const SLOTS = {
+  /* ---------------------------------------------------------- landing */
+
+  /**
+   * The landing hero. Above the fold, so it is the one eagerly-loaded asset
+   * on the page. Must contain no text, logo, UI mockup, watermark or brand
+   * mark — the page supplies all of those itself, and baked-in text cannot be
+   * translated, restyled or read by a screen reader.
+   */
+  /**
+   * Hero: the virtual-fitting illustration.
+   *
+   * Single file, no width suffix. The supplied artwork carries no text of its
+   * own, so nothing needs cropping out of it.
+   */
+  "landing-fitting": {
+    base: "/images/marketing/landing-fitting",
+    aspect: 5 / 4,
+    widths: [],
+    sizes: "(min-width: 1024px) 46vw, 92vw",
+    position: "50% 50%",
+    alt: "An illustration of a person waving beside a large phone that shows them wearing a selected outfit, with cards for a t-shirt, trousers and a jacket floating alongside.",
+  },
+
+  /** "How it works": the digital-wardrobe illustration. Below the fold, lazy. */
+  "landing-wardrobe": {
+    base: "/images/marketing/landing-wardrobe",
+    aspect: 3 / 2,
+    widths: [],
+    sizes: "(min-width: 1024px) 46vw, 92vw",
+    position: "50% 50%",
+    alt: "An illustration of two people at a large phone showing a grid of clothes — shirt, trousers, dress, blazer, trainers and a bag — with one holding a planned outfit card and a parcel of clothes being passed on.",
+  },
+
   /* ------------------------------------------------------------ login */
 
   /** Above the fold on desktop. The only eagerly-loaded marketing image. */
@@ -171,12 +204,17 @@ export const DEMO_DISCLAIMER = "Demo preview. AI results, fit, and sizing may va
  * not AVIF would silently get illustrations everywhere. One format means one
  * failure mode, and WebP is ~97% supported.
  */
-export function srcSetFor(slot: Slot): string {
+export function srcSetFor(slot: Slot): string | undefined {
+  // An empty `widths` marks a single-file asset: one `<base>.webp`, no srcset.
+  // Flat vector illustrations compress small enough that three widths buy
+  // little, and it keeps the drop-in to one file per slot.
+  if (slot.widths.length === 0) return undefined;
   return slot.widths.map((w) => `${slot.base}-${w}.webp ${w}w`).join(", ");
 }
 
 /** The single `src`, used by browsers that ignore srcset. */
 export function srcFor(slot: Slot): string {
+  if (slot.widths.length === 0) return `${slot.base}.webp`;
   const w = slot.widths[slot.widths.length - 1];
   return `${slot.base}-${w}.webp`;
 }
