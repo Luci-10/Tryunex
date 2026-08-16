@@ -38,6 +38,23 @@ const PAIR_WIDTHS = [600, 900];
 const CARD_WIDTHS = [800];
 
 export const SLOTS = {
+  /* ---------------------------------------------------------- landing */
+
+  /**
+   * The landing hero. Above the fold, so it is the one eagerly-loaded asset
+   * on the page. Must contain no text, logo, UI mockup, watermark or brand
+   * mark — the page supplies all of those itself, and baked-in text cannot be
+   * translated, restyled or read by a screen reader.
+   */
+  "landing-hero": {
+    base: "/images/marketing/landing-hero",
+    aspect: 4 / 5,
+    widths: [640, 960, 1280],
+    sizes: "(min-width: 1024px) 48vw, 92vw",
+    position: "50% 40%",
+    alt: "A person holding a phone, surrounded by their wardrobe, a planned outfit, a calendar and a parcel of pre-loved clothes.",
+  },
+
   /* ------------------------------------------------------------ login */
 
   /** Above the fold on desktop. The only eagerly-loaded marketing image. */

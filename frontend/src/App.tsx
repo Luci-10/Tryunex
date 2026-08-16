@@ -63,10 +63,12 @@ export default function App() {
               <Route path="/shared" element={<Private><Shared /></Private>} />
               <Route path="/friends/:ownerId" element={<Private><Friend /></Private>} />
               <Route path="/history" element={<Private><History /></Private>} />
-              <Route path="/contact" element={<Private><Contact /></Private>} />
+              {/* Public: linked from the landing footer, and neither page
+                  renders anything user-specific. */}
+              <Route path="/contact" element={<Contact />} />
               <Route path="/account" element={<Private><Account /></Private>} />
               <Route path="/settings" element={<Private><SettingsPage /></Private>} />
-              <Route path="/about" element={<Private><About /></Private>} />
+              <Route path="/about" element={<About />} />
               <Route path="/plans" element={<Private><Plans /></Private>} />
               {/* Static thrift routes are declared before /thrift/:listingId so
                   "messages" and "saved" are never read as a listing id. */}
