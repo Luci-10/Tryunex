@@ -226,6 +226,201 @@ export const creditLedger = pgTable(
   }),
 );
 
+/* ------------------------------------------------- thrift marketplace */
+
+export const listingConditionEnum = pgEnum("thrift_condition", [
+  "like_new",
+  "gently_used",
+  "used",
+]);
+export const listingDeliveryEnum = pgEnum("thrift_delivery", ["pickup", "shipping", "either"]);
+export const listingStatusEnum = pgEnum("thrift_listing_status", [
+  "draft",
+  "active",
+  "paused",
+  "sold",
+  "removed",
+]);
+export const conversationStatusEnum = pgEnum("thrift_conversation_status", [
+  "active",
+  "closed",
+  "blocked",
+]);
+export const reportStatusEnum = pgEnum("thrift_report_status", [
+  "open",
+  "reviewed",
+  "resolved",
+  "dismissed",
+]);
+
+export const THRIFT_CONDITIONS = ["like_new", "gently_used", "used"] as const;
+export const THRIFT_DELIVERY = ["pickup", "shipping", "either"] as const;
+export const THRIFT_LISTING_STATUS = ["draft", "active", "paused", "sold", "removed"] as const;
+export const LISTING_REPORT_REASONS = [
+  "not_as_described",
+  "prohibited",
+  "spam",
+  "inappropriate",
+  "scam",
+  "other",
+] as const;
+export const CONVERSATION_REPORT_REASONS = [
+  "spam",
+  "harassment",
+  "scam",
+  "inappropriate",
+  "other",
+] as const;
+
+/**
+ * A peer-to-peer resale listing for a garment the seller already owns in their
+ * wardrobe. `sourceClothId` is the link back — the listing never copies the
+ * image into new storage, it points at the same R2 object the wardrobe uses.
+ * Money is recorded in paise, matching `payments.amountPaise`, so there is one
+ * currency convention in the codebase.
+ */
+export const thriftListings = pgTable(
+  "thrift_listings",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    sellerUserId: uuid("seller_user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    sourceClothId: uuid("source_cloth_id").notNull().references(() => clothes.id, { onDelete: "cascade" }),
+    title: text("title").notNull(),
+    pricePaise: integer("price_paise").notNull(),
+    currency: text("currency").notNull().default("INR"),
+    size: text("size").notNull(),
+    condition: listingConditionEnum("condition").notNull(),
+    brand: text("brand"),
+    description: text("description"),
+    deliveryPreference: listingDeliveryEnum("delivery_preference").notNull(),
+    /** City only. The API never accepts or stores a street address. */
+    city: text("city"),
+    status: listingStatusEnum("status").notNull().default("active"),
+    /** Denormalised from the cloth so browse needs no join, and so the card
+     *  keeps working if the seller later renames or recategorises the piece. */
+    imageUrl: text("image_url").notNull(),
+    category: text("category").notNull(),
+    styleTag: styleTagEnum("style_tag"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+    soldAt: timestamp("sold_at", { withTimezone: true }),
+  },
+  (t) => ({
+    sellerIdx: index("thrift_listings_seller_idx").on(t.sellerUserId),
+    browseIdx: index("thrift_listings_browse_idx").on(t.status, t.createdAt),
+    categoryIdx: index("thrift_listings_category_idx").on(t.status, t.category),
+    priceIdx: index("thrift_listings_price_idx").on(t.status, t.pricePaise),
+    styleIdx: index("thrift_listings_style_idx").on(t.status, t.styleTag),
+    sizeIdx: index("thrift_listings_size_idx").on(t.status, t.size),
+    clothIdx: index("thrift_listings_cloth_idx").on(t.sourceClothId),
+  }),
+);
+
+export const thriftSaves = pgTable(
+  "thrift_saves",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    listingId: uuid("listing_id").notNull().references(() => thriftListings.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => ({
+    pairIdx: uniqueIndex("thrift_saves_pair_idx").on(t.userId, t.listingId),
+    userIdx: index("thrift_saves_user_idx").on(t.userId),
+  }),
+);
+
+export const thriftConversations = pgTable(
+  "thrift_conversations",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    listingId: uuid("listing_id").notNull().references(() => thriftListings.id, { onDelete: "cascade" }),
+    buyerUserId: uuid("buyer_user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    sellerUserId: uuid("seller_user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    status: conversationStatusEnum("status").notNull().default("active"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => ({
+    pairIdx: uniqueIndex("thrift_conversations_pair_idx").on(t.listingId, t.buyerUserId),
+    buyerIdx: index("thrift_conversations_buyer_idx").on(t.buyerUserId, t.updatedAt),
+    sellerIdx: index("thrift_conversations_seller_idx").on(t.sellerUserId, t.updatedAt),
+  }),
+);
+
+export const thriftMessages = pgTable(
+  "thrift_messages",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    conversationId: uuid("conversation_id").notNull().references(() => thriftConversations.id, { onDelete: "cascade" }),
+    senderUserId: uuid("sender_user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    body: text("body").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    readAt: timestamp("read_at", { withTimezone: true }),
+  },
+  (t) => ({
+    convIdx: index("thrift_messages_conv_idx").on(t.conversationId, t.createdAt),
+  }),
+);
+
+export const thriftListingReports = pgTable(
+  "thrift_listing_reports",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    reporterUserId: uuid("reporter_user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    listingId: uuid("listing_id").notNull().references(() => thriftListings.id, { onDelete: "cascade" }),
+    reason: text("reason").notNull(),
+    note: text("note"),
+    status: reportStatusEnum("status").notNull().default("open"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => ({
+    listingIdx: index("thrift_listing_reports_listing_idx").on(t.listingId),
+    onePerReporter: uniqueIndex("thrift_listing_reports_once_idx").on(t.reporterUserId, t.listingId),
+  }),
+);
+
+export const thriftConversationReports = pgTable(
+  "thrift_conversation_reports",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    reporterUserId: uuid("reporter_user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    conversationId: uuid("conversation_id").notNull().references(() => thriftConversations.id, { onDelete: "cascade" }),
+    reason: text("reason").notNull(),
+    note: text("note"),
+    status: reportStatusEnum("status").notNull().default("open"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => ({
+    convIdx: index("thrift_conversation_reports_conv_idx").on(t.conversationId),
+    onePerReporter: uniqueIndex("thrift_conversation_reports_once_idx").on(
+      t.reporterUserId,
+      t.conversationId,
+    ),
+  }),
+);
+
+/** Directional. A block hides each party from the other in the marketplace. */
+export const thriftBlocks = pgTable(
+  "thrift_blocks",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    blockerUserId: uuid("blocker_user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    blockedUserId: uuid("blocked_user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => ({
+    pairIdx: uniqueIndex("thrift_blocks_pair_idx").on(t.blockerUserId, t.blockedUserId),
+    blockedIdx: index("thrift_blocks_blocked_idx").on(t.blockedUserId),
+  }),
+);
+
+export type ThriftListing = typeof thriftListings.$inferSelect;
+export type ThriftConversation = typeof thriftConversations.$inferSelect;
+export type ThriftMessage = typeof thriftMessages.$inferSelect;
+
 export const payments = pgTable(
   "payments",
   {

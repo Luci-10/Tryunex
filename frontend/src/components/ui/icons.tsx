@@ -221,3 +221,33 @@ export const Share = (p: P) => (
     <path d="M4 14v5a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-5" />
   </Svg>
 );
+
+/** Price tag — the thrift marketplace. */
+export const Tag = (p: P) => (
+  <Svg {...p}>
+    <path d="M3 12V5a2 2 0 0 1 2-2h7l9 9-9 9-9-9Z" />
+    <circle cx="7.5" cy="7.5" r="1.25" />
+  </Svg>
+);
+
+/** Bookmark — saving a listing. Filled state is driven by `fill`. */
+export const Bookmark = (p: P) => (
+  <Svg {...p}>
+    <path d="M6 4h12a1 1 0 0 1 1 1v15l-7-4-7 4V5a1 1 0 0 1 1-1Z" />
+  </Svg>
+);
+
+/** Flag — reporting a listing or conversation. */
+export const Flag = (p: P) => (
+  <Svg {...p}>
+    <path d="M5 21V4m0 0 6.5 2L18 4v10l-6.5 2L5 14" />
+  </Svg>
+);
+
+/** Slash-circle — blocking a marketplace user. */
+export const Block = (p: P) => (
+  <Svg {...p}>
+    <circle cx="12" cy="12" r="9" />
+    <path d="m5.6 5.6 12.8 12.8" />
+  </Svg>
+);

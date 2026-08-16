@@ -22,6 +22,11 @@ import Account from "./pages/Account";
 import SettingsPage from "./pages/Settings";
 import About from "./pages/About";
 import Plans from "./pages/Plans";
+import Thrift from "./pages/Thrift";
+import ThriftListing from "./pages/ThriftListing";
+import MyListings from "./pages/MyListings";
+import SavedThrift from "./pages/SavedThrift";
+import { ThriftMessages, ThriftConversation } from "./pages/ThriftMessages";
 
 function Private({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -63,6 +68,14 @@ export default function App() {
               <Route path="/settings" element={<Private><SettingsPage /></Private>} />
               <Route path="/about" element={<Private><About /></Private>} />
               <Route path="/plans" element={<Private><Plans /></Private>} />
+              {/* Static thrift routes are declared before /thrift/:listingId so
+                  "messages" and "saved" are never read as a listing id. */}
+              <Route path="/thrift" element={<Private><Thrift /></Private>} />
+              <Route path="/thrift/messages" element={<Private><ThriftMessages /></Private>} />
+              <Route path="/thrift/messages/:conversationId" element={<Private><ThriftConversation /></Private>} />
+              <Route path="/thrift/saved" element={<Private><SavedThrift /></Private>} />
+              <Route path="/thrift/:listingId" element={<Private><ThriftListing /></Private>} />
+              <Route path="/my-listings" element={<Private><MyListings /></Private>} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
             <ChatFab />
