@@ -10,7 +10,8 @@ type Metric =
   | "tryon_busy" | "tryon_disabled"
   | "credits_granted" | "credits_debited" | "credits_refunded"
   | "chat_used" | "chat_limit_reached"
-  | "generation_failed_gemini" | "generation_failed_r2";
+  | "generation_failed_gemini" | "generation_failed_r2"
+  | "generation_failed_fal" | "generation_failed_fetch";
 
 export function metric(name: Metric, fields: Record<string, string | number | boolean> = {}) {
   try {

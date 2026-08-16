@@ -255,7 +255,7 @@ export function TryOnProvider({ children }: { children: ReactNode }) {
     if (current.length >= MAX_OUTFIT_ITEMS) {
       return {
         status: "blocked",
-        message: `A look holds ${MAX_OUTFIT_ITEMS} pieces. Remove one first.`,
+        message: `For the best result, choose up to ${MAX_OUTFIT_ITEMS} clothing pieces for one look.`,
       };
     }
 

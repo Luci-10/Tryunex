@@ -62,3 +62,85 @@ export function putWithProgress(
     xhr.send(body);
   });
 }
+
+/**
+ * High-quality optimisation for the try-on person image.
+ *
+ * A phone camera hands us a 12–48MP original. Sending that to the provider is
+ * wasteful (it bills per megapixel, rounded up) and slow on mobile data, but
+ * over-compressing loses the fabric and silhouette detail the model reads. So:
+ * long edge 1024 — a 768×1024 portrait is 0.79MP, just under the 1MP the model
+ * recommends — at quality 0.91, aspect ratio preserved, never upscaled, never
+ * cropped.
+ *
+ * `createImageBitmap(..., { imageOrientation: "from-image" })` applies EXIF
+ * rotation, so a photo taken in portrait doesn't arrive sideways. Older
+ * browsers fall back to the <img> path, which browsers already auto-orient.
+ */
+/**
+ * The sizing decision, split out so it can be tested without a browser:
+ * scale down to `longEdge`, never up, preserving aspect ratio exactly.
+ */
+export function targetSize(
+  width: number,
+  height: number,
+  longEdge = 1024,
+): { w: number; h: number } {
+  const scale = Math.min(1, longEdge / Math.max(width, height));
+  return {
+    w: Math.max(1, Math.round(width * scale)),
+    h: Math.max(1, Math.round(height * scale)),
+  };
+}
+
+export async function optimizeForTryOn(
+  file: File,
+  longEdge = 1024,
+  quality = 0.91,
+): Promise<Blob> {
+  let source: ImageBitmap | HTMLImageElement;
+  let width: number;
+  let height: number;
+
+  try {
+    const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
+    source = bitmap;
+    width = bitmap.width;
+    height = bitmap.height;
+  } catch {
+    const objectUrl = URL.createObjectURL(file);
+    try {
+      const img = new Image();
+      img.src = objectUrl;
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => resolve();
+        img.onerror = () => reject(new Error("That file doesn't look like an image we can read"));
+      });
+      source = img;
+      width = img.naturalWidth;
+      height = img.naturalHeight;
+    } finally {
+      URL.revokeObjectURL(objectUrl);
+    }
+  }
+
+  const { w, h } = targetSize(width, height, longEdge);
+
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Canvas not supported on this device");
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(source as CanvasImageSource, 0, 0, w, h);
+  if ("close" in source) (source as ImageBitmap).close();
+
+  return await new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob(
+      (blob) => (blob ? resolve(blob) : reject(new Error("Could not encode the image"))),
+      "image/jpeg",
+      quality,
+    );
+  });
+}

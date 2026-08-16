@@ -17,7 +17,8 @@ import { api, type Cloth } from "../api";
 import { useTryOn, roleOf, ROLE_OPTIONS, SLOT_LABEL, type AddOutcome, type Role } from "../tryon";
 import { hasPhotoConsent, grantPhotoConsent } from "../photoConsent";
 import { nativePickerAvailable, pickPhotoNatively, type PickSource } from "../photoPicker";
-import { resizeImage, putWithProgress } from "../upload";
+import { optimizeForTryOn, putWithProgress } from "../upload";
+import { costLabel, creditsForItems, TRYON_DISCLAIMER, PHOTO_TIP } from "../tryonCost";
 import { downloadLook, shareLook } from "../share";
 import { getSummary, type CreditBalance } from "../billing";
 
@@ -192,8 +193,10 @@ export default function Tryon() {
     setUploading(true);
     setUploadProgress(0);
     try {
-      // Selfies keep more resolution than wardrobe shots — Gemini works from it.
-      const resized = await resizeImage(file, 1024, 0.85);
+      // Long edge 1024 at q0.91: a 768x1024 portrait is 0.79MP, just under
+      // the megapixel the provider recommends, with fabric and face detail
+      // intact. EXIF orientation is applied so portraits aren't sideways.
+      const resized = await optimizeForTryOn(file);
       const { uploadUrl, publicUrl } = await api.post<{ uploadUrl: string; publicUrl: string }>(
         "/tryon/selfie/upload-url",
         {},
@@ -491,7 +494,7 @@ export default function Tryon() {
                     disabled={generating}
                     leading={!generating ? <Refresh className="w-4 h-4" /> : undefined}
                   >
-                    Regenerate new variation · 1 credit
+                    {`Regenerate new variation · ${creditsForItems(selection.length)} credit${creditsForItems(selection.length) === 1 ? "" : "s"}`}
                   </Button>
                   <Button variant="secondary" onClick={() => setShowingOriginal((v) => !v)}>
                     {showingOriginal ? "Show the look" : "Show original"}
@@ -612,17 +615,30 @@ export default function Tryon() {
           >
             {generating
               ? "Creating your look…"
-              : `Put it on me${selection.length ? ` · ${selection.length}` : ""}`}
+              : selection.length > 0
+                ? `Put it on me · ${creditsForItems(selection.length)} credit${
+                    creditsForItems(selection.length) === 1 ? "" : "s"
+                  }`
+                : "Put it on me"}
           </Button>
           {blockedReason && !generating && (
             <p className="text-[12px] text-ink/60 text-center mt-1.5">{blockedReason}</p>
           )}
-          {!blockedReason && credits && !generating && (
+          {!blockedReason && !generating && selection.length > 0 && (
+            <p className="text-[12px] text-ink/70 text-center mt-1.5 font-medium">
+              {costLabel(selection.length)}
+              {credits ? ` · ${credits.total} left` : ""}
+            </p>
+          )}
+          {!blockedReason && !generating && selection.length === 0 && credits && (
             <p className="text-[12px] text-ink/60 text-center mt-1.5">
               {credits.total} Try-on credit{credits.total === 1 ? "" : "s"} left · cached looks are
               free
             </p>
           )}
+          <p className="text-[11.5px] text-ink/55 text-center mt-1.5 leading-snug px-1">
+            {TRYON_DISCLAIMER}
+          </p>
         </div>
       </div>
 
@@ -637,6 +653,9 @@ export default function Tryon() {
           e.target.value = "";
         }}
       />
+      {!selfie && !uploading && (
+        <p className="text-[12px] text-ink/60 leading-relaxed text-center px-2">{PHOTO_TIP}</p>
+      )}
       <PhotoAccessPrompt
         open={askPhoto}
         onCancel={() => setAskPhoto(false)}
@@ -646,20 +665,36 @@ export default function Tryon() {
       <Sheet
         open={outOfCredits}
         onClose={() => setOutOfCredits(false)}
-        title="You're out of Try-on credits"
+        title="Not enough Try-on credits"
         footer={
           <div className="space-y-2">
             <Button block size="lg" onClick={() => nav("/plans")}>
-              Get 3 credits for ₹29
+              Buy credits
             </Button>
             <Button block variant="secondary" onClick={() => nav("/plans")}>
-              View all plans
+              View plans
+            </Button>
+            <Button block variant="quiet" onClick={() => setOutOfCredits(false)}>
+              Not now
             </Button>
           </div>
         }
       >
-        <p className="text-sm text-ink/75 leading-relaxed">
-          Get more looks with a pack, or choose a monthly plan with unlimited AI styling chat.
+        <div className="rounded-xl bg-ink/[0.035] px-3.5 py-3 grid grid-cols-2 gap-3 text-center">
+          <div>
+            <p className="text-[11px] uppercase tracking-wide text-ink/55">You have</p>
+            <p className="text-[19px] font-bold mt-0.5">{credits?.total ?? 0}</p>
+          </div>
+          <div>
+            <p className="text-[11px] uppercase tracking-wide text-ink/55">This look needs</p>
+            <p className="text-[19px] font-bold mt-0.5 text-brand-700">
+              {creditsForItems(selection.length)}
+            </p>
+          </div>
+        </div>
+        <p className="text-sm text-ink/75 leading-relaxed mt-3">
+          Nothing was charged. Get more looks with a pack, or choose a monthly plan with unlimited
+          AI styling chat.
         </p>
         <p className="text-[13px] text-ink/65 leading-relaxed mt-2">
           Your wardrobe, planning, sharing and history all keep working, and looks you've already
