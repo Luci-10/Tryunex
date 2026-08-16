@@ -46,13 +46,31 @@ export const SLOTS = {
    * mark — the page supplies all of those itself, and baked-in text cannot be
    * translated, restyled or read by a screen reader.
    */
-  "landing-hero": {
-    base: "/images/marketing/landing-hero",
-    aspect: 4 / 5,
+  /**
+   * Hero: the virtual-fitting illustration.
+   *
+   * Export CROPPED so the "Virtual Clothes Fitting" title is not included.
+   * Baked-in text cannot be translated, restyled or read by a screen reader,
+   * and it would duplicate the page's own headline. The crop is why the ratio
+   * here is 5:4 rather than the source's near-square.
+   */
+  "landing-fitting": {
+    base: "/images/marketing/landing-fitting",
+    aspect: 5 / 4,
     widths: [640, 960, 1280],
-    sizes: "(min-width: 1024px) 48vw, 92vw",
-    position: "50% 40%",
-    alt: "A person holding a phone, surrounded by their wardrobe, a planned outfit, a calendar and a parcel of pre-loved clothes.",
+    sizes: "(min-width: 1024px) 46vw, 92vw",
+    position: "50% 50%",
+    alt: "An illustration of someone choosing a garment on screen while a styled outfit is previewed beside it.",
+  },
+
+  /** "How it works": the digital-wardrobe illustration. Below the fold, lazy. */
+  "landing-wardrobe": {
+    base: "/images/marketing/landing-wardrobe",
+    aspect: 3 / 2,
+    widths: [640, 960, 1280],
+    sizes: "(min-width: 1024px) 46vw, 92vw",
+    position: "50% 50%",
+    alt: "An illustration of a laptop showing a row of dresses, with a person browsing them.",
   },
 
   /* ------------------------------------------------------------ login */

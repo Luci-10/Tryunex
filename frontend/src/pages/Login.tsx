@@ -5,7 +5,7 @@ import { useAuth } from "../auth";
 import Button from "../components/ui/Button";
 import OtpInput from "../components/ui/OtpInput";
 import { Input, Label, FieldError } from "../components/ui/Field";
-import { ChevronLeft, Mail } from "../components/ui/icons";
+import { ChevronLeft, Mail, Sparkles } from "../components/ui/icons";
 import {
   Features,
   HeroArt,
@@ -97,16 +97,24 @@ export default function Login() {
     setTimeout(() => emailRef.current?.focus(), reduce ? 0 : 420);
   }, []);
 
-  function goToHow() {
-    const el = document.getElementById("how");
+  /**
+   * In-page jump that moves focus as well as the viewport. A keyboard or
+   * screen-reader user who activates an in-page link should land in the
+   * section, not stay behind with the page silently scrolled beneath them.
+   *
+   * The nav's "Try-on" and "Thrift" point here rather than at /tryon and
+   * /thrift: those routes require an account, so a signed-out visitor would
+   * simply be bounced back to this page.
+   */
+  const jumpTo = useCallback((id: string) => {
+    const el = document.getElementById(id);
     if (!el) return;
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     el.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
-    // Move focus as well as the viewport: a keyboard or screen-reader user who
-    // activates an in-page link should land in the section, not stay behind in
-    // the hero with the page silently scrolled beneath them.
     setTimeout(() => el.focus({ preventScroll: true }), reduce ? 0 : 420);
-  }
+  }, []);
+
+  const goToHow = useCallback(() => jumpTo("how"), [jumpTo]);
 
   return (
     <div className="relative min-h-full overflow-x-hidden">
@@ -119,23 +127,30 @@ export default function Login() {
             <img src="/favicon.svg" alt="" className="w-6 h-6" />
             TryUnex
           </span>
-          <nav aria-label="Landing" className="ml-auto flex items-center gap-1.5">
-            <button
-              type="button"
-              onClick={goToHow}
-              className="hidden sm:inline-flex tap-44 h-10 px-3 items-center whitespace-nowrap rounded-full text-[14px] text-ink/70 hover:bg-ink/[0.04] hover:text-ink transition-colors"
-            >
-              How it works
-            </button>
+          <nav aria-label="Landing" className="ml-auto flex items-center gap-1">
+            {[
+              { label: "How it works", to: "how" },
+              { label: "Try-on", to: "feature-tryon" },
+              { label: "Thrift", to: "feature-thrift" },
+            ].map((l) => (
+              <button
+                key={l.to}
+                type="button"
+                onClick={() => jumpTo(l.to)}
+                className="hidden md:inline-flex tap-44 h-10 px-3 items-center whitespace-nowrap rounded-full text-[14px] text-ink/70 hover:bg-ink/[0.04] hover:text-ink transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+              >
+                {l.label}
+              </button>
+            ))}
             <button
               type="button"
               onClick={goToSignIn}
-              className="hidden sm:inline-flex tap-44 h-10 px-3 items-center whitespace-nowrap rounded-full text-[14px] text-ink/70 hover:bg-ink/[0.04] hover:text-ink transition-colors"
+              className="hidden sm:inline-flex tap-44 h-10 px-3 items-center whitespace-nowrap rounded-full text-[14px] text-ink/70 hover:bg-ink/[0.04] hover:text-ink transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
             >
               Sign in
             </button>
             <Button size="sm" onClick={goToSignIn} className="tap-44 whitespace-nowrap">
-              Start styling
+              Start free
             </Button>
           </nav>
         </div>
@@ -153,8 +168,8 @@ export default function Login() {
               Wear more of what you already own.
             </h1>
             <p className="text-[15.5px] sm:text-[17px] text-ink/70 leading-relaxed mt-4 max-w-lg">
-              Organise your wardrobe, plan outfits, try looks on virtually, and discover pre-loved
-              pieces—all in one calm space.
+              TryUnex brings your wardrobe, outfit planning, AI try-on, and pre-loved fashion into
+              one simple space.
             </p>
 
             <div className="flex flex-col sm:flex-row gap-2.5 mt-6">
@@ -162,7 +177,7 @@ export default function Login() {
                 Start styling free
               </Button>
               <Button size="lg" variant="secondary" onClick={goToHow} className="sm:w-auto">
-                See how it works
+                Explore how it works
               </Button>
             </div>
 
@@ -171,7 +186,7 @@ export default function Login() {
 
           {/* Capped: a full-width 4:5 portrait is taller than the copy beside
               it, which leaves a void on the left at desktop widths. */}
-          <Reveal delay={120} className="w-full max-w-[420px] mx-auto lg:mr-0 lg:ml-auto">
+          <Reveal delay={120} className="w-full max-w-[520px] mx-auto lg:mr-0 lg:ml-auto">
             <HeroArt />
           </Reveal>
         </section>
@@ -306,7 +321,28 @@ export default function Login() {
           <HowItWorks />
         </div>
 
-        <Features />
+        <Features onExploreThrift={goToSignIn} />
+
+        {/* ------------------------------------------------------ credits */}
+        <Reveal>
+          <section className="mx-auto max-w-2xl rounded-[28px] border border-ink/[0.07] bg-white shadow-card p-6 sm:p-8 text-center">
+            <span className="w-11 h-11 rounded-2xl bg-mint text-emerald-800 grid place-items-center mx-auto">
+              <Sparkles className="w-5 h-5" />
+            </span>
+            <h2 className="text-[22px] sm:text-[26px] font-bold tracking-tight leading-tight mt-3">
+              Start with your wardrobe.
+            </h2>
+            <p className="text-[15px] text-ink/70 leading-relaxed mt-2.5 max-w-md mx-auto">
+              New members receive 3 free try-on credits. You'll also receive 1 free credit every
+              month.
+            </p>
+            <div className="mt-5">
+              <Button size="lg" onClick={goToSignIn}>
+                Create my free wardrobe
+              </Button>
+            </div>
+          </section>
+        </Reveal>
 
         {/* ---------------------------------------------------- final CTA */}
         <Reveal>
@@ -318,17 +354,16 @@ export default function Login() {
             }}
           >
             <h2 className="text-[24px] sm:text-[32px] font-bold tracking-tight leading-[1.15] max-w-xl mx-auto">
-              Your best wardrobe is the one you already have.
+              Your best wardrobe is already yours.
             </h2>
-            <div className="mt-6 flex flex-col sm:flex-row gap-2.5 justify-center">
+            <p className="text-[15px] text-ink/70 leading-relaxed mt-3 max-w-lg mx-auto">
+              Organise it, style it, try it on, and make more of every piece.
+            </p>
+            <div className="mt-6">
               <Button size="lg" onClick={goToSignIn}>
-                Create your free wardrobe
-              </Button>
-              <Button size="lg" variant="secondary" onClick={goToSignIn}>
-                Sign in
+                Start free
               </Button>
             </div>
-            <p className="text-[13px] text-ink/60 mt-4">3 free try-on credits · No card required</p>
           </section>
         </Reveal>
       </main>
@@ -336,8 +371,9 @@ export default function Login() {
       {/* --------------------------------------------------------- footer */}
       <footer className="border-t border-ink/[0.07]">
         <div className="max-w-6xl mx-auto px-4 py-6 flex flex-wrap items-center gap-x-5 gap-y-2 justify-center sm:justify-between">
-          <p className="text-[12.5px] text-ink/55">
-            © {new Date().getFullYear()} TryUnex · Your wardrobe, your photos, your call.
+          <p className="text-[12.5px] text-ink/55 max-w-xs">
+            <span className="font-semibold text-ink/70">TryUnex</span> · Your wardrobe, styled
+            smarter. Your photos stay yours.
           </p>
           <nav aria-label="Footer" className="flex flex-wrap gap-x-4 gap-y-1 justify-center">
             {/* Privacy and Terms are deliberately absent: those pages do not
@@ -355,6 +391,13 @@ export default function Login() {
                 {l.label}
               </a>
             ))}
+            <button
+              type="button"
+              onClick={goToSignIn}
+              className="tap-44 text-[12.5px] text-ink/60 hover:text-brand-700 hover:underline"
+            >
+              Sign in
+            </button>
           </nav>
         </div>
       </footer>

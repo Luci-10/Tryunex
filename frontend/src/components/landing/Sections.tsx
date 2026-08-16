@@ -1,14 +1,14 @@
 import type { ReactNode } from "react";
 import Photo from "../ui/Photo";
-import BeforeAfter from "../marketing/BeforeAfter";
-import { Calendar, Camera, Check, Shirt, Sparkles, Tag } from "../ui/icons";
+import type { SlotName } from "../../marketing/assets";
+import { Calendar, Camera, Check, Search, Shirt, Sparkles, Tag } from "../ui/icons";
 
 /* ---------------------------------------------------------------- shared */
 
 /**
- * Fades and lifts a section into view once. Purely decorative, so it is
- * disabled wholesale under `prefers-reduced-motion` by the `motion-safe`
- * prefix rather than by a media query in JS.
+ * Fades and lifts content into view. Decorative only, so it is disabled
+ * wholesale under `prefers-reduced-motion` via the `motion-safe` prefix
+ * rather than a media query in JS.
  */
 export function Reveal({
   children,
@@ -43,6 +43,74 @@ function SectionTitle({ eyebrow, title, body }: { eyebrow?: string; title: strin
   );
 }
 
+/**
+ * The illustrations sit on a pale tinted panel with generous padding, so the
+ * artwork is never cropped and never has UI laid over the characters.
+ * `object-contain` is deliberate: `cover` would crop these.
+ */
+function IllustrationPanel({
+  slot,
+  tone,
+  priority,
+  className = "",
+}: {
+  slot: SlotName;
+  tone: string;
+  priority?: boolean;
+  className?: string;
+}) {
+  return (
+    <div
+      className={`rounded-[28px] border border-ink/[0.07] shadow-card p-4 sm:p-6 ${tone} ${className}`}
+    >
+      <Photo
+        slot={slot}
+        priority={priority}
+        rounded="rounded-2xl"
+        // `contain` because these illustrations must never be cropped, and
+        // `multiply` so their white background dissolves into the tinted panel
+        // instead of sitting on it as a white rectangle.
+        className="bg-transparent [&_img]:object-contain [&_img]:mix-blend-multiply"
+        fallback={
+          <div aria-hidden className="w-full h-full grid place-items-center">
+            <Sparkles className="w-10 h-10 text-brand-400" />
+          </div>
+        }
+      />
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ hero */
+
+export function HeroArt() {
+  return (
+    <div className="relative">
+      <IllustrationPanel slot="landing-fitting" tone="bg-lilac/55" priority />
+      {/* Outside the artwork's centre, so no character is covered. */}
+      <Chip className="-left-1 top-6 sm:-left-3" tone="bg-white">
+        <Shirt className="w-3.5 h-3.5 text-brand-600" />
+        Top + trousers
+      </Chip>
+      <Chip className="-right-1 bottom-8 sm:-right-3" tone="bg-brand-500 text-white">
+        <Sparkles className="w-3.5 h-3.5" />
+        Try it on · 1 credit
+      </Chip>
+    </div>
+  );
+}
+
+function Chip({ children, className = "", tone }: { children: ReactNode; className?: string; tone: string }) {
+  return (
+    <span
+      aria-hidden
+      className={`absolute ${className} ${tone} inline-flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-[12px] font-semibold shadow-lift border border-ink/[0.06] motion-safe:animate-rise-in`}
+    >
+      {children}
+    </span>
+  );
+}
+
 /* ------------------------------------------------------------ value strip */
 
 const VALUES = [
@@ -50,19 +118,19 @@ const VALUES = [
     icon: Shirt,
     tone: "bg-lilac text-brand-700",
     title: "Your wardrobe, organised",
-    body: "Every piece in one place, so you can actually see what you own.",
+    body: "Keep every piece in one easy digital wardrobe.",
   },
   {
     icon: Sparkles,
-    tone: "bg-mint text-emerald-800",
-    title: "Try an outfit before you wear it",
-    body: "Put a look on yourself and judge it properly, not from a hanger.",
+    tone: "bg-sky text-blue-800",
+    title: "See looks before you wear them",
+    body: "Select clothes and preview a virtual outfit.",
   },
   {
     icon: Tag,
-    tone: "bg-peach text-orange-800",
-    title: "Give great clothes a second life",
-    body: "Pass on what you've stopped wearing, and find pre-loved pieces.",
+    tone: "bg-mint text-emerald-800",
+    title: "Wear better, waste less",
+    body: "Plan outfits and give good clothes a second life.",
   },
 ];
 
@@ -89,79 +157,69 @@ export function ValueStrip() {
 
 /* ----------------------------------------------------------- how it works */
 
-/**
- * Compact previews drawn from the app's own tokens. The brief allows "real
- * image thumbnails or refined UI previews"; previews are used here so the
- * page needs exactly one photographic asset rather than five.
- */
-function StepArt({ index }: { index: number }) {
-  const frame = "w-full h-24 rounded-xl grid place-items-center overflow-hidden";
-  if (index === 0)
-    return (
-      <div className={`${frame} bg-lilac/70`}>
-        <span className="w-14 h-16 rounded-lg border-2 border-dashed border-brand-300 bg-white/80 grid place-items-center text-brand-600">
-          <Camera className="w-6 h-6" />
-        </span>
-      </div>
-    );
-  if (index === 1)
-    return (
-      <div className={`${frame} bg-sky/70 gap-1.5 flex items-center`}>
-        {["bg-white", "bg-white", "bg-brand-500"].map((c, i) => (
-          <span key={i} className={`w-10 h-12 rounded-lg shadow-card ${c}`} />
-        ))}
-      </div>
-    );
-  if (index === 2)
-    return (
-      <div className={`${frame} bg-mint/70 gap-2 flex items-center`}>
-        <span className="w-10 h-14 rounded-lg bg-white/90 shadow-card" />
-        <Sparkles className="w-4 h-4 text-emerald-700" />
-        <span className="w-10 h-14 rounded-lg bg-gradient-to-b from-brand-400 to-brand-600 shadow-card" />
-      </div>
-    );
-  return (
-    <div className={`${frame} bg-peach/70`}>
-      <span className="flex items-center gap-2 rounded-lg bg-white/90 px-3 py-2 shadow-card">
-        <Calendar className="w-4 h-4 text-orange-700" />
-        <span className="text-[11.5px] font-semibold text-orange-900">Friday · ready</span>
-      </span>
-    </div>
-  );
-}
-
 const STEPS = [
-  { title: "Add your clothes", body: "Snap a photo, or pick one from your gallery." },
-  { title: "Build a look", body: "Combine pieces and keep them together." },
-  { title: "Try it on with AI", body: "See the outfit on you before you commit." },
-  { title: "Plan, repeat, or thrift", body: "Save it for a day, or pass it on." },
+  {
+    icon: Camera,
+    title: "Add your clothes",
+    body: "Upload a clear photo and add details like category, colour, and style.",
+  },
+  {
+    icon: Shirt,
+    title: "Build your look",
+    body: "Choose tops, bottoms, dresses, layers, and accessories from your wardrobe.",
+  },
+  {
+    icon: Sparkles,
+    title: "Try it on",
+    body: "Preview your selected outfit with AI before you wear it.",
+  },
+  {
+    icon: Calendar,
+    title: "Plan or pass it on",
+    body: "Save looks for later or list clothing you no longer wear in Thrift.",
+  },
 ];
 
 export function HowItWorks() {
   return (
-    <section aria-labelledby="how-title" className="space-y-5">
-      <SectionTitle eyebrow="How it works" title="Four steps, and you're styled." />
-      <ol className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {STEPS.map((s, i) => (
-          <li key={s.title}>
-            <Reveal delay={i * 60}>
-              <div className="h-full rounded-card border border-ink/[0.07] bg-white shadow-card p-3.5">
-                <StepArt index={i} />
-                <div className="flex items-center gap-2 mt-3">
-                  <span className="w-6 h-6 rounded-full bg-brand-500 text-white grid place-items-center text-[11px] font-bold shrink-0">
-                    {i + 1}
-                  </span>
-                  <h3 className="text-[14.5px] font-semibold leading-tight">{s.title}</h3>
-                </div>
-                <p className="text-[13px] text-ink/65 leading-relaxed mt-1.5">{s.body}</p>
-              </div>
-            </Reveal>
-          </li>
-        ))}
-      </ol>
-      <h2 id="how-title" className="sr-only">
+    <section aria-labelledby="how-title" className="space-y-6">
+      <SectionTitle eyebrow="How it works" title="From wardrobe to outfit in minutes." />
+      <span id="how-title" className="sr-only">
         How TryUnex works
-      </h2>
+      </span>
+
+      <div className="grid gap-6 lg:grid-cols-2 lg:items-center">
+        <Reveal>
+          <IllustrationPanel slot="landing-wardrobe" tone="bg-sky/45" />
+        </Reveal>
+
+        <ol className="space-y-3">
+          {STEPS.map((s, i) => {
+            const Icon = s.icon;
+            return (
+              <li key={s.title}>
+                <Reveal delay={i * 60}>
+                  <div className="flex gap-3 rounded-card border border-ink/[0.07] bg-white shadow-card p-3.5">
+                    <span className="w-9 h-9 shrink-0 rounded-xl bg-lilac text-brand-700 grid place-items-center">
+                      <Icon className="w-[18px] h-[18px]" />
+                    </span>
+                    <div className="min-w-0">
+                      <h3 className="text-[14.5px] font-semibold leading-tight">
+                        <span className="text-brand-600">{i + 1}.</span> {s.title}
+                      </h3>
+                      <p className="text-[13px] text-ink/65 leading-relaxed mt-1">{s.body}</p>
+                    </div>
+                  </div>
+                </Reveal>
+              </li>
+            );
+          })}
+        </ol>
+      </div>
+
+      <p className="text-[12.5px] text-ink/60 leading-relaxed rounded-xl bg-ink/[0.035] border border-ink/[0.06] px-3.5 py-2.5">
+        AI try-on is a visual styling preview. Fit and size may vary.
+      </p>
     </section>
   );
 }
@@ -172,27 +230,26 @@ function FeatureRow({
   eyebrow,
   title,
   body,
-  note,
+  extra,
   media,
   flip,
+  action,
 }: {
   eyebrow: string;
   title: string;
   body: string;
-  note?: string;
+  extra?: string;
   media: ReactNode;
   flip?: boolean;
+  action?: ReactNode;
 }) {
   return (
     <Reveal>
       <div className="grid gap-5 lg:grid-cols-2 lg:items-center">
         <div className={flip ? "lg:order-2" : ""}>
           <SectionTitle eyebrow={eyebrow} title={title} body={body} />
-          {note && (
-            <p className="text-[12.5px] text-ink/60 leading-relaxed mt-3 rounded-xl bg-ink/[0.035] px-3.5 py-2.5">
-              {note}
-            </p>
-          )}
+          {extra && <p className="text-[13px] text-ink/60 mt-2.5">{extra}</p>}
+          {action && <div className="mt-4">{action}</div>}
         </div>
         <div className={flip ? "lg:order-1" : ""}>{media}</div>
       </div>
@@ -200,29 +257,48 @@ function FeatureRow({
   );
 }
 
-function PlanPreview() {
-  const days = ["M", "T", "W", "T", "F", "S", "S"];
+function WardrobePreview() {
+  const rows = [
+    { label: "Tops", tone: "bg-lilac", n: 12 },
+    { label: "Bottoms", tone: "bg-sky", n: 8 },
+    { label: "Outerwear", tone: "bg-peach", n: 4 },
+  ];
   return (
     <div className="rounded-card border border-ink/[0.07] bg-white shadow-card p-4">
-      <div className="flex gap-1.5">
-        {days.map((d, i) => (
-          <span
-            key={i}
-            className={`flex-1 h-9 rounded-lg grid place-items-center text-[12px] font-semibold ${
-              i === 4 ? "bg-brand-500 text-white" : "bg-ink/[0.05] text-ink/55"
-            }`}
-          >
-            {d}
+      <div className="flex items-center gap-2 rounded-xl border border-ink/10 px-3 h-10">
+        <Search className="w-4 h-4 text-ink/45" />
+        <span className="text-[13px] text-ink/45">Search your wardrobe</span>
+      </div>
+      <div className="space-y-2 mt-3">
+        {rows.map((r) => (
+          <div key={r.label} className="flex items-center gap-2.5">
+            <span className={`w-10 h-10 rounded-lg ${r.tone}`} />
+            <span className="text-[13.5px] font-medium flex-1">{r.label}</span>
+            <span className="text-[12px] text-ink/55">{r.n} pieces</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function LookPreview() {
+  return (
+    <div className="rounded-card border border-ink/[0.07] bg-white shadow-card p-4">
+      <div className="flex gap-2">
+        {["bg-lilac", "bg-sky", "bg-mint"].map((c, i) => (
+          <span key={i} className={`flex-1 h-24 rounded-xl ${c} relative`}>
+            <span className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-white/90 grid place-items-center">
+              <Check className="w-3 h-3 text-emerald-700" />
+            </span>
           </span>
         ))}
       </div>
-      <div className="mt-3 rounded-xl bg-peach/60 p-3">
-        <p className="text-[12px] font-semibold text-orange-900">Friday · 3 pieces planned</p>
-        <div className="flex gap-2 mt-2">
-          {["bg-lilac", "bg-mint", "bg-sky"].map((c, i) => (
-            <span key={i} className={`flex-1 h-14 rounded-lg ${c}`} />
-          ))}
-        </div>
+      <div className="flex items-center justify-between mt-3">
+        <span className="text-[13px] font-medium">3 items selected</span>
+        <span className="rounded-full bg-brand-500 text-white text-[12px] font-semibold px-2.5 py-1">
+          1 credit
+        </span>
       </div>
     </div>
   );
@@ -254,90 +330,47 @@ function ThriftPreview() {
   );
 }
 
-export function Features() {
+export function Features({ onExploreThrift }: { onExploreThrift: () => void }) {
   return (
-    <section aria-label="What you can do" className="space-y-10 sm:space-y-14">
-      <FeatureRow
-        eyebrow="AI virtual try-on"
-        title="See your selected look before you wear it."
-        body="Add a photo of yourself once, pick the pieces, and preview the whole outfit together."
-        note="Virtual try-on is a styling preview; fit and sizing may vary."
-        media={
-          <BeforeAfter
-            beforeFallback={<div className="w-full h-full bg-ink/[0.06]" />}
-            afterFallback={<div className="w-full h-full bg-gradient-to-b from-brand-400 to-brand-600" />}
-          />
-        }
-      />
-      <FeatureRow
-        flip
-        eyebrow="Outfit planning"
-        title="Make mornings easier with looks planned ahead."
-        body="Choose a day, save the outfit, and stop deciding at 8am."
-        media={<PlanPreview />}
-      />
-      <FeatureRow
-        eyebrow="Thrift marketplace"
-        title="Pass on pieces you no longer wear, and discover new favourites."
-        body="List straight from your wardrobe, browse what others are letting go, and message the seller."
-        media={<ThriftPreview />}
-      />
-    </section>
-  );
-}
+    <div className="space-y-12 sm:space-y-16">
+      <section id="feature-wardrobe" tabIndex={-1} className="scroll-mt-20 outline-none">
+        <FeatureRow
+          eyebrow="Digital wardrobe"
+          title="A wardrobe that remembers everything."
+          body="Find your clothes by category, colour, season, occasion, or style—without opening every cupboard."
+          media={<WardrobePreview />}
+        />
+      </section>
 
-/* ---------------------------------------------------------------- hero art */
+      <section id="feature-tryon" tabIndex={-1} className="scroll-mt-20 outline-none">
+        <FeatureRow
+          flip
+          eyebrow="AI try-on"
+          title="Try the look, not the guesswork."
+          body="Choose up to three clothing pieces for one credit and preview how the look comes together."
+          extra="Up to 5 pieces can be styled in a look."
+          media={<LookPreview />}
+        />
+      </section>
 
-/** Chips sit outside the photo's focal area so the person is never covered. */
-export function HeroArt() {
-  return (
-    <div className="relative">
-      <Photo
-        slot="landing-hero"
-        priority
-        rounded="rounded-[28px]"
-        className="border border-ink/[0.07] shadow-lift"
-        fallback={
-          <div
-            aria-hidden
-            className="w-full h-full bg-gradient-to-br from-lilac via-white to-peach grid place-items-center"
-          >
-            <Sparkles className="w-10 h-10 text-brand-400" />
-          </div>
-        }
-      />
-
-      <Chip className="left-3 top-4 sm:-left-3" tone="bg-white">
-        <Check className="w-3.5 h-3.5 text-emerald-700" />
-        Look ready
-      </Chip>
-      <Chip className="right-3 top-1/3 sm:-right-3" tone="bg-white">
-        <Shirt className="w-3.5 h-3.5 text-brand-600" />
-        Top + trousers
-      </Chip>
-      <Chip className="left-4 bottom-5 sm:-left-2" tone="bg-brand-500 text-white">
-        <Sparkles className="w-3.5 h-3.5" />
-        1 credit
-      </Chip>
+      <section id="feature-thrift" tabIndex={-1} className="scroll-mt-20 outline-none">
+        <FeatureRow
+          eyebrow="Thrift"
+          title="A better home for clothes you no longer wear."
+          body="List pre-loved pieces from your wardrobe and discover thoughtful second-hand finds."
+          media={<ThriftPreview />}
+          action={
+            <button
+              type="button"
+              onClick={onExploreThrift}
+              className="tap-44 inline-flex items-center gap-1.5 h-11 px-4 rounded-full border border-brand-300 text-[14px] font-semibold text-brand-700 hover:bg-brand-50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2"
+            >
+              <Tag className="w-4 h-4" />
+              Explore Thrift
+            </button>
+          }
+        />
+      </section>
     </div>
-  );
-}
-
-function Chip({
-  children,
-  className = "",
-  tone,
-}: {
-  children: ReactNode;
-  className?: string;
-  tone: string;
-}) {
-  return (
-    <span
-      aria-hidden
-      className={`absolute ${className} ${tone} inline-flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-[12px] font-semibold shadow-lift border border-ink/[0.06] motion-safe:animate-rise-in`}
-    >
-      {children}
-    </span>
   );
 }
