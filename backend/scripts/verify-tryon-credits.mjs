@@ -95,9 +95,16 @@ async function main() {
       urls.slice(0, n).map((u, i) => ({ imageUrl: u, role: ["top","bottom","outerwear","shoes","accessory"][i] })),
     );
     const mp = (sheet.width * sheet.height) / 1e6;
-    check(`${n}-garment sheet is one image under 1MP`, mp <= 1.0, `${sheet.width}x${sheet.height} = ${mp.toFixed(2)}MP`);
+    check(`${n}-garment sheet within fal's 1MP hard cap`, mp <= 1.0, `${sheet.width}x${sheet.height} = ${mp.toFixed(2)}MP`);
+    check(`${n}-garment sheet near fal's 0.5MP recommendation`, mp <= 0.55, `${mp.toFixed(2)}MP`);
     check(`${n}-garment sheet decodes`, (await sharp(sheet.buffer).metadata()).width === sheet.width);
   }
+
+  // A square garment is the case that used to breach the 1MP cap.
+  const square = await sharp({ create: { width: 2000, height: 2000, channels: 3, background: { r: 90, g: 120, b: 160 } } }).jpeg().toBuffer();
+  const sq = await buildGarmentSheet([{ imageUrl: `data:image/jpeg;base64,${square.toString("base64")}`, role: "top" }]);
+  const sqMp = (sq.width * sq.height) / 1e6;
+  check("single square garment stays under 1MP", sqMp <= 1.0, `${sq.width}x${sq.height} = ${sqMp.toFixed(2)}MP`);
 
   console.log("\n— person image —");
   const bigPortrait = await sharp({ create: { width: 3024, height: 4032, channels: 3, background: { r: 210, g: 190, b: 170 } } })
