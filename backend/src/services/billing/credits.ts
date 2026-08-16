@@ -268,14 +268,43 @@ export type DebitResult =
  * `idempotencyKey` makes a retried request a no-op rather than a second
  * charge.
  */
+/**
+ * How many credits a look costs. Deliberately coarse so it is easy to explain:
+ * a normal outfit is one credit, a big layered look is two.
+ */
+export const MAX_LOOK_ITEMS = 5;
+
+export function creditsForItems(itemCount: number): number {
+  return itemCount >= 4 ? 2 : 1;
+}
+
+/** Back-compat wrapper — a single-credit debit. */
 export async function debitOneCredit(
   userId: string,
   kind: "tryon_debit" | "regenerate_debit",
   idempotencyKey: string,
 ): Promise<DebitResult> {
+  return debitCredits(userId, kind, idempotencyKey, 1);
+}
+
+/**
+ * Takes `amount` credits in one statement.
+ *
+ * The advisory lock in the first CTE serialises debits per user, so two
+ * concurrent requests cannot both read the same balance and both succeed. The
+ * idempotency key makes a repeated click, retry or refresh a no-op rather than
+ * a second charge.
+ */
+export async function debitCredits(
+  userId: string,
+  kind: "tryon_debit" | "regenerate_debit",
+  idempotencyKey: string,
+  amount: number,
+): Promise<DebitResult> {
   await ensureBillingSchema();
   const q = sql();
   const source = kind === "regenerate_debit" ? "regenerate" : "tryon";
+  const cost = Math.max(1, Math.round(amount));
 
   const rows = (await q`
     WITH lk AS (
@@ -292,9 +321,9 @@ export async function debitOneCredit(
     ),
     ins AS (
       INSERT INTO credit_ledger (user_id, type, credit_amount, source_type, idempotency_key)
-      SELECT ${userId}, ${kind}::credit_ledger_type, -1, ${source}::credit_source, ${idempotencyKey}
+      SELECT ${userId}, ${kind}::credit_ledger_type, ${-cost}::int, ${source}::credit_source, ${idempotencyKey}
         FROM bal
-       WHERE bal.available >= 1
+       WHERE bal.available >= ${cost}::int
          AND NOT EXISTS (SELECT 1 FROM existing)
       RETURNING id
     )
@@ -308,7 +337,7 @@ export async function debitOneCredit(
     return { ok: true, ledgerId: null, remaining: available, alreadyApplied: true };
   }
   if (!row?.ledger_id) return { ok: false, reason: "insufficient", remaining: available };
-  return { ok: true, ledgerId: row.ledger_id, remaining: Math.max(0, available - 1) };
+  return { ok: true, ledgerId: row.ledger_id, remaining: Math.max(0, available - cost) };
 }
 
 /**
@@ -320,7 +349,10 @@ export async function refundCredit(userId: string, debitIdempotencyKey: string):
   const q = sql();
   await q`
     INSERT INTO credit_ledger (user_id, type, credit_amount, source_type, idempotency_key)
-    SELECT ${userId}, 'generation_refund', 1, 'refund', ${`refund:${debitIdempotencyKey}`}
+    SELECT ${userId}, 'generation_refund',
+           (SELECT ABS(credit_amount) FROM credit_ledger
+             WHERE idempotency_key = ${debitIdempotencyKey} AND user_id = ${userId} LIMIT 1),
+           'refund', ${`refund:${debitIdempotencyKey}`}
      WHERE EXISTS (
        SELECT 1 FROM credit_ledger
         WHERE idempotency_key = ${debitIdempotencyKey} AND user_id = ${userId}

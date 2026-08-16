@@ -10,7 +10,8 @@
     "db:generate": "find drizzle -name '._*' -delete 2>/dev/null; COPYFILE_DISABLE=1 drizzle-kit generate",
     "db:push": "find drizzle -name '._*' -delete 2>/dev/null; COPYFILE_DISABLE=1 drizzle-kit generate && tsx src/scripts/db-bootstrap.ts",
     "verify:billing": "node --env-file=.env scripts/verify-billing.mjs",
-    "verify:thrift": "node --env-file=.env scripts/verify-thrift.mjs"
+    "verify:thrift": "node --env-file=.env scripts/verify-thrift.mjs",
+    "verify:tryon": "node --env-file=.env scripts/verify-tryon-credits.mjs"
   },
   "dependencies": {
     "@google/genai": "^2.7.0",
@@ -24,6 +25,7 @@
     "jose": "^5.9.6",
     "multer": "^2.0.0",
     "nodemailer": "^8.0.9",
+    "sharp": "^0.35.3",
     "undici": "^7.26.0",
     "zod": "^3.23.8"
   },

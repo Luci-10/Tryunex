@@ -9,15 +9,18 @@
 import { Router } from "express";
 import { z } from "zod";
 import { randomBytes } from "node:crypto";
-import { GoogleGenAI } from "@google/genai";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { db } from "../db/client.js";
 import { clothes, shares, tryonAssets, thriftListings } from "../db/schema.js";
 import { requireAuth } from "../services/auth.js";
 import { ensureThriftSchema } from "../services/thrift.js";
 import { presignPut, r2PublicBase } from "../services/r2.js";
+import { falConfigured, runVirtualTryOn, FalError, tryonMockEnabled } from "../services/fal.js";
+import { buildGarmentSheet, normalisePersonImage, buildMockResult } from "../services/garmentSheet.js";
 import {
-  debitOneCredit,
+  debitCredits,
+  creditsForItems,
+  MAX_LOOK_ITEMS,
   getBalance,
   grantFreeMonthlyCredit,
   refundCredit,
@@ -59,18 +62,30 @@ async function ensureSchema() {
     await sql`ALTER TABLE "tryon_assets" ADD COLUMN IF NOT EXISTS "cloth_ids_csv" text`;
     await sql`ALTER TABLE "tryon_assets" ADD COLUMN IF NOT EXISTS "selfie_id" uuid`;
     await sql`CREATE INDEX IF NOT EXISTS "tryon_cache_idx" ON "tryon_assets" ("user_id", "cloth_ids_csv", "selfie_id")`;
+    // Audit record per generation attempt — including the ones that failed,
+    // which is exactly when you need to know what happened.
+    await sql`
+      CREATE TABLE IF NOT EXISTS "tryon_requests" (
+        "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        "user_id" uuid NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
+        "cloth_ids_csv" text NOT NULL,
+        "item_count" integer NOT NULL,
+        "credit_cost" integer NOT NULL,
+        "idempotency_key" text NOT NULL,
+        "provider" text NOT NULL DEFAULT 'fal-ai/flux-pro/v1/vto',
+        "provider_request_id" text,
+        "seed" bigint,
+        "status" text NOT NULL,
+        "result_url" text,
+        "failure_reason" text,
+        "regenerated" boolean NOT NULL DEFAULT false,
+        "created_at" timestamptz NOT NULL DEFAULT now(),
+        "finished_at" timestamptz
+      )`;
+    await sql`CREATE INDEX IF NOT EXISTS "tryon_requests_user_idx" ON "tryon_requests" ("user_id", "created_at" DESC)`;
+    await sql`CREATE UNIQUE INDEX IF NOT EXISTS "tryon_requests_idem_idx" ON "tryon_requests" ("idempotency_key")`;
   })();
   return schemaReady;
-}
-
-let cachedAi: GoogleGenAI | null = null;
-function ai() {
-  if (cachedAi) return cachedAi;
-  if (!process.env.GEMINI_API_KEY) {
-    throw new Error("GEMINI_API_KEY not set — try-on is not configured");
-  }
-  cachedAi = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-  return cachedAi;
 }
 
 // ----- Selfie -----
@@ -134,6 +149,18 @@ async function fetchAsBase64(url: string): Promise<{ data: string; mimeType: str
 }
 
 import { buildPrompt } from "../services/tryonPrompt.js";
+
+/** Uploads a buffer to R2 through a presigned PUT and returns the public URL. */
+async function putBuffer(key: string, body: Buffer, contentType = "image/jpeg"): Promise<string> {
+  const { uploadUrl, publicUrl } = await presignPut(key, contentType);
+  const put = await fetch(uploadUrl, {
+    method: "PUT",
+    headers: { "Content-Type": contentType },
+    body,
+  });
+  if (!put.ok) throw new Error(`R2 upload failed (HTTP ${put.status})`);
+  return publicUrl;
+}
 
 
 router.post("/generate", async (req, res) => {
@@ -281,11 +308,8 @@ router.post("/generate", async (req, res) => {
     });
   }
 
-  let client: GoogleGenAI;
-  try {
-    client = ai();
-  } catch (e: any) {
-    return res.status(500).json({ error: e?.message ?? "try-on misconfigured" });
+  if (!falConfigured() && !tryonMockEnabled()) {
+    return res.status(500).json({ error: "Try-on is not configured" });
   }
 
   // ---- throttles -------------------------------------------------------
@@ -325,6 +349,12 @@ router.post("/generate", async (req, res) => {
   await ensureProfile(req.userId!);
   await grantFreeMonthlyCredit(req.userId!);
 
+  // Cost is driven by how many garments actually go to the provider. All
+  // selected pieces are composed onto the one sheet FLUX VTO accepts, so the
+  // selected count and the sent count are the same number.
+  const itemCount = orderedClothes.length;
+  const creditCost = creditsForItems(itemCount);
+
   const debitKind = parse.data.forceRegenerate ? "regenerate_debit" : "tryon_debit";
   // Keyed on user + outfit + selfie + a per-request nonce for forced runs, so
   // a duplicated click is one charge but a deliberate second variation is two.
@@ -332,108 +362,123 @@ router.post("/generate", async (req, res) => {
     parse.data.forceRegenerate ? randomBytes(8).toString("hex") : "first"
   }`;
 
-  const debit = await debitOneCredit(req.userId!, debitKind, debitKey);
+  const debit = await debitCredits(req.userId!, debitKind, debitKey, creditCost);
   if (!debit.ok) {
     await releaseGenerationSlot(req.userId!);
     const credits = await getBalance(req.userId!);
-    metric("tryon_refused_no_credits", { userId: req.userId! });
+    metric("tryon_refused_no_credits", { userId: req.userId!, needed: creditCost });
     return res.status(402).json({
       code: "NO_TRYON_CREDITS",
-      error: "You're out of Try-on credits",
+      error:
+        creditCost > 1
+          ? `This look needs ${creditCost} Try-on credits`
+          : "You're out of Try-on credits",
       credits,
+      creditsRequired: creditCost,
+      itemCount,
     });
   }
   metric("credits_debited", { userId: req.userId!, kind: debitKind });
 
   try {
-    const [selfie, ...garments] = await Promise.all([
-      fetchAsBase64(selfieRow.imageUrl),
-      ...orderedClothes.map((c) => fetchAsBase64(c.imageUrl)),
+    // FLUX VTO takes publicly readable URLs and exactly ONE garment image,
+    // so both inputs are prepared here: the person image normalised to a
+    // portrait ~0.79MP, and every selected garment composed onto a single
+    // reference sheet. Both are uploaded to R2 for the provider to fetch.
+    const [person, sheet] = await Promise.all([
+      normalisePersonImage(selfieRow.imageUrl),
+      buildGarmentSheet(
+        orderedClothes.map((c) => ({
+          imageUrl: c.imageUrl,
+          role: parse.data.roles?.[c.id] ?? c.category,
+        })),
+      ),
+    ]);
+
+    const stamp = `${Date.now()}-${randomBytes(4).toString("hex")}`;
+    const [personUrl, garmentUrl] = await Promise.all([
+      putBuffer(`tryon-inputs/${req.userId}/${stamp}-person.jpg`, person.buffer),
+      putBuffer(`tryon-inputs/${req.userId}/${stamp}-garments.jpg`, sheet.buffer),
     ]);
 
     const fresh = Boolean(parse.data.forceRegenerate);
-    // A regeneration must be a genuinely new sample. Same selfie, same
-    // garments and the same prompt with no sampling config land on the same
-    // image every time — so a forced run gets a fresh seed and a little more
-    // temperature. The inputs themselves are never altered to fake variety.
-    const variationConfig = fresh
-      ? { seed: randomBytes(4).readUInt32BE(0) % 2_147_483_647, temperature: 1 }
-      : {};
+    // A regenerate must be a genuinely new sample rather than the same image
+    // again, so it carries a fresh seed. A first run leaves the seed unset.
+    const seed = fresh ? randomBytes(4).readUInt32BE(0) % 2_147_483_647 : undefined;
 
-    const generation = await client.models.generateContent({
-      model: "gemini-2.5-flash-image",
-      ...(fresh ? { config: variationConfig } : {}),
-      contents: [
-        {
-          role: "user",
-          parts: [
-            { inlineData: { mimeType: selfie.mimeType, data: selfie.data } },
-            ...garments.map((g) => ({ inlineData: { mimeType: g.mimeType, data: g.data } })),
-            {
-              text: buildPrompt(
-                orderedClothes.map((c) => ({
-                  name: c.name,
-                  category: c.category,
-                  role: parse.data.roles?.[c.id],
-                })),
-                { fresh },
-              ),
-            },
-          ],
-        },
-      ],
-    });
+    await sql`
+      INSERT INTO tryon_requests
+        (user_id, cloth_ids_csv, item_count, credit_cost, idempotency_key, seed, status, regenerated)
+      VALUES (${req.userId!}, ${clothIdsCsv}, ${itemCount}, ${creditCost}, ${debitKey},
+              ${seed ?? null}, 'started', ${fresh})
+      ON CONFLICT (idempotency_key) DO NOTHING`;
 
-    // The image block is buried inside candidates[].content.parts[] —
-    // walk the structure looking for inlineData.
-    let outImage: { data: string; mimeType: string } | null = null;
-    const candidates = (generation as any).candidates ?? [];
-    for (const cand of candidates) {
-      for (const part of cand.content?.parts ?? []) {
-        if (part.inlineData?.data) {
-          outImage = {
-            data: part.inlineData.data,
-            mimeType: part.inlineData.mimeType ?? "image/png",
-          };
-          break;
-        }
-      }
-      if (outImage) break;
-    }
-    if (!outImage) {
-      metric("generation_failed_gemini", { userId: req.userId! });
+    let vto;
+    if (tryonMockEnabled()) {
+      // Everything up to here is the real path — sizing, compositing, R2
+      // upload, credits. Only the provider call is replaced.
+      const mock = await buildMockResult(person.buffer, sheet.buffer);
+      const mockUrl = await putBuffer(`tryons/${req.userId}/${stamp}.jpg`, mock, "image/jpeg");
+      vto = { imageUrl: mockUrl, contentType: "image/jpeg", seed: seed ?? null, requestId: "mock", nsfw: false };
+    } else {
+    try {
+      vto = await runVirtualTryOn({
+        prompt: buildPrompt(
+          orderedClothes.map((c) => ({
+            name: c.name,
+            category: c.category,
+            role: parse.data.roles?.[c.id],
+          })),
+          { fresh },
+        ),
+        humanImageUrl: personUrl,
+        garmentImageUrl: garmentUrl,
+        ...(seed !== undefined ? { seed } : {}),
+      });
+    } catch (err: any) {
+      // Nothing was produced, so the credit goes straight back.
+      const reason = err instanceof FalError ? `${err.message}: ${err.detail}` : String(err?.message ?? err);
+      console.error("[tryon] fal failed", reason);
+      metric("generation_failed_fal", { userId: req.userId! });
+      await sql`
+        UPDATE tryon_requests SET status = 'failed', failure_reason = ${reason.slice(0, 500)},
+               finished_at = now()
+         WHERE idempotency_key = ${debitKey}`;
       await refundCredit(req.userId!, debitKey);
       await releaseGenerationSlot(req.userId!);
       metric("credits_refunded", { userId: req.userId! });
       return res.status(502).json({
-        error: "The model didn't return an image. Your credit hasn't been used.",
+        error: "The try-on service couldn't complete that look. Your credits haven't been used.",
         creditUsed: false,
         credits: await getBalance(req.userId!),
       });
     }
+    }
 
-    // Upload to R2 under tryons/<userId>/.
-    const ext = outImage.mimeType.includes("png") ? "png" : "jpg";
-    const key = `tryons/${req.userId}/${Date.now()}-${randomBytes(4).toString("hex")}.${ext}`;
-    const { uploadUrl, publicUrl } = await presignPut(key, outImage.mimeType);
-    const put = await fetch(uploadUrl, {
-      method: "PUT",
-      headers: { "Content-Type": outImage.mimeType },
-      body: Buffer.from(outImage.data, "base64"),
-    });
-    if (!put.ok) {
-      const body = await put.text();
-      console.error("[tryon] R2 upload failed", put.status, body);
-      metric("generation_failed_r2", { userId: req.userId!, status: put.status });
+    // Pull the result off the provider's CDN and store it in our own bucket,
+    // so the cache and history never depend on their retention.
+    const got = await fetch(vto.imageUrl);
+    if (!got.ok) {
+      metric("generation_failed_fetch", { userId: req.userId!, status: got.status });
+      await sql`
+        UPDATE tryon_requests SET status = 'failed',
+               failure_reason = ${`result fetch HTTP ${got.status}`}, finished_at = now()
+         WHERE idempotency_key = ${debitKey}`;
       await refundCredit(req.userId!, debitKey);
       await releaseGenerationSlot(req.userId!);
       metric("credits_refunded", { userId: req.userId! });
       return res.status(502).json({
-        error: "Could not save the generated image. Your credit hasn't been used.",
+        error: "Could not retrieve the generated image. Your credits haven't been used.",
         creditUsed: false,
         credits: await getBalance(req.userId!),
       });
     }
+    const resultBuffer = Buffer.from(await got.arrayBuffer());
+    const publicUrl = await putBuffer(
+      `tryons/${req.userId}/${stamp}.jpg`,
+      resultBuffer,
+      "image/jpeg",
+    );
 
     // Insert with cache keys (cloth_ids_csv + selfie_id) via raw SQL so
     // future calls with the same outfit + selfie hit the cache above.
@@ -443,9 +488,13 @@ router.post("/generate", async (req, res) => {
       RETURNING id, image_url, created_at
     `) as Array<{ id: string; image_url: string; created_at: string }>;
     const row = inserted[0];
+    await sql`
+      UPDATE tryon_requests SET status = 'succeeded', result_url = ${publicUrl},
+             provider_request_id = ${vto.requestId}, finished_at = now()
+       WHERE idempotency_key = ${debitKey}`;
     if (fresh) {
       console.log(
-        `[tryon] regenerated user=${req.userId} outfit=${clothIdsCsv} seed=${(variationConfig as any).seed} result=${row.id}`,
+        `[tryon] regenerated user=${req.userId} outfit=${clothIdsCsv} seed=${seed} result=${row.id}`,
       );
     }
     await releaseGenerationSlot(req.userId!);
@@ -461,6 +510,8 @@ router.post("/generate", async (req, res) => {
       cached: false,
       regenerated: fresh,
       creditUsed: true,
+      creditsUsed: creditCost,
+      itemCount,
       credits: await getBalance(req.userId!),
     });
   } catch (e: any) {
