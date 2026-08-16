@@ -63,8 +63,8 @@ studio.
 | File base | Widths | Ratio | Direction |
 | --- | --- | --- | --- |
 | `landing-hero` | 640/960/1280 | 4:5 | **Landing page hero.** The supplied editorial asset. Must contain no text, logo, UI mockup, watermark or brand mark — the page supplies its own copy, and baked-in text cannot be translated, restyled or read by a screen reader. |
-| `landing-fitting` | 640/960/1280 | 5:4 | **Landing hero.** The supplied virtual-fitting illustration. **Export cropped so the "Virtual Clothes Fitting" title is not included** — baked-in text can't be translated, restyled or read by a screen reader, and it duplicates the page headline. Keep the white background: the page blends it away with `mix-blend-multiply`. |
-| `landing-wardrobe` | 640/960/1280 | 3:2 | **"How it works" visual.** The supplied digital-wardrobe illustration. Keep the white background, as above. |
+| `landing-fitting` | single file | 5:4 | **Landing hero.** Save as `landing-fitting.webp` — no width suffix. Keep the white background; the page blends it away with `mix-blend-multiply`. Rendered with `object-fit: contain`, so the full composition is always visible. |
+| `landing-wardrobe` | single file | 3:2 | **"How it works" visual.** Save as `landing-wardrobe.webp` — no width suffix. Same background and fit rules as above. |
 | `login-hero` | 800/1200/1600 | 3:4 | Person standing at an open wardrobe, holding a phone or reaching for a garment. **Leave negative space in the lower third** — copy and a gradient sit there. Must crop well from 3:4 down to a tall desktop panel. |
 | `login-wardrobe` | 800 | 4:3 | Clothes neatly arranged on a rail in a bright bedroom. No person required. |
 | `login-plan` | 800 | 4:3 | An outfit laid out beside a phone and a paper calendar. Simple, uncluttered. |
