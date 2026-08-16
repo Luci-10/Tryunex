@@ -13,7 +13,8 @@
     "verify:thrift": "node --env-file=.env scripts/verify-thrift.mjs",
     "verify:tryon": "node --env-file=.env scripts/verify-tryon-credits.mjs",
     "verify:media": "node --env-file=.env scripts/verify-media.mjs",
-    "audit:images": "node --env-file=.env scripts/audit-image-storage.mjs"
+    "audit:images": "node --env-file=.env scripts/audit-image-storage.mjs",
+    "verify:policy": "node --env-file=.env scripts/verify-policy.mjs"
   },
   "dependencies": {
     "@google/genai": "^2.7.0",

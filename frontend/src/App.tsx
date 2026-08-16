@@ -7,6 +7,7 @@ import { ConfirmProvider } from "./components/ui/Confirm";
 import { OnboardingProvider } from "./tour/OnboardingProvider";
 import { Skeleton } from "./components/ui/Skeleton";
 import ChatFab from "./components/ChatFab";
+import PolicyGate from "./components/PolicyGate";
 import ChatPanel from "./components/ChatPanel";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
@@ -86,6 +87,7 @@ export default function App() {
               <Route path="/my-listings" element={<Private><MyListings /></Private>} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
+            <PolicyGate />
             <ChatFab />
             <ChatPanel />
             </OnboardingProvider>

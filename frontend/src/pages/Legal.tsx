@@ -165,32 +165,9 @@ export function Privacy() {
             ask us to do about it. It describes how the service works today. Where a protection is
             not yet in place, we say so rather than implying otherwise.
           </p>
-          <p>
-            TryUnex is for people aged <strong className="text-ink">18 or over</strong>. It is not
-            intended for children, and account, AI try-on, payment and Thrift features should not be
-            used by anyone under 18.
-          </p>
         </>
       }
       sections={[
-        {
-          id: "age",
-          heading: "Who can use TryUnex",
-          body: (
-            <>
-              <p>
-                You must be 18 or older to create an account or use AI try-on, payments, or the
-                Thrift marketplace. If we learn that an account belongs to someone under 18, we will
-                close it and delete the associated data.
-              </p>
-              <Gap>
-                We currently rely on this requirement being stated rather than verified at signup —
-                date of birth is optional and is not checked against an age limit. If you believe a
-                minor is using TryUnex, tell us at <Mail /> and we will act.
-              </Gap>
-            </>
-          ),
-        },
         {
           id: "collect",
           heading: "What we collect",
@@ -416,13 +393,13 @@ export function Terms() {
       sections={[
         {
           id: "eligibility",
-          heading: "Eligibility and your account",
+          heading: "Your account",
           body: (
             <>
               <p>
-                You must be 18 or older to use TryUnex. You agree to give accurate information, to
-                keep access to your email secure — it is how you sign in — and to tell us promptly if
-                you think someone else has got into your account.
+                You agree to give accurate information, to keep access to your email secure — it is
+                how you sign in — and to tell us promptly if you think someone else has got into
+                your account.
               </p>
               <p>One person, one account. Do not share your account with anyone else.</p>
             </>
