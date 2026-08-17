@@ -346,6 +346,46 @@ export function Privacy() {
           ),
         },
         {
+          id: "thrift",
+          heading: "Thrift Store",
+          body: (
+            <>
+              <p>When you use the marketplace we hold:</p>
+              <ul className="space-y-1.5">
+                <L>
+                  <strong className="text-ink">Listings:</strong> the garment photo, title, price,
+                  size, condition, description, city if you give one, listing status, and the times
+                  it was created and changed.
+                </L>
+                <L>
+                  <strong className="text-ink">Transactions:</strong> the buyer and seller account
+                  identifiers, the listing, the confirmation state of each side, a record of the
+                  completed transfer, and timestamps.
+                </L>
+                <L>
+                  <strong className="text-ink">Messages and reports:</strong> the messages in a
+                  listing conversation, and any report you make with its reason and optional note.
+                </L>
+              </ul>
+              <p>
+                This is used to run listings, connect buyers and sellers, show each side the status
+                of a sale, move the garment between wardrobes once both people have confirmed,
+                prevent misuse, answer support requests, and look into reports.
+              </p>
+              <p>
+                Listing details are visible to other people using the marketplace. Your account and
+                transaction records are not — they follow the same access rules as the rest of your
+                data.
+              </p>
+              <p>
+                We do not process marketplace payments, so we hold no payment details for a thrift
+                sale. What you agree and how you pay each other happens outside TryUnex and is not
+                recorded here.
+              </p>
+            </>
+          ),
+        },
+        {
           id: "retention",
           heading: "Keeping and deleting data",
           body: (
@@ -506,29 +546,48 @@ export function Terms() {
         },
         {
           id: "thrift",
-          heading: "Thrift marketplace",
+          heading: "Thrift Store transactions",
           body: (
             <>
               <p>
                 <strong className="text-ink">
                   TryUnex is a platform that connects buyers and sellers.
                 </strong>{" "}
-                We are not the seller, the shipper, an authenticator, an insurer, or the owner of any
-                listed item. Buyers and sellers arrange payment and delivery directly between
-                themselves, outside TryUnex.
+                Buyers and sellers arrange payment and delivery directly with each other, outside
+                TryUnex.
               </p>
               <p>
-                We do not provide escrow, buyer protection, authentication, delivery tracking, or
-                refunds on marketplace transactions. Please take the same care you would with any
-                private sale.
+                We are <strong className="text-ink">not</strong> an escrow service, a payment
+                processor, a delivery provider, a product authenticator, a buyer-protection
+                provider, or a dispute-resolution service. Please take the same care you would with
+                any private sale.
               </p>
-              <p>If you list an item, you must describe it truthfully — photos, condition, size, and price. You must not:</p>
+              <p>
+                Sellers are responsible for describing items truthfully — photos, title, size,
+                condition, price and city — and may only list items they own and are allowed to
+                sell. Buyers are responsible for reviewing the listing and deciding whether to go
+                ahead.
+              </p>
+              <p>
+                <strong className="text-ink">How a sale completes.</strong> A thrift transaction
+                needs confirmation from both people. The seller records the sale against the buyer,
+                and the buyer confirms they have received the item. Once both have confirmed, the
+                garment is automatically removed from the seller's TryUnex wardrobe and added to the
+                buyer's. Only confirm once you consider your direct transaction genuinely complete —
+                a confirmed transfer cannot be undone from within the app.
+              </p>
+              <p>Listings must not include:</p>
               <ul className="space-y-1.5">
-                <L>list counterfeit or replica goods;</L>
-                <L>post misleading listings or fake pricing;</L>
-                <L>harass another user, or attempt a scam;</L>
-                <L>ask a buyer to pay through a channel designed to avoid accountability.</L>
+                <L>stolen, counterfeit or replica goods, or anything illegal to sell;</L>
+                <L>misleading descriptions, fake pricing, or images that are not of the item;</L>
+                <L>abusive, harassing or inappropriate content;</L>
+                <L>attempts to move a buyer to a channel designed to avoid accountability.</L>
               </ul>
+              <p>
+                You can report a listing or a conversation from the app. We may remove listings,
+                restrict access, or act on an account where we reasonably believe there is misuse,
+                fraud, a prohibited item, a misleading listing, or abuse.
+              </p>
             </>
           ),
         },

@@ -126,6 +126,21 @@ export const CONVERSATION_REPORT_REASONS: { value: string; label: string }[] = [
   { value: "other", label: "Other" },
 ];
 
+export type SaleStatus = "pending" | "completed" | "cancelled" | "refunded";
+
+export type Sale = {
+  id: string;
+  status: SaleStatus;
+  role: "buyer" | "seller";
+  createdAt: string;
+  completedAt: string | null;
+  listing: { title: string; imageUrl: string; pricePaise: number };
+};
+
+/** The one line that must appear wherever a sale is confirmed. */
+export const NO_ESCROW_NOTE =
+  "TryUnex does not hold payment, verify delivery, or provide buyer protection. Arrange payment and delivery directly with each other, and only confirm once you consider that done.";
+
 export const SIZES = ["XS", "S", "M", "L", "XL", "XXL", "Free size"];
 
 /** The one line that has to appear wherever money is discussed. */
@@ -254,6 +269,25 @@ export const thrift = {
   send: (id: string, body: string) =>
     api.post<{ message: Message }>(`/thrift/messages/${id}`, { body }),
   markRead: (id: string) => api.post<{ ok: true }>(`/thrift/messages/${id}/read`),
+
+  /** Seller records a sale to a buyer who has messaged them about the piece. */
+  recordSale: (listingId: string, buyerUserId: string) =>
+    api.post<{ transactionId: string; status: SaleStatus }>(
+      `/thrift/listings/${listingId}/sell`,
+      { buyerUserId },
+    ),
+
+  /** Buyer confirms they have received it. This completes the sale and moves
+   *  the garment into their wardrobe. */
+  confirmReceived: (transactionId: string) =>
+    api.post<{ status: SaleStatus; clothId: string; alreadyTransferred: boolean }>(
+      `/thrift/transactions/${transactionId}/confirm`,
+    ),
+
+  cancelSale: (transactionId: string) =>
+    api.post<{ status: SaleStatus }>(`/thrift/transactions/${transactionId}/cancel`),
+
+  sales: () => api.get<{ transactions: Sale[] }>("/thrift/transactions"),
 
   reportListing: (id: string, reason: string, note?: string) =>
     api.post<{ reported: true }>(`/thrift/listings/${id}/report`, { reason, note: note || null }),

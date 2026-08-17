@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import PageShell from "../components/PageShell";
 import Button from "../components/ui/Button";
@@ -9,6 +9,7 @@ import { ErrorBanner } from "../components/ui/Field";
 import { useToast } from "../components/ui/Toast";
 import { useConfirm } from "../components/ui/Confirm";
 import ReportSheet from "../components/thrift/ReportSheet";
+import SalePanel from "../components/thrift/SalePanel";
 import { Avatar } from "../components/Nav";
 import { Block, Bookmark, Chat, ChevronLeft, Flag, Sparkles } from "../components/ui/icons";
 import { useTryOn } from "../tryon";
@@ -40,6 +41,18 @@ export default function ThriftListing() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
+
+  const reload = useCallback(() => {
+    if (!listingId) return;
+    thrift
+      .detail(listingId)
+      .then((r) => {
+        setListing(r.listing);
+        setIsOwner(r.isOwner);
+        setConversationId(r.conversationId);
+      })
+      .catch(() => {});
+  }, [listingId]);
 
   useEffect(() => {
     if (!listingId) return;
@@ -200,6 +213,8 @@ export default function ThriftListing() {
           </div>
         </div>
       </Surface>
+
+      <SalePanel listing={listing} isOwner={isOwner} onTransferred={reload} />
 
       {/* ------------------------------------------------------ buyer actions */}
       {isOwner ? (
