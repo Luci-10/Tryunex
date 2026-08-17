@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api, type User } from "../api";
 import { useAuth } from "../auth";
@@ -14,16 +14,39 @@ export default function Register() {
   const [gender, setGender] = useState<"" | "male" | "female" | "other" | "prefer_not_to_say">("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Read from the server so the rule lives in one place. Falls back to the
+  // same default if the call fails, so the form still guides correctly.
+  const [minimumAge, setMinimumAge] = useState(18);
+
+  useEffect(() => {
+    api
+      .get<{ minimumAge: number }>("/config")
+      .then((r) => setMinimumAge(r.minimumAge))
+      .catch(() => {});
+  }, []);
+
+  /** Whole years, counting the birthday itself. Mirrors the server check. */
+  function ageOf(iso: string): number {
+    const b = new Date(`${iso}T00:00:00Z`);
+    const now = new Date();
+    let age = now.getUTCFullYear() - b.getUTCFullYear();
+    const before =
+      now.getUTCMonth() < b.getUTCMonth() ||
+      (now.getUTCMonth() === b.getUTCMonth() && now.getUTCDate() < b.getUTCDate());
+    return before ? age - 1 : age;
+  }
+
+  const tooYoung = dob !== "" && ageOf(dob) < minimumAge;
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    if (!name.trim()) return;
+    if (!name.trim() || !dob || tooYoung) return;
     setBusy(true);
     try {
       const r = await api.post<{ user: User }>("/auth/complete", {
         name: name.trim(),
-        dob: dob || null,
+        dob,
         gender: gender || null,
       });
       setUser(r.user);
@@ -55,8 +78,22 @@ export default function Register() {
         </label>
 
         <label className="block">
-          <Label hint="optional">Date of birth</Label>
-          <Input type="date" value={dob} onChange={(e) => setDob(e.target.value)} />
+          <Label>Date of birth</Label>
+          <Input
+            type="date"
+            value={dob}
+            required
+            max={new Date().toISOString().slice(0, 10)}
+            aria-invalid={tooYoung || undefined}
+            onChange={(e) => setDob(e.target.value)}
+          />
+          {tooYoung ? (
+            <FieldError>You need to be {minimumAge} or older to use TryUnex.</FieldError>
+          ) : (
+            <span className="block text-[12px] text-ink/55 mt-1.5">
+              TryUnex is for people aged {minimumAge} and over.
+            </span>
+          )}
         </label>
 
         <label className="block">
@@ -72,7 +109,7 @@ export default function Register() {
 
         <FieldError>{error}</FieldError>
 
-        <Button type="submit" size="lg" block loading={busy} disabled={!name.trim()}>
+        <Button type="submit" size="lg" block loading={busy} disabled={!name.trim() || !dob || tooYoung}>
           {busy ? "Setting up…" : "Enter TryUnex"}
         </Button>
       </form>

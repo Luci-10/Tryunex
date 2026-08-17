@@ -76,6 +76,12 @@ async function main() {
     const anonAccept = await fetch(`${api}/policy/accept`, { method: "POST" });
     check("signed-out accept is rejected", anonAccept.status === 401, `status ${anonAccept.status}`);
 
+    console.log("\n— protected content stays reachable, gating is client-side —");
+    // The gate is a UI block. The API itself must keep working, otherwise a
+    // user who has not yet accepted could not even load the policy status.
+    const wardrobe = await call(a, "/clothes");
+    check("the API is not broken for an unaccepted user", wardrobe.status === 200, `status ${wardrobe.status}`);
+
     console.log("\n— a new version asks again —");
     await sql`UPDATE policy_acceptances SET version = 'older-version' WHERE user_id = ${a.id}`;
     const stale = await call(a, "/policy/status");

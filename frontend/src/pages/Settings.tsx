@@ -4,6 +4,8 @@ import PageShell, { PageTitle } from "../components/PageShell";
 import { useAuth } from "../auth";
 import { getSummary, TIER_LABEL, type BillingSummary } from "../billing";
 import { useOnboarding } from "../tour/OnboardingProvider";
+import { api } from "../api";
+import type { PolicyStatus } from "../components/PolicyGate";
 import {
   MOTION_OPTIONS,
   getMotionPref,
@@ -15,12 +17,22 @@ import {
   Info,
   Mail,
   Settings as SettingsIcon,
+  Check,
   Sparkles,
   UserIcon,
   Users,
 } from "../components/ui/icons";
 
 export default function Settings() {
+  const [policy, setPolicy] = useState<PolicyStatus | null>(null);
+
+  useEffect(() => {
+    api
+      .get<PolicyStatus>("/policy/status")
+      .then(setPolicy)
+      .catch(() => setPolicy(null));
+  }, []);
+
   const { user } = useAuth();
   const [motion, setMotion] = useState<MotionPref>(() => getMotionPref());
   const [billing, setBilling] = useState<BillingSummary | null>(null);
@@ -157,6 +169,47 @@ export default function Settings() {
           </span>
           <ChevronRight className="w-4 h-4 text-ink/25 shrink-0" />
         </button>
+      </Group>
+
+      <Group icon={<Check className="w-4 h-4" />} tone="lilac" title="Legal & consent">
+        <RowLink to="/terms" label="Terms of Service" hint="The agreement you accepted" />
+        <RowLink to="/privacy" label="Privacy Policy" hint="What we collect and why" />
+        <RowLink to="/refunds" label="Refund & Credit Policy" hint="Credits, plans and refunds" />
+        {policy && (
+          <div className="px-4 py-3">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-[14px] font-medium">Acceptance</span>
+              {policy.accepted ? (
+                <span className="inline-flex items-center gap-1 rounded-full bg-mint text-emerald-800 px-2 py-0.5 text-[11px] font-semibold">
+                  <Check className="w-3 h-3" />
+                  Accepted
+                </span>
+              ) : (
+                <span className="inline-flex items-center rounded-full bg-butter text-amber-800 px-2 py-0.5 text-[11px] font-semibold">
+                  Action required
+                </span>
+              )}
+            </div>
+            <p className="text-[12px] text-ink/60 mt-1 leading-relaxed">
+              Policy version {policy.version}
+              {policy.accepted && policy.acceptedAt
+                ? ` · accepted ${new Date(policy.acceptedAt).toLocaleString(undefined, {
+                    dateStyle: "medium",
+                    timeStyle: "short",
+                  })}`
+                : ""}
+            </p>
+            {!policy.accepted && (
+              <button
+                type="button"
+                onClick={() => window.location.reload()}
+                className="tap-44 mt-1.5 text-[13px] font-semibold text-brand-700 underline underline-offset-2"
+              >
+                Review and accept now
+              </button>
+            )}
+          </div>
+        )}
       </Group>
 
       <Group icon={<Info className="w-4 h-4" />} tone="butter" title="App">

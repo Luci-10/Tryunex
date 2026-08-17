@@ -96,11 +96,10 @@ function LegalPage({
         ))}
 
         <div className="rounded-card border border-ink/[0.07] bg-mint/40 p-4 sm:p-5">
-          <h2 className="text-[16px] font-bold tracking-tight">Contact</h2>
+          <h2 className="text-[16px] font-bold tracking-tight">Contact &amp; grievances</h2>
           <p className="text-[14.5px] text-ink/75 leading-relaxed mt-2">
-            TryUnex is operated by Shubham Sheshank as an individual proprietor under the TryUnex
-            brand, based in Mumbai, Maharashtra, India. For privacy questions, support, or
-            grievances, write to{" "}
+            For privacy questions, support, or grievances, contact our Grievance Officer, Shubham
+            Sheshank, at{" "}
             <a
               href={`mailto:${SUPPORT_EMAIL}`}
               className="font-semibold text-brand-700 hover:underline"
@@ -108,6 +107,28 @@ function LegalPage({
               {SUPPORT_EMAIL}
             </a>
             .
+          </p>
+          <dl className="text-[14px] leading-relaxed mt-3 space-y-1">
+            <div className="flex gap-2">
+              <dt className="text-ink/60 shrink-0">Grievance Officer:</dt>
+              <dd className="font-medium">Shubham Sheshank</dd>
+            </div>
+            <div className="flex gap-2">
+              <dt className="text-ink/60 shrink-0">Email:</dt>
+              <dd>
+                <a href={`mailto:${SUPPORT_EMAIL}`} className="font-medium text-brand-700 hover:underline">
+                  {SUPPORT_EMAIL}
+                </a>
+              </dd>
+            </div>
+            <div className="flex gap-2">
+              <dt className="text-ink/60 shrink-0">Location:</dt>
+              <dd className="font-medium">Mumbai, Maharashtra, India</dd>
+            </div>
+          </dl>
+          <p className="text-[13px] text-ink/60 leading-relaxed mt-3">
+            TryUnex is operated by Shubham Sheshank as an individual proprietor under the TryUnex
+            brand.
           </p>
         </div>
 
@@ -176,8 +197,9 @@ export function Privacy() {
               <ul className="space-y-1.5">
                 <L>
                   <strong className="text-ink">Account:</strong> your name, email address, and the
-                  one-time codes used to sign you in. Optionally a date of birth and gender if you
-                  choose to add them.
+                  one-time codes used to sign you in. We also collect your date of birth, which is
+                  required at signup and used to confirm you meet the minimum age for an account.
+                  Gender is optional.
                 </L>
                 <L>
                   <strong className="text-ink">Wardrobe:</strong> the photos you upload and the
@@ -202,6 +224,10 @@ export function Privacy() {
                   <strong className="text-ink">Billing:</strong> your plan, credit balance and
                   ledger, payment status, and the payment or order reference returned by our payment
                   processor.
+                </L>
+                <L>
+                  <strong className="text-ink">Consent:</strong> which version of these policies you
+                  accepted, and when.
                 </L>
                 <L>
                   <strong className="text-ink">Technical and security:</strong> session data,
