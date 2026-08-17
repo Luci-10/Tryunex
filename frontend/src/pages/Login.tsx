@@ -246,6 +246,20 @@ export default function Login() {
                 </Button>
 
                 <p className="text-[13px] text-ink/60 text-center">No password to remember.</p>
+
+                {/* Stated, not ticked. A pre-ticked box is not consent, and an
+                    unticked one would block a flow that works today. */}
+                <p className="text-[12px] text-ink/60 text-center leading-relaxed">
+                  By continuing, you agree to the{" "}
+                  <a href="/terms" className="font-semibold text-brand-700 hover:underline">
+                    Terms
+                  </a>{" "}
+                  and acknowledge the{" "}
+                  <a href="/privacy" className="font-semibold text-brand-700 hover:underline">
+                    Privacy Policy
+                  </a>
+                  .
+                </p>
               </form>
             ) : (
               <div key="otp" className="space-y-4">
@@ -376,12 +390,12 @@ export default function Login() {
             smarter. Your photos stay yours.
           </p>
           <nav aria-label="Footer" className="flex flex-wrap gap-x-4 gap-y-1 justify-center">
-            {/* Privacy and Terms are deliberately absent: those pages do not
-                exist yet, and a footer link to a dead route is worse than no
-                link. Add the routes and they belong here. */}
             {[
               { to: "/about", label: "About" },
               { to: "/contact", label: "Contact" },
+              { to: "/privacy", label: "Privacy" },
+              { to: "/terms", label: "Terms" },
+              { to: "/refunds", label: "Refunds" },
             ].map((l) => (
               <a
                 key={l.to}

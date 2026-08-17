@@ -14,6 +14,9 @@ import contactRoutes from "./routes/contact.js";
 import billingRoutes from "./routes/billing.js";
 import onboardingRoutes from "./routes/onboarding.js";
 import thriftRoutes from "./routes/thrift.js";
+import mediaRoutes from "./routes/media.js";
+import policyRoutes from "./routes/policy.js";
+import configRoutes from "./routes/config.js";
 
 /**
  * Express 4 does not forward a rejected promise from an async handler to the
@@ -134,6 +137,9 @@ export function createApp() {
   app.use("/api/contact", contactRoutes);
   app.use("/api/onboarding", onboardingRoutes);
   app.use("/api/thrift", thriftRoutes);
+  app.use("/api/media", mediaRoutes);
+  app.use("/api/policy", policyRoutes);
+  app.use("/api/config", configRoutes);
   // sharing.ts owns /share/*, /friends/*, /suggestions/* — mounted under /api.
   app.use("/api", sharingRoutes);
 

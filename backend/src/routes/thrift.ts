@@ -33,6 +33,11 @@ import {
 import type { ThriftConversation, ThriftListing } from "../db/schema.js";
 import { requireAuth } from "../services/auth.js";
 import { ensureThriftSchema, CLOSED_MESSAGE } from "../services/thrift.js";
+import {
+  ensureTransferSchema,
+  transferGarment,
+} from "../services/thriftTransfer.js";
+import { neon } from "@neondatabase/serverless";
 
 const router = Router();
 router.use(requireAuth);
@@ -855,6 +860,163 @@ router.delete("/users/:userId/block", async (req, res) => {
       ),
     );
   res.json({ blocked: false });
+});
+
+/* ------------------------------------------------- sale and transfer */
+
+function tsql() {
+  return neon(process.env.DATABASE_URL!);
+}
+
+/**
+ * Seller records a sale to a named buyer.
+ *
+ * This only opens a PENDING transaction and takes the listing off the market.
+ * Nothing moves between wardrobes until the buyer confirms — a seller acting
+ * alone must not be able to push a garment into someone else's wardrobe.
+ */
+router.post("/listings/:id/sell", async (req, res) => {
+  const parse = z.object({ buyerUserId: z.string().uuid() }).safeParse(req.body ?? {});
+  if (!parse.success) return res.status(400).json({ error: "Choose a buyer" });
+  const me = req.userId!;
+  await ensureTransferSchema();
+
+  const row = await loadListing(req.params.id);
+  if (!row) return res.status(404).json({ error: "Listing not found" });
+  if (row.sellerUserId !== me) return res.status(403).json({ error: "Not your listing" });
+  if (parse.data.buyerUserId === me) {
+    return res.status(400).json({ error: "You can't buy your own listing" });
+  }
+  if (row.status !== "active") {
+    return res.status(409).json({ error: "This listing is not on the market" });
+  }
+
+  // The buyer must be someone who actually talked to the seller about it.
+  const [conv] = await db
+    .select({ id: thriftConversations.id })
+    .from(thriftConversations)
+    .where(
+      and(
+        eq(thriftConversations.listingId, row.id),
+        eq(thriftConversations.buyerUserId, parse.data.buyerUserId),
+      ),
+    )
+    .limit(1);
+  if (!conv) {
+    return res.status(400).json({ error: "That buyer hasn't messaged you about this piece" });
+  }
+
+  const q = tsql();
+  const inserted = (await q`
+    INSERT INTO thrift_transactions
+      (listing_id, seller_user_id, buyer_user_id, source_cloth_id, status, seller_confirmed_at)
+    VALUES (${row.id}::uuid, ${me}::uuid, ${parse.data.buyerUserId}::uuid,
+            ${row.sourceClothId}::uuid, 'pending', now())
+    ON CONFLICT DO NOTHING
+    RETURNING id, status`) as any[];
+  if (inserted.length === 0) {
+    return res.status(409).json({ error: "A sale is already open for this listing" });
+  }
+
+  await db
+    .update(thriftListings)
+    .set({ status: "sold", soldAt: new Date(), updatedAt: new Date() })
+    .where(eq(thriftListings.id, row.id));
+  await db
+    .update(thriftConversations)
+    .set({ status: "closed", updatedAt: new Date() })
+    .where(eq(thriftConversations.listingId, row.id));
+
+  res.status(201).json({ transactionId: inserted[0].id, status: "pending" });
+});
+
+/** Buyer confirms receipt. This is what completes the sale and moves the piece. */
+router.post("/transactions/:id/confirm", async (req, res) => {
+  const me = req.userId!;
+  await ensureTransferSchema();
+  const q = tsql();
+
+  // Flip to completed only for this buyer, and only from pending. Doing it in
+  // one statement means a duplicate call cannot complete it twice.
+  const rows = (await q`
+    UPDATE thrift_transactions
+       SET status = 'completed', buyer_confirmed_at = now(),
+           completed_at = now(), updated_at = now()
+     WHERE id = ${req.params.id}::uuid
+       AND buyer_user_id = ${me}::uuid
+       AND status = 'pending'
+    RETURNING id`) as any[];
+
+  if (rows.length === 0) {
+    // Either not theirs, not pending, or already done. Distinguish only enough
+    // to be useful, without leaking other people's transactions.
+    const [existing] = (await q`
+      SELECT status, buyer_user_id FROM thrift_transactions
+       WHERE id = ${req.params.id}::uuid LIMIT 1`) as any[];
+    if (!existing || existing.buyer_user_id !== me) {
+      return res.status(404).json({ error: "Not found" });
+    }
+    if (existing.status !== "completed") {
+      return res.status(409).json({ error: `This sale is ${existing.status}.` });
+    }
+  }
+
+  const transfer = await transferGarment(req.params.id);
+  if (!transfer.ok) {
+    return res.status(409).json({ error: transfer.reason });
+  }
+  res.json({
+    status: "completed",
+    clothId: transfer.newClothId,
+    alreadyTransferred: transfer.alreadyDone,
+  });
+});
+
+/** Seller or buyer cancels a pending sale, putting the listing back. */
+router.post("/transactions/:id/cancel", async (req, res) => {
+  const me = req.userId!;
+  await ensureTransferSchema();
+  const q = tsql();
+  const rows = (await q`
+    UPDATE thrift_transactions
+       SET status = 'cancelled', updated_at = now()
+     WHERE id = ${req.params.id}::uuid
+       AND status = 'pending'
+       AND (buyer_user_id = ${me}::uuid OR seller_user_id = ${me}::uuid)
+    RETURNING listing_id`) as any[];
+  if (rows.length === 0) return res.status(409).json({ error: "That sale can't be cancelled" });
+
+  await db
+    .update(thriftListings)
+    .set({ status: "active", soldAt: null, updatedAt: new Date() })
+    .where(eq(thriftListings.id, rows[0].listing_id));
+  res.json({ status: "cancelled" });
+});
+
+/** Sales this user is part of, either side. */
+router.get("/transactions", async (req, res) => {
+  await ensureTransferSchema();
+  const q = tsql();
+  const rows = (await q`
+    SELECT t.id, t.status, t.created_at, t.completed_at,
+           t.seller_user_id, t.buyer_user_id,
+           l.title, l.image_url, l.price_paise
+      FROM thrift_transactions t
+      JOIN thrift_listings l ON l.id = t.listing_id
+     WHERE t.buyer_user_id = ${req.userId!}::uuid
+        OR t.seller_user_id = ${req.userId!}::uuid
+     ORDER BY t.created_at DESC
+     LIMIT 50`) as any[];
+  res.json({
+    transactions: rows.map((r) => ({
+      id: r.id,
+      status: r.status,
+      role: r.buyer_user_id === req.userId ? "buyer" : "seller",
+      createdAt: r.created_at,
+      completedAt: r.completed_at,
+      listing: { title: r.title, imageUrl: r.image_url, pricePaise: r.price_paise },
+    })),
+  });
 });
 
 export default router;

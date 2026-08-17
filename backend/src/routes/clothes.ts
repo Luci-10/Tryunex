@@ -9,7 +9,10 @@ import { requireAuth } from "../services/auth.js";
 import { STYLE_TAGS } from "../db/schema.js";
 import { presignPut, r2PublicBase } from "../services/r2.js";
 import { settlePastPlans } from "../services/plans.js";
+import { metric } from "../services/metrics.js";
 import { ensureThriftSchema } from "../services/thrift.js";
+import { imageReferenceCount } from "../services/thriftTransfer.js";
+import { deleteObject, keyFromUrl } from "../services/r2.js";
 
 const router = Router();
 router.use(requireAuth);
@@ -244,11 +247,65 @@ router.patch("/:id", async (req, res) => {
 });
 
 // DELETE /clothes/:id
+// Deletes a wardrobe piece and, if nothing else still points at it, the image
+// object behind it.
+//
+// The storage key is never taken from the request — it is read from the row we
+// just proved the caller owns. And the object is only removed once every other
+// reference is gone: after a thrift transfer the buyer's row shares the same
+// object, so deleting on the seller's row would wipe the buyer's photo.
 router.delete("/:id", async (req, res) => {
   const id = req.params.id;
   if (!id) return res.status(400).json({ error: "Bad id" });
+
+  const [row] = await db
+    .select()
+    .from(clothes)
+    .where(and(eq(clothes.id, id), eq(clothes.userId, req.userId!)))
+    .limit(1);
+  if (!row) return res.status(404).json({ error: "Not found" });
+
+  await ensureThriftSchema();
+  const [openListing] = await db
+    .select({ id: thriftListings.id, status: thriftListings.status })
+    .from(thriftListings)
+    .where(
+      and(
+        eq(thriftListings.sourceClothId, id),
+        inArray(thriftListings.status, ["draft", "active", "paused"] as const),
+      ),
+    )
+    .limit(1);
+  if (openListing) {
+    return res.status(409).json({
+      code: "LISTED_FOR_SALE",
+      error: "This piece is listed on Thrift. Remove the listing first, then delete it.",
+      listingId: openListing.id,
+    });
+  }
+
   await db.delete(clothes).where(and(eq(clothes.id, id), eq(clothes.userId, req.userId!)));
-  res.json({ ok: true });
+
+  // The row is gone either way; storage cleanup is best-effort and must never
+  // turn a successful delete into a user-facing error.
+  let imageDeleted = false;
+  try {
+    const refs = await imageReferenceCount(row.imageUrl, id);
+    if (refs === 0) {
+      const key = keyFromUrl(row.imageUrl);
+      if (key) {
+        await deleteObject(key);
+        imageDeleted = true;
+      }
+    }
+  } catch (err: any) {
+    // Log the record, never the URL — it is a live credential while the
+    // bucket is public.
+    console.error(`[clothes] image cleanup failed for cloth ${id}: ${err?.message ?? err}`);
+    metric("image_cleanup_failed", { userId: req.userId!, clothId: id });
+  }
+
+  res.json({ ok: true, imageDeleted });
 });
 
 // POST /clothes/wear { ids } — immediate wear (today). Marks worn + records

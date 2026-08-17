@@ -3,6 +3,7 @@ import { z } from "zod";
 import { db } from "../db/client.js";
 import { users } from "../db/schema.js";
 import { eq } from "drizzle-orm";
+import { checkAge, MINIMUM_AGE } from "../services/age.js";
 import {
   generateOtp,
   issueOtpCookie,
@@ -84,10 +85,18 @@ router.post("/complete", async (req, res) => {
 
   const parse = z.object({
     name: z.string().trim().min(1).max(80),
-    dob: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
+    dob: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
     gender: z.enum(["male", "female", "other", "prefer_not_to_say"]).optional().nullable(),
   }).safeParse(req.body);
-  if (!parse.success) return res.status(400).json({ error: "Invalid input" });
+  if (!parse.success) {
+    return res.status(400).json({ error: "Please enter your name and date of birth." });
+  }
+
+  // Server-side, so a client that skips the form control cannot bypass it.
+  const age = checkAge(parse.data.dob);
+  if (!age.ok) {
+    return res.status(400).json({ error: age.reason, code: "AGE_RESTRICTED", minimumAge: MINIMUM_AGE });
+  }
 
   const dup = await db.select().from(users).where(eq(users.email, email)).limit(1);
   if (dup[0]) {
@@ -102,7 +111,7 @@ router.post("/complete", async (req, res) => {
     .values({
       email,
       name: parse.data.name,
-      dob: parse.data.dob ?? null,
+      dob: parse.data.dob,
       gender: parse.data.gender ?? null,
     })
     .returning();
