@@ -36,6 +36,7 @@ export default function AddClothModal({
 }) {
   const { user } = useAuth();
   const fileRef = useRef<HTMLInputElement>(null);
+  const cameraRef = useRef<HTMLInputElement>(null);
 
   const [step, setStep] = useState<"photo" | "details">("photo");
   const [file, setFile] = useState<File | null>(null);
@@ -48,8 +49,12 @@ export default function AddClothModal({
   const [error, setError] = useState<string | null>(null);
   const [askPhoto, setAskPhoto] = useState(false);
 
-  function openWebPicker() {
-    fileRef.current?.click();
+  // Two inputs, because one cannot do both jobs. A plain input opens the
+  // gallery; the same input with `capture` opens the camera and skips the
+  // gallery entirely. Which one fires depends on what the user asked for.
+  function openWebPicker(source: PickSource = "gallery") {
+    if (source === "camera") cameraRef.current?.click();
+    else fileRef.current?.click();
   }
 
   async function startPick(source: PickSource = "gallery") {
@@ -58,10 +63,10 @@ export default function AddClothModal({
       const r = await pickPhotoNatively(source);
       if (r.ok) return accept(r.file);
       if (r.reason === "cancelled") return;
-      if (r.reason === "unavailable") return openWebPicker(); // no native half in this build
+      if (r.reason === "unavailable") return openWebPicker(source); // no native half in this build
       return setError(r.reason === "denied" ? r.message : r.message);
     }
-    openWebPicker();
+    openWebPicker(source);
   }
 
   // First tap on a touch device gets the explainer; after that, straight in.
@@ -200,11 +205,24 @@ export default function AddClothModal({
 
           <FieldError>{error}</FieldError>
 
-          {/* No `capture` attribute — with it, the OS skips the gallery. */}
+          {/* Gallery: no `capture`, so the OS shows the picker. */}
           <input
             ref={fileRef}
             type="file"
             accept="image/*"
+            className="sr-only"
+            onChange={(e) => {
+              accept(e.target.files?.[0]);
+              e.target.value = "";
+            }}
+          />
+          {/* Camera: `capture` goes straight to the rear camera. Browsers that
+              do not support it fall back to the normal picker on their own. */}
+          <input
+            ref={cameraRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
             className="sr-only"
             onChange={(e) => {
               accept(e.target.files?.[0]);

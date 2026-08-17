@@ -1,22 +1,35 @@
-import { Capacitor } from '@capacitor/core';
-
-export const isNative = Capacitor.isNativePlatform();
-export const platform = Capacitor.getPlatform();
+import { Capacitor } from "@capacitor/core";
 
 /**
- * Executes a function only on the native app (Android/iOS)
+ * Whether we are running inside the installed Android/iOS app.
+ *
+ * Evaluated per call, not once at import. This used to be a module-level
+ * `const`, which meant that if the Capacitor bridge was not ready at the
+ * moment this module first loaded, the answer was frozen to `false` for the
+ * whole session — and native-only affordances silently disappeared.
  */
-export function runInApp(fn: () => void) {
-  if (isNative) {
-    fn();
+export function isNativeApp(): boolean {
+  try {
+    return Capacitor.isNativePlatform();
+  } catch {
+    return false;
   }
 }
 
-/**
- * Executes a function only on the web
- */
-export function runOnWeb(fn: () => void) {
-  if (!isNative) {
-    fn();
+export function platformName(): string {
+  try {
+    return Capacitor.getPlatform();
+  } catch {
+    return "web";
   }
+}
+
+/** Executes a function only on the native app (Android/iOS). */
+export function runInApp(fn: () => void) {
+  if (isNativeApp()) fn();
+}
+
+/** Executes a function only on the web. */
+export function runOnWeb(fn: () => void) {
+  if (!isNativeApp()) fn();
 }

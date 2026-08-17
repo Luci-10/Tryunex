@@ -1,5 +1,5 @@
 import { api } from "./api";
-import { isNative } from "./platform";
+import { isNativeApp } from "./platform";
 
 export type CreditBalance = {
   total: number;
@@ -125,7 +125,7 @@ export async function startCheckout(
       // credits — so on native we ask the caller to poll the server rather
       // than treating a dismissal as a definite cancellation.
       modal: {
-        ondismiss: () => resolve({ ok: false, cancelled: true, verifyAnyway: isNative }),
+        ondismiss: () => resolve({ ok: false, cancelled: true, verifyAnyway: isNativeApp() }),
       },
     });
     rz.on("payment.failed", (e: any) =>
