@@ -12,7 +12,7 @@ type Metric =
   | "chat_used" | "chat_limit_reached"
   | "generation_failed_gemini" | "generation_failed_r2"
   | "generation_failed_fal" | "generation_failed_fetch"
-  | "media_rate_limited" | "media_denied";
+  | "media_rate_limited" | "media_denied" | "image_cleanup_failed";
 
 export function metric(name: Metric, fields: Record<string, string | number | boolean> = {}) {
   try {

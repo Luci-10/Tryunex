@@ -100,7 +100,7 @@ export async function presignPut(
  * Signs one S3 request. Shared by presignPut and presignGet so the SigV4
  * details exist once.
  */
-function presign(method: "GET" | "PUT", key: string, expiresIn: number): string {
+function presign(method: "GET" | "PUT" | "DELETE", key: string, expiresIn: number): string {
   const accountId = envOr("R2_ACCOUNT_ID");
   const accessKeyId = envOr("R2_ACCESS_KEY_ID");
   const secret = envOr("R2_SECRET_ACCESS_KEY");
@@ -148,6 +148,21 @@ function presign(method: "GET" | "PUT", key: string, expiresIn: number): string 
   ).toString("hex");
 
   return `https://${host}${canonicalUri}?${canonicalQuery}&X-Amz-Signature=${signature}`;
+}
+
+/**
+ * Deletes an object. Server-side only, and callers must resolve the key from a
+ * database record they have already checked ownership on — never from client
+ * input.
+ */
+export async function deleteObject(key: string): Promise<void> {
+  const url = presign("DELETE", key, 60);
+  const res = await fetch(url, { method: "DELETE" });
+  // R2 returns 204 for a delete, and 404 if it was already gone — both mean
+  // "the object is not there", which is what the caller wanted.
+  if (!res.ok && res.status !== 404) {
+    throw new Error(`R2 delete failed (HTTP ${res.status})`);
+  }
 }
 
 /** Signed URLs live long enough to load a page, not long enough to share. */

@@ -36,7 +36,9 @@ export function ensureThriftSchema(): Promise<void> {
     await q`CREATE TABLE IF NOT EXISTS "thrift_listings" (
       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
       "seller_user_id" uuid NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
-      "source_cloth_id" uuid NOT NULL REFERENCES "clothes"("id") ON DELETE CASCADE,
+      -- Not a cascade: a completed sale deletes the seller's garment, and a
+      -- cascade here would erase the listing and, through it, the sale record.
+      "source_cloth_id" uuid NOT NULL,
       "title" text NOT NULL,
       "price_paise" integer NOT NULL,
       "currency" text NOT NULL DEFAULT 'INR',
@@ -58,6 +60,8 @@ export function ensureThriftSchema(): Promise<void> {
     // One open listing per wardrobe piece. Partial, so a piece can be listed
     // again after a previous listing was sold or removed — which is the point
     // of keeping sold rows around rather than deleting them.
+    await q`ALTER TABLE "thrift_listings"
+      DROP CONSTRAINT IF EXISTS "thrift_listings_source_cloth_id_fkey"`;
     await q`CREATE UNIQUE INDEX IF NOT EXISTS "thrift_listings_one_open_idx"
       ON "thrift_listings" ("source_cloth_id")
       WHERE "status" IN ('draft','active','paused')`;

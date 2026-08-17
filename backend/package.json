@@ -15,7 +15,8 @@
     "verify:media": "node --env-file=.env scripts/verify-media.mjs",
     "audit:images": "node --env-file=.env scripts/audit-image-storage.mjs",
     "verify:policy": "node --env-file=.env scripts/verify-policy.mjs",
-    "verify:age": "node --env-file=.env scripts/verify-age.mjs"
+    "verify:age": "node --env-file=.env scripts/verify-age.mjs",
+    "verify:transfer": "node --env-file=.env scripts/verify-thrift-transfer.mjs"
   },
   "dependencies": {
     "@google/genai": "^2.7.0",
