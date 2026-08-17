@@ -1,4 +1,4 @@
-import { isNative } from "./platform";
+import { isNativeApp } from "./platform";
 
 export type PickSource = "gallery" | "camera";
 
@@ -21,11 +21,11 @@ export type PickResult =
  * given build, we report `unavailable` and the caller falls back to the input.
  */
 export function nativePickerAvailable(): boolean {
-  return isNative;
+  return isNativeApp();
 }
 
 export async function pickPhotoNatively(source: PickSource): Promise<PickResult> {
-  if (!isNative) return { ok: false, reason: "unavailable" };
+  if (!isNativeApp()) return { ok: false, reason: "unavailable" };
 
   try {
     const { Camera, CameraResultType, CameraSource } = await import("@capacitor/camera");
