@@ -61,8 +61,10 @@ function unpatchedXHR(): typeof XMLHttpRequest {
     const frame = document.createElement("iframe");
     frame.style.display = "none";
     document.body.appendChild(frame);
+    // The iframe stays in the document on purpose. Removing it tears down its
+    // window, and the constructor taken from it stops working — which is what
+    // broke the first attempt at this.
     const fromFrame = (frame.contentWindow as any)?.XMLHttpRequest;
-    frame.remove();
     if (typeof fromFrame === "function") {
       cachedXHR = fromFrame as typeof XMLHttpRequest;
       return cachedXHR;
