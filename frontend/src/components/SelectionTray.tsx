@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import type { Cloth } from "../api";
 import IconButton from "./ui/IconButton";
 import { Close } from "./ui/icons";
+import ProtectedPhoto from "./ui/ProtectedPhoto";
 
 /**
  * Persistent bottom tray for multi-select flows (plan an outfit, suggest to a
@@ -47,7 +48,9 @@ export default function SelectionTray({
           <ul className="flex gap-2 overflow-x-auto no-scrollbar pb-1 -mx-1 px-1">
             {items.map((c) => (
               <li key={c.id} className="relative shrink-0">
-                <img
+                <ProtectedPhoto
+                  scope="cloth"
+                  id={c.id}
                   src={c.imageUrl}
                   alt={c.name}
                   className="w-14 h-14 rounded-xl object-cover bg-ink/[0.05]"

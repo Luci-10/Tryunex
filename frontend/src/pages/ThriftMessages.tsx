@@ -11,6 +11,7 @@ import { useToast } from "../components/ui/Toast";
 import { useConfirm } from "../components/ui/Confirm";
 import ReportSheet from "../components/thrift/ReportSheet";
 import { Block, Chat, ChevronLeft, Flag, Send } from "../components/ui/icons";
+import ProtectedPhoto from "../components/ui/ProtectedPhoto";
 import {
   CONVERSATION_REPORT_REASONS,
   PAYMENT_NOTE,
@@ -66,7 +67,9 @@ export function ThriftMessages() {
                 to={`/thrift/messages/${c.id}`}
                 className="flex gap-3 rounded-card border border-ink/[0.06] bg-white shadow-card p-3 hover:shadow-lift transition-shadow"
               >
-                <img
+                <ProtectedPhoto
+                  scope="listing"
+                  id={c.listing.id}
                   src={c.listing.imageUrl}
                   alt=""
                   loading="lazy"
@@ -188,7 +191,9 @@ export function ThriftConversation() {
       <Link to={`/thrift/${detail.listing.id}`} className="block">
         <Surface padded={false} className="overflow-hidden hover:shadow-lift transition-shadow">
           <div className="flex gap-3 p-3 items-center">
-            <img
+            <ProtectedPhoto
+              scope="listing"
+              id={detail.listing.id}
               src={detail.listing.imageUrl}
               alt=""
               className="w-12 h-14 rounded-lg object-cover bg-ink/[0.04] shrink-0"

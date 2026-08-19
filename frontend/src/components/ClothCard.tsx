@@ -2,6 +2,7 @@ import type { Cloth } from "../api";
 import { useTryOn } from "../tryon";
 import { Badge } from "./ui/Chip";
 import { Check, Sparkles } from "./ui/icons";
+import ProtectedPhoto from "./ui/ProtectedPhoto";
 
 // "Worn today" / "yesterday" / "N days ago" / "Never worn". Server dates are
 // YYYY-MM-DD; compare against local midnight to avoid a timezone off-by-one.
@@ -61,10 +62,11 @@ export default function ClothCard({
       )}
 
       <div className="relative aspect-square bg-ink/[0.04]">
-        <img
+        <ProtectedPhoto
+          scope="cloth"
+          id={cloth.id}
           src={cloth.imageUrl}
           alt={cloth.name}
-          loading="lazy"
           className="w-full h-full object-cover"
         />
 

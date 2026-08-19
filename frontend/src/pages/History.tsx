@@ -4,10 +4,12 @@ import EmptyState from "../components/ui/EmptyState";
 import { Skeleton } from "../components/ui/Skeleton";
 import { ErrorBanner } from "../components/ui/Field";
 import { Clock } from "../components/ui/icons";
+import ProtectedPhoto from "../components/ui/ProtectedPhoto";
 import { api } from "../api";
 
 type Row = {
   id: string;
+  clothId: string;
   wornOn: string;
   clothName: string;
   clothImage: string;
@@ -99,7 +101,9 @@ export default function History() {
               <ul className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-7 gap-2.5 mt-2.5">
                 {items.map((i) => (
                   <li key={i.id} className="rounded-xl overflow-hidden bg-white border border-ink/[0.06] shadow-card">
-                    <img
+                    <ProtectedPhoto
+                      scope="cloth"
+                      id={i.clothId}
                       src={i.clothImage}
                       alt={i.clothName}
                       loading="lazy"

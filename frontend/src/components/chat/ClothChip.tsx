@@ -3,6 +3,7 @@ import { api, type Cloth } from "../../api";
 import { useTryOn } from "../../tryon";
 import { useChat } from "../../chat";
 import { Calendar, Check, Sparkles } from "../ui/icons";
+import ProtectedPhoto from "../ui/ProtectedPhoto";
 
 /** A single garment the assistant referenced, with the actions that matter. */
 export default function ClothChip({ cloth }: { cloth: Cloth }) {
@@ -33,7 +34,9 @@ export default function ClothChip({ cloth }: { cloth: Cloth }) {
   return (
     <span className="block my-2 bg-white border border-ink/10 rounded-xl p-2">
       <span className="flex items-center gap-2">
-        <img
+        <ProtectedPhoto
+          scope="cloth"
+          id={cloth.id}
           src={cloth.imageUrl}
           alt={cloth.name}
           className="w-11 h-11 rounded-lg object-cover bg-ink/[0.05] shrink-0"

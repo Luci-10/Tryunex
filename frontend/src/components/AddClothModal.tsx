@@ -71,11 +71,7 @@ export default function AddClothModal({
 
   // First tap on a touch device gets the explainer; after that, straight in.
   function requestPhoto() {
-    if (!hasPhotoConsent()) {
-      setAskPhoto(true);
-      return;
-    }
-    startPick("gallery");
+    setAskPhoto(true);
   }
 
   function continueFromPrompt(source: PickSource) {

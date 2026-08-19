@@ -9,6 +9,7 @@ import { useToast } from "../components/ui/Toast";
 import { Avatar } from "../components/Nav";
 import { useSignOut } from "../components/ProfileMenu";
 import { Check, Close, Logout, Sparkles } from "../components/ui/icons";
+import ProtectedPhoto from "../components/ui/ProtectedPhoto";
 import { api } from "../api";
 import { useAuth } from "../auth";
 
@@ -137,7 +138,9 @@ export default function Account() {
                 <ul className="flex gap-2.5 overflow-x-auto no-scrollbar pb-1">
                   {s.clothes.map((c) => (
                     <li key={c.id} className="shrink-0 w-20">
-                      <img
+                      <ProtectedPhoto
+                        scope="cloth"
+                        id={c.id}
                         src={c.imageUrl}
                         alt={c.name}
                         className="w-20 h-20 rounded-xl object-cover bg-white"
