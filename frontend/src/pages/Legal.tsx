@@ -329,14 +329,19 @@ export function Privacy() {
                 choose to publish as a Thrift listing, and images belonging to someone who has
                 explicitly shared their wardrobe with you.
               </p>
-              <Gap>
-                <strong className="text-ink">Please read this before uploading anything sensitive.</strong>{" "}
-                Images are stored at unique, unguessable web addresses. Those addresses are not
-                currently individually access-controlled, which means anyone who obtained the exact
-                address of an image could open it without signing in. We do not publish or share
-                those addresses, but we want you to know the limit of the protection rather than
-                overstate it. Adding access-controlled, time-limited links is a priority improvement.
-              </Gap>
+              <p>
+                Your images are stored privately. The storage they live in is not open to the public
+                — an image can only be read through TryUnex, and only after we have checked that the
+                account asking for it is allowed to see it. The link your device receives is
+                generated for that request and stops working after about ten minutes, so it cannot
+                be saved, forwarded, or shared to give someone else access.
+              </p>
+              <p>
+                What this does not do is protect an image after you have shown it to someone. A
+                person who can see a photo in the app can still screenshot it, and a Thrift listing
+                you publish is visible to people browsing the marketplace. Access control governs
+                who can fetch an image from us, not what they do with it afterwards.
+              </p>
               <p>
                 Marketplace messages are for arranging a sale. They must not be used to share
                 personal contact details, payment credentials, or illegal content, and phone numbers
@@ -395,12 +400,13 @@ export function Privacy() {
                 your account. Deleting an item removes it from your wardrobe and from the app
                 immediately.
               </p>
-              <Gap>
-                Deleting an item currently removes it from your account and from view, but the
-                underlying image file is not yet automatically erased from our storage provider. We
-                are changing this. In the meantime, if you want a specific image permanently removed,
-                email <Mail /> and we will delete it manually.
-              </Gap>
+              <p>
+                Deleting an item also deletes the image file itself, once nothing else still needs
+                it. An image can be shared by more than one record — a piece you have listed on
+                Thrift, or one that has moved to another wardrobe through a completed sale — so we
+                check for remaining references before erasing anything, and remove the file only
+                when the last one is gone.
+              </p>
               <p>
                 Account closure is handled by request rather than a self-service button. Email{" "}
                 <Mail /> from your registered address and we will close the account and delete your
