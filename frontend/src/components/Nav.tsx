@@ -78,7 +78,7 @@ export function AppHeader() {
           to="/"
           className="flex items-center gap-2 font-bold text-brand-700 tracking-tight shrink-0"
         >
-          <img src="/favicon.svg" alt="" className="w-6 h-6" />
+          <img src="/logo-192.png" alt="" className="w-6 h-6" />
           <span>TryUnex</span>
         </NavLink>
 

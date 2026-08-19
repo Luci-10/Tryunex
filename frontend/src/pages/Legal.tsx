@@ -39,7 +39,7 @@ function LegalPage({
             to="/"
             className="flex items-center gap-2 font-bold text-brand-700 tracking-tight tap-44"
           >
-            <img src="/favicon.svg" alt="" className="w-6 h-6" />
+            <img src="/logo-192.png" alt="" className="w-6 h-6" />
             TryUnex
           </Link>
           <Link
