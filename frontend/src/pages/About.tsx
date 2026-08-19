@@ -21,7 +21,7 @@ export default function About() {
   return (
     <PageShell width="narrow">
       <section className="rounded-card border border-brand-200/70 bg-gradient-to-br from-lilac via-lilac/60 to-white p-6 text-center">
-        <img src="/favicon.svg" alt="" className="w-12 h-12 mx-auto" />
+        <img src="/logo-192.png" alt="" className="w-12 h-12 mx-auto" />
         <h1 className="text-[22px] font-bold tracking-tight mt-3">TryUnex</h1>
         <p className="text-[14.5px] text-ink/70 leading-relaxed mt-2 max-w-sm mx-auto">
           TryUnex helps you organise the clothes you already own, plan outfits, share your wardrobe

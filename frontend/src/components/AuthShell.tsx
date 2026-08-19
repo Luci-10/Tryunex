@@ -30,7 +30,7 @@ export default function AuthShell({
       />
       <div className="w-full max-w-sm">
         <div className="flex items-center justify-center gap-2 mb-6">
-          <img src="/favicon.svg" alt="" className="w-8 h-8" />
+          <img src="/logo-192.png" alt="" className="w-8 h-8" />
           <span className="text-xl font-bold text-brand-700 tracking-tight">TryUnex</span>
         </div>
 

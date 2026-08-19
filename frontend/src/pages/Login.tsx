@@ -124,7 +124,7 @@ export default function Login() {
       <header className="sticky top-0 z-30 bg-canvas/85 backdrop-blur-md border-b border-ink/[0.06] pt-safe">
         <div className="max-w-6xl mx-auto px-4 h-14 flex items-center gap-3">
           <span className="flex items-center gap-2 font-bold text-brand-700 tracking-tight">
-            <img src="/favicon.svg" alt="" className="w-6 h-6" />
+            <img src="/logo-192.png" alt="" className="w-6 h-6" />
             TryUnex
           </span>
           <nav aria-label="Landing" className="ml-auto flex items-center gap-1">
