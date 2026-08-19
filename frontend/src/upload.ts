@@ -40,6 +40,40 @@ export async function resizeImage(file: File, maxSide = 800, quality = 0.78): Pr
   }
 }
 
+/**
+ * An XMLHttpRequest constructor the Capacitor bridge has not patched.
+ *
+ * Tries Capacitor's own saved original first, but only if it is genuinely a
+ * constructor. Falls back to a detached same-origin iframe, whose window
+ * carries untouched globals. Falls back again to the patched one, which is
+ * better than throwing.
+ */
+let cachedXHR: typeof XMLHttpRequest | null = null;
+
+function unpatchedXHR(): typeof XMLHttpRequest {
+  if (cachedXHR) return cachedXHR;
+  const saved = (window as any).CapacitorWebXMLHttpRequest;
+  if (typeof saved === "function") {
+    cachedXHR = saved as typeof XMLHttpRequest;
+    return cachedXHR;
+  }
+  try {
+    const frame = document.createElement("iframe");
+    frame.style.display = "none";
+    document.body.appendChild(frame);
+    const fromFrame = (frame.contentWindow as any)?.XMLHttpRequest;
+    frame.remove();
+    if (typeof fromFrame === "function") {
+      cachedXHR = fromFrame as typeof XMLHttpRequest;
+      return cachedXHR;
+    }
+  } catch {
+    /* iframe unavailable — fall through */
+  }
+  cachedXHR = XMLHttpRequest;
+  return cachedXHR;
+}
+
 /** PUT with real progress — fetch() can't report upload progress, XHR can. */
 export function putWithProgress(
   url: string,
@@ -50,12 +84,13 @@ export function putWithProgress(
   return new Promise((resolve, reject) => {
     // CapacitorHttp patches XMLHttpRequest, and the native bridge cannot
     // serialise a Blob body — it JSON-stringifies it, so R2 received the two
-    // bytes "{}" instead of the image. Capacitor keeps the unpatched original
-    // here. The PUT goes to a presigned URL, so it needs no cookie and loses
-    // nothing by skipping the bridge.
-    const NativeXHR: typeof XMLHttpRequest =
-      (window as any).CapacitorWebXMLHttpRequest ?? XMLHttpRequest;
-    const xhr = new NativeXHR();
+    // bytes "{}" instead of the image. The PUT targets a presigned URL and
+    // needs no cookie, so it can safely skip the bridge entirely.
+    //
+    // Capacitor's own escape hatch is not dependable: the global exists but is
+    // not always a constructor. A same-origin iframe is, because its window
+    // has pristine globals that the patch never touched.
+    const xhr = new (unpatchedXHR())();
     xhr.open("PUT", url);
     xhr.setRequestHeader("Content-Type", contentType);
     xhr.upload.onprogress = (e) => {
