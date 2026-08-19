@@ -96,11 +96,18 @@ async function main() {
     check("seller creates a listing", created.status === 201, `status ${created.status}`);
     const listingId = created.body?.listing?.id;
 
+    // The response no longer carries image_url — that is deliberate, so a
+    // client cannot bypass the media proxy. Assert the stored row instead.
+    const [stored] = await sql`
+      SELECT image_url, category FROM thrift_listings WHERE id = ${listingId}`;
     check(
       "image and category come from the cloth, not the request",
-      created.body?.listing?.imageUrl?.includes(seller.id) &&
-        created.body?.listing?.category === "outerwear",
-      JSON.stringify(created.body?.listing?.category),
+      stored?.image_url?.includes(seller.id) && stored?.category === "outerwear",
+      JSON.stringify(stored?.category),
+    );
+    check(
+      "the API does not hand out the image URL",
+      created.body?.listing?.imageUrl === undefined,
     );
 
     const dup = await call(seller, "POST", "/thrift/listings", {

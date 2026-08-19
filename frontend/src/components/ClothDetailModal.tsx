@@ -132,9 +132,8 @@ export default function ClothDetailModal({
   return (
     <>
       <Lightbox
-        src={zoom && data ? data.cloth.imageUrl : null}
-        id={data?.cloth.id}
         scope="cloth"
+        id={zoom && data ? data.cloth.id : undefined}
         alt={data?.cloth.name}
         onClose={() => setZoom(false)}
       />

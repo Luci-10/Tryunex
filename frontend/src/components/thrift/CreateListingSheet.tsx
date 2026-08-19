@@ -88,7 +88,13 @@ export default function CreateListingSheet({
     setError(null);
   }, [open, existing, cloth]);
 
-  const image = existing?.imageUrl ?? cloth?.imageUrl ?? null;
+  // The preview reads through the proxy like everything else: a listing by
+  // its own id, otherwise the wardrobe piece it is being created from.
+  const preview: { scope: "listing" | "cloth"; id: string } | null = existing
+    ? { scope: "listing", id: existing.id }
+    : cloth
+      ? { scope: "cloth", id: cloth.id }
+      : null;
   const priceNumber = Number(d.price);
   const validPrice = d.price.trim() !== "" && Number.isFinite(priceNumber) && priceNumber >= 1;
   const ready = d.title.trim() !== "" && validPrice && d.size.trim() !== "";
@@ -150,12 +156,11 @@ export default function CreateListingSheet({
       }
     >
       <div className="space-y-4">
-        {image && (
+        {preview && (
           <div className="flex gap-3 items-center">
             <ProtectedPhoto
-              scope={existing ? "listing" : "cloth"}
-              id={(existing?.id ?? cloth?.id) || ""}
-              src={image}
+              scope={preview.scope}
+              id={preview.id}
               alt=""
               className="w-20 h-20 rounded-xl object-cover bg-ink/[0.04] shrink-0"
             />

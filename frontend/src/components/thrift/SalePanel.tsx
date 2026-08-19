@@ -45,17 +45,11 @@ export default function SalePanel({
     thrift
       .sales()
       .then((r) => {
-        // Match on the listing's own title and image: the sales list carries
-        // the listing snapshot rather than its id.
-        setSale(
-          r.transactions.find(
-            (t) => t.listing.title === listing.title && t.listing.imageUrl === listing.imageUrl,
-          ) ?? null,
-        );
+        setSale(r.transactions.find((t) => t.listing.id === listing.id) ?? null);
         setLoaded(true);
       })
       .catch(() => setLoaded(true));
-  }, [listing.title, listing.imageUrl]);
+  }, [listing.id]);
 
   useEffect(load, [load]);
 

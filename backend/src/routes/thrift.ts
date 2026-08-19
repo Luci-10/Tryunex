@@ -83,7 +83,6 @@ function publicListing(row: any, sellerName: string | null, saved = false) {
     deliveryPreference: row.deliveryPreference,
     city: row.city,
     status: row.status,
-    imageUrl: row.imageUrl,
     category: row.category,
     styleTag: row.styleTag,
     createdAt: row.createdAt,
@@ -619,8 +618,7 @@ router.get("/messages", async (req, res) => {
         listing: {
           id: r.listing.id,
           title: r.listing.title,
-          imageUrl: r.listing.imageUrl,
-          pricePaise: r.listing.pricePaise,
+            pricePaise: r.listing.pricePaise,
           status: r.listing.status,
         },
       };
@@ -687,7 +685,6 @@ router.get("/messages/:conversationId", async (req, res) => {
       listing: {
         id: listing.id,
         title: listing.title,
-        imageUrl: listing.imageUrl,
         pricePaise: listing.pricePaise,
         status: listing.status,
       },
@@ -1000,7 +997,7 @@ router.get("/transactions", async (req, res) => {
   const rows = (await q`
     SELECT t.id, t.status, t.created_at, t.completed_at,
            t.seller_user_id, t.buyer_user_id,
-           l.title, l.image_url, l.price_paise
+           t.listing_id, l.title, l.price_paise
       FROM thrift_transactions t
       JOIN thrift_listings l ON l.id = t.listing_id
      WHERE t.buyer_user_id = ${req.userId!}::uuid
@@ -1014,7 +1011,7 @@ router.get("/transactions", async (req, res) => {
       role: r.buyer_user_id === req.userId ? "buyer" : "seller",
       createdAt: r.created_at,
       completedAt: r.completed_at,
-      listing: { title: r.title, imageUrl: r.image_url, pricePaise: r.price_paise },
+      listing: { id: r.listing_id, title: r.title, pricePaise: r.price_paise },
     })),
   });
 });

@@ -15,7 +15,8 @@ export default function Lightbox({
   alt,
   onClose,
 }: {
-  src: string | null;
+  /** Legacy direct-URL path. Prefer scope + id. */
+  src?: string | null;
   id?: string;
   scope?: MediaScope;
   alt?: string;
@@ -24,7 +25,7 @@ export default function Lightbox({
   const closeRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
-    if (!src) return;
+    if (!src && !(id && scope)) return;
     closeRef.current?.focus();
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
@@ -36,9 +37,9 @@ export default function Lightbox({
       document.removeEventListener("keydown", onKey);
       document.body.style.overflow = prev;
     };
-  }, [src, onClose]);
+  }, [src, id, scope, onClose]);
 
-  if (!src) return null;
+  if (!src && !(id && scope)) return null;
   return (
     <div
       role="dialog"
@@ -51,13 +52,12 @@ export default function Lightbox({
         <ProtectedPhoto
           scope={scope}
           id={id}
-          src={src}
           alt={alt ?? ""}
           className="max-w-full max-h-full object-contain rounded-lg"
         />
       ) : (
         <img
-          src={src}
+          src={src ?? undefined}
           alt={alt ?? ""}
           className="max-w-full max-h-full object-contain rounded-lg"
           onClick={(e) => e.stopPropagation()}

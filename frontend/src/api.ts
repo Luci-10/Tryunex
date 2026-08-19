@@ -94,7 +94,6 @@ export type Cloth = {
   // Optional in the type because a friend's wardrobe or an older cached
   // response may predate the column; the UI falls back to "casual".
   styleTag?: StyleTag;
-  imageUrl: string;
   status: "clean" | "worn";
   createdAt: string;
   lastWornOn?: string | null;
