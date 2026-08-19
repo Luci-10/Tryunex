@@ -146,6 +146,13 @@ router.get("/proxy/:scope/:id", async (req, res) => {
   if (!parse.success) return res.status(400).json({ error: "Bad request" });
 
   const me = req.userId!;
+  // Same ceiling as the signed-URL route. This one matters more: it streams
+  // the image through the function instead of handing back a URL, so an
+  // unmetered loop here is bandwidth as well as CPU.
+  if (overRateLimit(me)) {
+    metric("media_rate_limited", { userId: me });
+    return res.status(429).json({ error: "Too many image requests. Try again shortly." });
+  }
   const { scope, id } = parse.data;
   const resolved =
     scope === "cloth"
@@ -163,14 +170,15 @@ router.get("/proxy/:scope/:id", async (req, res) => {
   try {
     const key = keyFromUrl(resolved.url);
     if (!key) {
-      console.error(`[media/proxy] unrecognised storage reference: ${resolved.url}`);
+      // The record id is safe to log; the URL is not.
+      console.error(`[media/proxy] unrecognised storage reference on ${scope} ${id}`);
       throw new Error("Unrecognised storage reference");
     }
     const signedUrl = presignGet(key);
 
     const got = await fetch(signedUrl);
     if (!got.ok) {
-      console.error(`[media/proxy] R2 fetch failed for key ${key}: ${got.status}`);
+      console.error(`[media/proxy] storage fetch failed for ${scope} ${id}: HTTP ${got.status}`);
       throw new Error(`R2 fetch failed: ${got.status}`);
     }
 

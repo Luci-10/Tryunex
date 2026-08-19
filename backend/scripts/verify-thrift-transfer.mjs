@@ -1,9 +1,12 @@
 // Thrift sale -> wardrobe transfer, and reference-counted image cleanup.
-process.env.R2_ACCOUNT_ID ??= "verify-account";
-process.env.R2_ACCESS_KEY_ID ??= "verify-key";
-process.env.R2_SECRET_ACCESS_KEY ??= "verify-secret";
-process.env.R2_BUCKET ??= "verify-bucket";
-process.env.R2_PUBLIC_BASE_URL ??= "https://cdn.verify.invalid";
+// Assigned, not defaulted: .env may carry empty R2 placeholders, and `??=`
+// would leave those in place — envOr() then throws and every signed read 500s.
+// The test owns its own signing inputs.
+process.env.R2_ACCOUNT_ID = "verify-account";
+process.env.R2_ACCESS_KEY_ID = "verify-key";
+process.env.R2_SECRET_ACCESS_KEY = "verify-secret";
+process.env.R2_BUCKET = "verify-bucket";
+process.env.R2_PUBLIC_BASE_URL = "https://cdn.verify.invalid";
 
 import { neon } from "@neondatabase/serverless";
 import { createApp } from "../dist/app.js";

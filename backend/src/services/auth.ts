@@ -41,7 +41,7 @@ const isDev = process.env.NODE_ENV === "development";
 // will drop the cookie.
 const baseCookieOpts = {
   httpOnly: true,
-  sameSite: (isDev ? "lax" : "none") as const,
+  sameSite: isDev ? ("lax" as const) : ("none" as const),
   secure: !isDev,
   path: "/",
 };
