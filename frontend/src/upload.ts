@@ -48,7 +48,14 @@ export function putWithProgress(
   onProgress: (pct: number) => void,
 ): Promise<void> {
   return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
+    // CapacitorHttp patches XMLHttpRequest, and the native bridge cannot
+    // serialise a Blob body — it JSON-stringifies it, so R2 received the two
+    // bytes "{}" instead of the image. Capacitor keeps the unpatched original
+    // here. The PUT goes to a presigned URL, so it needs no cookie and loses
+    // nothing by skipping the bridge.
+    const NativeXHR: typeof XMLHttpRequest =
+      (window as any).CapacitorWebXMLHttpRequest ?? XMLHttpRequest;
+    const xhr = new NativeXHR();
     xhr.open("PUT", url);
     xhr.setRequestHeader("Content-Type", contentType);
     xhr.upload.onprogress = (e) => {
