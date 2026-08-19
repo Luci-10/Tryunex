@@ -1,3 +1,4 @@
+import { isNativeApp } from "./platform";
 // Shared browser-side upload helpers. Uploads go straight to R2 through a
 // presigned PUT — the API only hands out the URL and records the result — so
 // resizing here is what keeps uploads fast on a phone connection.
@@ -52,6 +53,12 @@ let cachedXHR: typeof XMLHttpRequest | null = null;
 
 function unpatchedXHR(): typeof XMLHttpRequest {
   if (cachedXHR) return cachedXHR;
+  // Only the app needs this. On the web nothing patches XMLHttpRequest, and
+  // that path already works — no reason to route it through an iframe.
+  if (!isNativeApp()) {
+    cachedXHR = XMLHttpRequest;
+    return cachedXHR;
+  }
   const saved = (window as any).CapacitorWebXMLHttpRequest;
   if (typeof saved === "function") {
     cachedXHR = saved as typeof XMLHttpRequest;
