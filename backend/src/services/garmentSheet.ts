@@ -7,6 +7,7 @@
 // input (hard cap 1MP). Staying under a megapixel also keeps billing, which
 // rounds each image up to the next megapixel, at one unit.
 import sharp from "sharp";
+import { keyFromUrl, presignGet } from "./r2.js";
 
 // fal's schema: garment images are "Maximum 1 megapixel; recommended around
 // 0.5 MP". 832x624 = 0.52MP, which sits on that recommendation with headroom
@@ -47,8 +48,24 @@ function fitPixelBudget(
   return { w: Math.max(1, Math.floor(width * scale)), h: Math.max(1, Math.floor(height * scale)) };
 }
 
+/**
+ * Reads an image we hold.
+ *
+ * Anything that resolves to one of our own R2 objects is fetched through a
+ * short-lived signed URL rather than its public address, so this keeps working
+ * once the bucket is closed to the world. Both buildGarmentSheet and
+ * normalisePersonImage go through here, which is why this is the only place
+ * that needs to know.
+ */
 async function fetchImage(url: string): Promise<Buffer> {
-  const res = await fetch(url);
+  let target = url;
+  try {
+    const key = keyFromUrl(url);
+    if (key) target = presignGet(key);
+  } catch {
+    // R2 not configured, or not one of ours (a data: URI in tests). Use as-is.
+  }
+  const res = await fetch(target);
   if (!res.ok) throw new Error(`Could not fetch garment image (HTTP ${res.status})`);
   return Buffer.from(await res.arrayBuffer());
 }

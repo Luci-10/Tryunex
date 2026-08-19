@@ -14,7 +14,7 @@ import { db } from "../db/client.js";
 import { clothes, shares, tryonAssets, thriftListings } from "../db/schema.js";
 import { requireAuth } from "../services/auth.js";
 import { ensureThriftSchema } from "../services/thrift.js";
-import { presignPut, r2PublicBase } from "../services/r2.js";
+import { presignPut, presignGet, r2PublicBase } from "../services/r2.js";
 import { falConfigured, runVirtualTryOn, FalError, tryonMockEnabled } from "../services/fal.js";
 import { buildGarmentSheet, normalisePersonImage, buildMockResult } from "../services/garmentSheet.js";
 import {
@@ -396,10 +396,18 @@ router.post("/generate", async (req, res) => {
     ]);
 
     const stamp = `${Date.now()}-${randomBytes(4).toString("hex")}`;
-    const [personUrl, garmentUrl] = await Promise.all([
-      putBuffer(`tryon-inputs/${req.userId}/${stamp}-person.jpg`, person.buffer),
-      putBuffer(`tryon-inputs/${req.userId}/${stamp}-garments.jpg`, sheet.buffer),
+    // fal fetches these itself, so they must be reachable from the internet —
+    // but reachable is not the same as public. Upload, then hand over a
+    // short-lived signed URL rather than the permanent public one, so this
+    // keeps working when the bucket is closed.
+    const personKey = `tryon-inputs/${req.userId}/${stamp}-person.jpg`;
+    const garmentKey = `tryon-inputs/${req.userId}/${stamp}-garments.jpg`;
+    await Promise.all([
+      putBuffer(personKey, person.buffer),
+      putBuffer(garmentKey, sheet.buffer),
     ]);
+    const personUrl = presignGet(personKey);
+    const garmentUrl = presignGet(garmentKey);
 
     const fresh = Boolean(parse.data.forceRegenerate);
     // A regenerate must be a genuinely new sample rather than the same image
