@@ -60,8 +60,13 @@ function fitPixelBudget(
 async function fetchImage(url: string): Promise<Buffer> {
   let target = url;
   try {
-    const key = keyFromUrl(url);
-    if (key) target = presignGet(key);
+    // Only sign things that actually live in our bucket. keyFromUrl treats any
+    // non-http string as a bare key, so a data: URI would otherwise be signed
+    // as if it were an R2 object and fetched from the wrong host entirely.
+    if (/^https?:\/\//i.test(url)) {
+      const key = keyFromUrl(url);
+      if (key) target = presignGet(key);
+    }
   } catch {
     // R2 not configured, or not one of ours (a data: URI in tests). Use as-is.
   }
