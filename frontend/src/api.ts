@@ -4,7 +4,7 @@
 // bundle, not our backend. So when Capacitor is present we point at the
 // production API explicitly.
 const BASE = (typeof window !== "undefined" && (window as any).Capacitor)
-  ? "https://www.tryunex.in/api"
+  ? (import.meta.env.VITE_API_BASE ?? "https://www.tryunex.in/api")
   : "/api";
 
 // Streaming endpoints (chat) can't go through `api.*` because those return

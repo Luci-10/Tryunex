@@ -1,0 +1,6 @@
+
+> tryunex-backend@0.1.0 dev
+> tsx watch src/index.ts
+
+✓ TryUnex backend on http://0.0.0.0:3001
+  CORS origin: http://localhost:5173

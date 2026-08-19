@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>TryUnex — pick a logo</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, system-ui, sans-serif; background: #faf7ff; color: #1a1a1a; margin: 0; padding: 24px; }
+    h1 { font-size: 20px; margin: 0 0 4px; }
+    .sub { color: #666; margin: 0 0 24px; font-size: 14px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px; max-width: 1100px; margin: 0 auto; }
+    .card { background: #fff; border-radius: 16px; box-shadow: 0 1px 3px rgba(0,0,0,.06); padding: 20px; display: flex; flex-direction: column; align-items: center; gap: 16px; }
+    .card h2 { margin: 0; font-size: 14px; color: #555; font-weight: 600; }
+    .sizes { display: flex; align-items: flex-end; gap: 16px; }
+    .sizes > div { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+    .sizes img { display: block; }
+    .sizes label { font-size: 10px; color: #999; }
+    .desc { font-size: 13px; color: #666; text-align: center; line-height: 1.4; }
+    .filename { font-family: ui-monospace, SFMono-Regular, monospace; font-size: 11px; color: #999; background: #f4f1ff; padding: 2px 6px; border-radius: 4px; }
+  </style>
+</head>
+<body>
+  <h1>Pick a logo for TryUnex</h1>
+  <p class="sub">Each shown at favicon size (16, 32) and larger (96, 128). Tell me which letter (A/B/C/D) and I'll wire it up.</p>
+
+  <div class="grid">
+    <div class="card">
+      <h2>A — Bold T tile <span class="filename">A-bold-t.svg</span></h2>
+      <div class="sizes">
+        <div><img src="A-bold-t.svg" width="16" height="16"><label>16</label></div>
+        <div><img src="A-bold-t.svg" width="32" height="32"><label>32</label></div>
+        <div><img src="A-bold-t.svg" width="64" height="64"><label>64</label></div>
+        <div><img src="A-bold-t.svg" width="128" height="128"><label>128</label></div>
+      </div>
+      <p class="desc">Most legible at 16px. Geometric, app-icon style. Works as both favicon and Android launcher.</p>
+    </div>
+
+    <div class="card">
+      <h2>B — Hanger tile <span class="filename">B-hanger.svg</span></h2>
+      <div class="sizes">
+        <div><img src="B-hanger.svg" width="16" height="16"><label>16</label></div>
+        <div><img src="B-hanger.svg" width="32" height="32"><label>32</label></div>
+        <div><img src="B-hanger.svg" width="64" height="64"><label>64</label></div>
+        <div><img src="B-hanger.svg" width="128" height="128"><label>128</label></div>
+      </div>
+      <p class="desc">Explicit wardrobe metaphor. Detail may blur at 16px but reads clearly from 32px up.</p>
+    </div>
+
+    <div class="card">
+      <h2>C — Circle T <span class="filename">C-circle-t.svg</span></h2>
+      <div class="sizes">
+        <div><img src="C-circle-t.svg" width="16" height="16"><label>16</label></div>
+        <div><img src="C-circle-t.svg" width="32" height="32"><label>32</label></div>
+        <div><img src="C-circle-t.svg" width="64" height="64"><label>64</label></div>
+        <div><img src="C-circle-t.svg" width="128" height="128"><label>128</label></div>
+      </div>
+      <p class="desc">Friendlier, social-app feel (Threads / Bluesky vibe). Strong contrast at all sizes.</p>
+    </div>
+
+    <div class="card">
+      <h2>D — Outline wordmark <span class="filename">D-wordmark.svg</span></h2>
+      <div class="sizes">
+        <div><img src="D-wordmark.svg" width="16" height="16"><label>16</label></div>
+        <div><img src="D-wordmark.svg" width="32" height="32"><label>32</label></div>
+        <div><img src="D-wordmark.svg" width="64" height="64"><label>64</label></div>
+        <div><img src="D-wordmark.svg" width="128" height="128"><label>128</label></div>
+      </div>
+      <p class="desc">Lowercase "tx" inside an outlined tile. More typographic / editorial. Subtler in browser tabs.</p>
+    </div>
+  </div>
+</body>
+</html>

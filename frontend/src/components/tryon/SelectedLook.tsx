@@ -6,6 +6,7 @@ import Button from "../ui/Button";
 import { Badge } from "../ui/Chip";
 import EmptyState from "../ui/EmptyState";
 import { Close, Shirt } from "../ui/icons";
+import ProtectedPhoto from "../ui/ProtectedPhoto";
 
 /** The session basket: everything chosen for try-on, from anywhere in the app. */
 export default function SelectedLook({
@@ -37,7 +38,9 @@ export default function SelectedLook({
       <ul className="flex gap-2.5 overflow-x-auto no-scrollbar pb-1">
         {selection.map((c) => (
           <li key={c.id} className="shrink-0 w-16">
-            <img
+            <ProtectedPhoto
+              scope="cloth"
+              id={c.id}
               src={c.imageUrl}
               alt={c.name}
               className="w-16 h-16 rounded-xl object-cover bg-ink/[0.05]"
@@ -71,7 +74,9 @@ export default function SelectedLook({
       <ul className="space-y-2">
         {selection.map((c) => (
           <li key={c.id} className="flex items-center gap-3 rounded-xl border border-ink/[0.07] bg-white p-2">
-            <img
+            <ProtectedPhoto
+              scope="cloth"
+              id={c.id}
               src={c.imageUrl}
               alt={c.name}
               className="w-12 h-12 rounded-lg object-cover bg-ink/[0.05] shrink-0"

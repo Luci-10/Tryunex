@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import IconButton from "./ui/IconButton";
 import { Close } from "./ui/icons";
+import ProtectedPhoto, { type MediaScope } from "./ui/ProtectedPhoto";
 
 /**
  * Full-screen image view. Escape or the close button dismisses it; tapping
@@ -9,10 +10,14 @@ import { Close } from "./ui/icons";
  */
 export default function Lightbox({
   src,
+  id,
+  scope,
   alt,
   onClose,
 }: {
   src: string | null;
+  id?: string;
+  scope?: MediaScope;
   alt?: string;
   onClose: () => void;
 }) {
@@ -42,12 +47,22 @@ export default function Lightbox({
       onClick={onClose}
       className="fixed inset-0 z-[70] bg-ink/95 flex items-center justify-center p-4 cursor-zoom-out animate-fade-in"
     >
-      <img
-        src={src}
-        alt={alt ?? ""}
-        className="max-w-full max-h-full object-contain rounded-lg"
-        onClick={(e) => e.stopPropagation()}
-      />
+      {id && scope ? (
+        <ProtectedPhoto
+          scope={scope}
+          id={id}
+          src={src}
+          alt={alt ?? ""}
+          className="max-w-full max-h-full object-contain rounded-lg"
+        />
+      ) : (
+        <img
+          src={src}
+          alt={alt ?? ""}
+          className="max-w-full max-h-full object-contain rounded-lg"
+          onClick={(e) => e.stopPropagation()}
+        />
+      )}
       <IconButton
         ref={closeRef}
         label="Close full-size image"

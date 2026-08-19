@@ -11,6 +11,7 @@ router.get("/", async (req, res) => {
   const rows = await db
     .select({
       id: wearEvents.id,
+      clothId: clothes.id,
       wornOn: wearEvents.wornOn,
       createdAt: wearEvents.createdAt,
       clothName: clothes.name,

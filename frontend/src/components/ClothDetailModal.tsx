@@ -14,6 +14,7 @@ import { Chat, Check, Sparkles, Tag, Trash, Zoom } from "./ui/icons";
 import { useNavigate } from "react-router-dom";
 import CreateListingSheet from "./thrift/CreateListingSheet";
 import { STATUS_LABEL, STATUS_TONE, formatPrice, type ListingStatus } from "../thrift";
+import ProtectedPhoto from "./ui/ProtectedPhoto";
 
 const CATEGORIES = ["top", "bottom", "dress", "outerwear", "shoes", "accessory", "other"];
 
@@ -132,6 +133,8 @@ export default function ClothDetailModal({
     <>
       <Lightbox
         src={zoom && data ? data.cloth.imageUrl : null}
+        id={data?.cloth.id}
+        scope="cloth"
         alt={data?.cloth.name}
         onClose={() => setZoom(false)}
       />
@@ -186,7 +189,9 @@ export default function ClothDetailModal({
         ) : (
           <div className="space-y-4">
             <div className="relative">
-              <img
+              <ProtectedPhoto
+                scope="cloth"
+                id={data.cloth.id}
                 src={data.cloth.imageUrl}
                 alt={data.cloth.name}
                 className="w-full aspect-square object-cover rounded-2xl bg-ink/[0.04]"

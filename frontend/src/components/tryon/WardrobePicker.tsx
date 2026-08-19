@@ -5,7 +5,8 @@ import { FilterChip, Badge } from "../ui/Chip";
 import EmptyState from "../ui/EmptyState";
 import { Skeleton } from "../ui/Skeleton";
 import { styleTagOf } from "../../styleTags";
-import { Check, Close, Search, Shirt } from "../ui/icons";
+import { Check, Close, Plus, Search, Shirt } from "../ui/icons";
+import ProtectedPhoto from "../ui/ProtectedPhoto";
 
 /** A garment offered in the picker, tagged with whose wardrobe it came from. */
 export type PickerItem = Cloth & { ownerName?: string };
@@ -25,11 +26,14 @@ export default function WardrobePicker({
   items,
   loading,
   onPick,
+  onAdd,
 }: {
   items: PickerItem[];
   loading: boolean;
   /** Returns the rule outcome so the page can raise a confirmation. */
   onPick: (cloth: PickerItem) => void;
+  /** Optional callback to add a new garment. */
+  onAdd?: () => void;
 }) {
   const { selection, evaluate, locked, roles } = useTryOn();
   const [query, setQuery] = useState("");
@@ -72,30 +76,43 @@ export default function WardrobePicker({
         icon={<Shirt className="w-7 h-7" />}
         title="No clothes to try on"
         body="Add pieces to your wardrobe, then come back and build a look."
+        action={onAdd ? { label: "Add a piece", onClick: onAdd } : undefined}
       />
     );
   }
 
   return (
     <div className="space-y-3">
-      <div className="relative">
-        <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-ink/40 pointer-events-none" />
-        <input
-          type="search"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search garments"
-          aria-label="Search garments"
-          className="w-full h-11 bg-white border border-ink/12 rounded-full pl-10 pr-10 text-[15px] placeholder:text-ink/40 focus:border-brand-400"
-        />
-        {query && (
+      <div className="relative flex gap-2">
+        <div className="relative flex-1">
+          <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-ink/40 pointer-events-none" />
+          <input
+            type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search garments"
+            aria-label="Search garments"
+            className="w-full h-11 bg-white border border-ink/12 rounded-full pl-10 pr-10 text-[15px] placeholder:text-ink/40 focus:border-brand-400"
+          />
+          {query && (
+            <button
+              type="button"
+              onClick={() => setQuery("")}
+              aria-label="Clear search"
+              className="tap-44 absolute right-2.5 top-1/2 -translate-y-1/2 text-ink/45 hover:text-ink"
+            >
+              <Close className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+        {onAdd && (
           <button
             type="button"
-            onClick={() => setQuery("")}
-            aria-label="Clear search"
-            className="tap-44 absolute right-2.5 top-1/2 -translate-y-1/2 text-ink/45 hover:text-ink"
+            onClick={onAdd}
+            aria-label="Add new garment"
+            className="w-11 h-11 shrink-0 rounded-full bg-brand-50 border border-brand-200 text-brand-600 grid place-items-center hover:bg-brand-100 transition-colors"
           >
-            <Close className="w-4 h-4" />
+            <Plus className="w-5 h-5" />
           </button>
         )}
       </div>
@@ -165,7 +182,9 @@ export default function WardrobePicker({
                   }`}
                 >
                   <span className="relative block">
-                    <img
+                    <ProtectedPhoto
+                      scope="cloth"
+                      id={c.id}
                       src={c.imageUrl}
                       alt={c.name}
                       loading="lazy"

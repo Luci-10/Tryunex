@@ -13,6 +13,7 @@ import { Input, ErrorBanner } from "../components/ui/Field";
 import { useToast } from "../components/ui/Toast";
 import { Avatar } from "../components/Nav";
 import { permissionTone } from "./Shared";
+import ProtectedPhoto from "../components/ui/ProtectedPhoto";
 import { api, type Cloth } from "../api";
 
 type Permission = "view" | "suggest" | "edit";
@@ -183,7 +184,9 @@ export default function Friend() {
               <ul className="flex gap-2.5 overflow-x-auto no-scrollbar mt-3 pb-1">
                 {items.map((p) => (
                   <li key={p.id} className="shrink-0 w-20">
-                    <img
+                    <ProtectedPhoto
+                      scope="cloth"
+                      id={p.cloth.id}
                       src={p.cloth.imageUrl}
                       alt={p.cloth.name}
                       className="w-20 h-20 rounded-xl object-cover bg-ink/[0.05]"

@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import PageShell from "../components/PageShell";
 import Lightbox from "../components/Lightbox";
 import PhotoAccessPrompt from "../components/PhotoAccessPrompt";
+import AddClothModal from "../components/AddClothModal";
 import Button from "../components/ui/Button";
 import Sheet from "../components/ui/Sheet";
 import { Badge } from "../components/ui/Chip";
@@ -13,6 +14,7 @@ import { useConfirm } from "../components/ui/Confirm";
 import WardrobePicker, { type PickerItem } from "../components/tryon/WardrobePicker";
 import SelectedLook from "../components/tryon/SelectedLook";
 import { Camera, Download, Refresh, Share, Sparkles, Zoom } from "../components/ui/icons";
+import ProtectedPhoto, { type MediaScope } from "../components/ui/ProtectedPhoto";
 import { api, type Cloth } from "../api";
 import { useTryOn, roleOf, ROLE_OPTIONS, SLOT_LABEL, type AddOutcome, type Role } from "../tryon";
 import { hasPhotoConsent, grantPhotoConsent } from "../photoConsent";
@@ -71,8 +73,10 @@ export default function Tryon() {
   const [rememberRole, setRememberRole] = useState(false);
   const [credits, setCredits] = useState<CreditBalance | null>(null);
   const [outOfCredits, setOutOfCredits] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
 
   const fileRef = useRef<HTMLInputElement>(null);
+  const cameraRef = useRef<HTMLInputElement>(null);
   const wardrobeRef = useRef<HTMLDivElement>(null);
 
   async function load() {
@@ -162,24 +166,25 @@ export default function Tryon() {
   }
 
   // --- selfie ---------------------------------------------------------
+  function openWebPicker(source: PickSource = "gallery") {
+    if (source === "camera") cameraRef.current?.click();
+    else fileRef.current?.click();
+  }
+
   async function startPick(source: PickSource = "gallery") {
     setUploadError(null);
     if (nativePickerAvailable()) {
       const r = await pickPhotoNatively(source);
       if (r.ok) return uploadSelfie(r.file);
       if (r.reason === "cancelled") return;
-      if (r.reason === "unavailable") return fileRef.current?.click();
+      if (r.reason === "unavailable") return openWebPicker(source);
       return setUploadError(r.message);
     }
-    fileRef.current?.click();
+    openWebPicker(source);
   }
 
   function requestPhoto() {
-    if (!hasPhotoConsent()) {
-      setAskPhoto(true);
-      return;
-    }
-    startPick("gallery");
+    setAskPhoto(true);
   }
 
   function continueFromPrompt(source: PickSource) {
@@ -342,6 +347,11 @@ export default function Tryon() {
     }
   }
 
+  function onAdded(c: Cloth) {
+    setItems((p) => [c, ...p]);
+    toast(`${c.name} added to your wardrobe`, { tone: "success" });
+  }
+
   const heroSrc = result && !showingOriginal ? result.imageUrl : selfie?.imageUrl ?? null;
   const canGenerate = Boolean(selfie) && selection.length > 0 && !generating;
   const blockedReason = !selfie
@@ -388,7 +398,9 @@ export default function Tryon() {
               ) : generating ? (
                 <div className="absolute inset-0 grid place-items-center shimmer">
                   {selfie && (
-                    <img
+                    <ProtectedPhoto
+                      scope="selfie"
+                      id={selfie.id}
                       src={selfie.imageUrl}
                       alt=""
                       className="absolute inset-0 w-full h-full object-cover opacity-30"
@@ -401,7 +413,9 @@ export default function Tryon() {
                   </div>
                 </div>
               ) : heroSrc ? (
-                <img
+                <ProtectedPhoto
+                  scope={result && !showingOriginal ? "tryon" : "selfie"}
+                  id={(result && !showingOriginal ? result.id : selfie?.id) || ""}
                   src={heroSrc}
                   alt={
                     result && !showingOriginal
@@ -510,7 +524,13 @@ export default function Tryon() {
             ) : (
               <>
                 {selfie && !generating && (
-                  <Button variant="secondary" block onClick={requestPhoto} disabled={uploading}>
+                  <Button
+                    variant="secondary"
+                    block
+                    onClick={requestPhoto}
+                    disabled={uploading}
+                    leading={<Camera className="w-4 h-4" />}
+                  >
                     Replace photo
                   </Button>
                 )}
@@ -597,7 +617,12 @@ export default function Tryon() {
             <h2 className="hidden lg:block text-[13px] font-semibold text-ink/65 uppercase tracking-wide mb-2">
               Pick clothes
             </h2>
-            <WardrobePicker items={items} loading={loading} onPick={handlePick} />
+            <WardrobePicker
+              items={items}
+              loading={loading}
+              onPick={handlePick}
+              onAdd={() => setAddOpen(true)}
+            />
           </section>
         </div>
       </div>
@@ -653,6 +678,18 @@ export default function Tryon() {
           e.target.value = "";
         }}
       />
+      <input
+        ref={cameraRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        className="sr-only"
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) uploadSelfie(f);
+          e.target.value = "";
+        }}
+      />
       {!selfie && !uploading && (
         <p className="text-[12px] text-ink/60 leading-relaxed text-center px-2">{PHOTO_TIP}</p>
       )}
@@ -661,6 +698,8 @@ export default function Tryon() {
         onCancel={() => setAskPhoto(false)}
         onContinue={continueFromPrompt}
       />
+
+      <AddClothModal open={addOpen} onClose={() => setAddOpen(false)} onAdded={onAdded} />
 
       <Sheet
         open={outOfCredits}

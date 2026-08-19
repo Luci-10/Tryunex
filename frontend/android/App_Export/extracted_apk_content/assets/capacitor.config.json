@@ -1,0 +1,10 @@
+{
+	"appId": "in.tryunex.app",
+	"appName": "TryUnex",
+	"webDir": "dist",
+	"plugins": {
+		"CapacitorHttp": {
+			"enabled": true
+		}
+	}
+}

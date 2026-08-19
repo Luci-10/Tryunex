@@ -134,6 +134,57 @@ async function resolveListing(id: string, me: string): Promise<Resolved> {
 
 const SCOPES = ["cloth", "selfie", "tryon", "listing"] as const;
 
+// GET /api/media/proxy/:scope/:id
+// Proxies the image data from R2. This is the most reliable way to show
+// protected images in the Capacitor app, as it avoids CORS issues with
+// signed R2 URLs in the WebView and ensures session cookies are handled
+// correctly by the API.
+router.get("/proxy/:scope/:id", async (req, res) => {
+  const parse = z
+    .object({ scope: z.enum(SCOPES), id: z.string().uuid() })
+    .safeParse(req.params);
+  if (!parse.success) return res.status(400).json({ error: "Bad request" });
+
+  const me = req.userId!;
+  const { scope, id } = parse.data;
+  const resolved =
+    scope === "cloth"
+      ? await resolveCloth(id, me)
+      : scope === "selfie"
+        ? await resolveTryonAsset(id, me, "selfie")
+        : scope === "tryon"
+          ? await resolveTryonAsset(id, me, "result")
+          : await resolveListing(id, me);
+
+  if ("error" in resolved) {
+    return res.status(resolved.error).json({ error: "Not found", scope, id });
+  }
+
+  try {
+    const key = keyFromUrl(resolved.url);
+    if (!key) {
+      console.error(`[media/proxy] unrecognised storage reference: ${resolved.url}`);
+      throw new Error("Unrecognised storage reference");
+    }
+    const signedUrl = presignGet(key);
+
+    const got = await fetch(signedUrl);
+    if (!got.ok) {
+      console.error(`[media/proxy] R2 fetch failed for key ${key}: ${got.status}`);
+      throw new Error(`R2 fetch failed: ${got.status}`);
+    }
+
+    res.setHeader("Content-Type", got.headers.get("Content-Type") || "image/jpeg");
+    res.setHeader("Cache-Control", "public, max-age=3600");
+
+    const arrayBuffer = await got.arrayBuffer();
+    res.send(Buffer.from(arrayBuffer));
+  } catch (err) {
+    console.error(`[media/proxy] failed for ${scope} ${id}:`, err);
+    res.status(500).json({ error: "Image unavailable" });
+  }
+});
+
 // GET /api/media/:scope/:id -> { url, expiresIn }
 //
 // The response carries a signed URL and nothing else: no object key, no bucket

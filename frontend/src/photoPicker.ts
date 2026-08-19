@@ -30,31 +30,52 @@ export async function pickPhotoNatively(source: PickSource): Promise<PickResult>
   try {
     const { Camera, CameraResultType, CameraSource } = await import("@capacitor/camera");
 
-    // Ask the OS only for what we're about to use. On Android 13+ and iOS this
-    // surfaces the system picker, which can hand back a single selected photo
-    // without granting access to the whole library — we never ask for more.
-    const wanted = source === "camera" ? "camera" : "photos";
-    try {
+    // Camera permission logic.
+    if (source === "camera") {
       const status = await Camera.checkPermissions();
-      const current = source === "camera" ? status.camera : status.photos;
-      if (current !== "granted" && current !== "limited") {
-        const asked = await Camera.requestPermissions({ permissions: [wanted as any] });
-        const after = source === "camera" ? asked.camera : asked.photos;
-        if (after === "denied") {
+      if (status.camera === "denied") {
+        return {
+          ok: false,
+          reason: "denied",
+          message: "Camera access is off for TryUnex. You can turn it on in your device settings to take photos of your clothes.",
+        };
+      }
+      if (status.camera !== "granted") {
+        const asked = await Camera.requestPermissions({ permissions: ["camera"] });
+        if (asked.camera !== "granted") {
           return {
             ok: false,
             reason: "denied",
-            message:
-              source === "camera"
-                ? "Camera access is off for TryUnex. You can turn it on in your device settings."
-                : "Photo access is off for TryUnex. You can turn it on in your device settings.",
+            message: "Camera access is required to take photos. Please allow it when asked, or enable it in Settings.",
           };
         }
-        // "limited" is a perfectly good answer — the user picked what to share.
       }
-    } catch {
-      // Some platforms (and the web build of the plugin) don't implement the
-      // permission API at all. Fall through and let getPhoto ask.
+    } else {
+      // Photos / Gallery logic. On Android 13+ and iOS, the system picker
+      // often doesn't need broad "photos" permission if it's the official
+      // picker, but we check/request anyway for compatibility with older
+      // versions and the Capacitor plugin's expectations.
+      const status = await Camera.checkPermissions();
+      if (status.photos === "denied") {
+        return {
+          ok: false,
+          reason: "denied",
+          message: "Photo access is off for TryUnex. You can turn it on in your device settings to pick from your gallery.",
+        };
+      }
+      // If prompt, we request. If limited (iOS), we proceed.
+      if (status.photos !== "granted" && status.photos !== "limited") {
+        const asked = await Camera.requestPermissions({ permissions: ["photos"] });
+        if (asked.photos === "denied") {
+          // If they just cancelled the dialog, we'll see it in the error catch.
+          // If they explicitly denied, we report it.
+          return {
+            ok: false,
+            reason: "denied",
+            message: "Photo access is required to pick images from your gallery.",
+          };
+        }
+      }
     }
 
     const photo = await Camera.getPhoto({

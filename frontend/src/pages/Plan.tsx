@@ -14,6 +14,7 @@ import { ErrorBanner } from "../components/ui/Field";
 import { useToast } from "../components/ui/Toast";
 import { useConfirm } from "../components/ui/Confirm";
 import { Calendar, Close } from "../components/ui/icons";
+import ProtectedPhoto from "../components/ui/ProtectedPhoto";
 import { api, type Cloth } from "../api";
 
 type PlanEntry = {
@@ -160,7 +161,9 @@ export default function Plan() {
               <ul className="flex gap-2.5 overflow-x-auto no-scrollbar mt-3 pb-1 -mx-1 px-1">
                 {items.map((p) => (
                   <li key={p.id} className="relative shrink-0 w-20">
-                    <img
+                    <ProtectedPhoto
+                      scope="cloth"
+                      id={p.cloth.id}
                       src={p.cloth.imageUrl}
                       alt={p.cloth.name}
                       className="w-20 h-20 rounded-xl object-cover bg-ink/[0.05]"

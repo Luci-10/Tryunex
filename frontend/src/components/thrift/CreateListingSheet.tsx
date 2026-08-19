@@ -3,6 +3,7 @@ import Sheet from "../ui/Sheet";
 import Button from "../ui/Button";
 import { Input, Label, Select, Textarea, FieldError } from "../ui/Field";
 import { useToast } from "../ui/Toast";
+import ProtectedPhoto from "../ui/ProtectedPhoto";
 import type { Cloth } from "../../api";
 import {
   CONDITION_LABEL,
@@ -151,7 +152,9 @@ export default function CreateListingSheet({
       <div className="space-y-4">
         {image && (
           <div className="flex gap-3 items-center">
-            <img
+            <ProtectedPhoto
+              scope={existing ? "listing" : "cloth"}
+              id={(existing?.id ?? cloth?.id) || ""}
               src={image}
               alt=""
               className="w-20 h-20 rounded-xl object-cover bg-ink/[0.04] shrink-0"

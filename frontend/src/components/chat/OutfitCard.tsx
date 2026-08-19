@@ -5,6 +5,7 @@ import { useToast } from "../ui/Toast";
 import Button from "../ui/Button";
 import { Skeleton } from "../ui/Skeleton";
 import { Calendar, Check, Sparkles } from "../ui/icons";
+import ProtectedPhoto from "../ui/ProtectedPhoto";
 import type { Outfit } from "./parse";
 
 /** Placeholder shown while an outfit block is still streaming in. */
@@ -99,7 +100,9 @@ export default function OutfitCard({
           const inner = (
             <>
               <span className="relative block">
-                <img
+                <ProtectedPhoto
+                  scope="cloth"
+                  id={c.id}
                   src={c.imageUrl}
                   alt={c.name}
                   className={`w-14 h-14 rounded-xl object-cover bg-ink/[0.05] transition-opacity ${

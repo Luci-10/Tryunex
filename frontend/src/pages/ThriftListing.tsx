@@ -12,6 +12,7 @@ import ReportSheet from "../components/thrift/ReportSheet";
 import SalePanel from "../components/thrift/SalePanel";
 import { Avatar } from "../components/Nav";
 import { Block, Bookmark, Chat, ChevronLeft, Flag, Sparkles } from "../components/ui/icons";
+import ProtectedPhoto from "../components/ui/ProtectedPhoto";
 import { useTryOn } from "../tryon";
 import { styleTagOf } from "../styleTags";
 import {
@@ -151,7 +152,9 @@ export default function ThriftListing() {
       <BackLink />
 
       <div className="relative rounded-card overflow-hidden bg-ink/[0.04] border border-ink/[0.06]">
-        <img
+        <ProtectedPhoto
+          scope="listing"
+          id={listing.id}
           src={listing.imageUrl}
           alt={listing.title}
           className="w-full aspect-[4/5] max-h-[70vh] object-cover"

@@ -12,6 +12,7 @@ import { parseAssistant } from "./chat/parse";
 import OutfitCard, { OutfitCardSkeleton } from "./chat/OutfitCard";
 import ClothChip from "./chat/ClothChip";
 import StyleContextBar from "./chat/StyleContextBar";
+import ProtectedPhoto from "./ui/ProtectedPhoto";
 
 const GENERAL_STARTERS = [
   "Build an outfit from my clean clothes",
@@ -184,7 +185,9 @@ export default function ChatPanel() {
           {attached && (
             <div className="px-4 py-2 border-b border-ink/[0.07] shrink-0">
               <span className="inline-flex items-center gap-2 pl-1 pr-1 py-1 rounded-full bg-brand-50 border border-brand-200 max-w-full">
-                <img
+                <ProtectedPhoto
+                  scope="cloth"
+                  id={attached.id}
                   src={attached.imageUrl}
                   alt={attached.name}
                   className="w-7 h-7 rounded-full object-cover shrink-0"

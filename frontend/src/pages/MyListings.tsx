@@ -12,6 +12,7 @@ import { useToast } from "../components/ui/Toast";
 import { useConfirm } from "../components/ui/Confirm";
 import CreateListingSheet from "../components/thrift/CreateListingSheet";
 import { Chat, Plus, Tag } from "../components/ui/icons";
+import ProtectedPhoto from "../components/ui/ProtectedPhoto";
 import { api, type Cloth } from "../api";
 import {
   PAYMENT_NOTE,
@@ -130,7 +131,9 @@ export default function MyListings() {
                 <Surface key={l.id} padded={false}>
                   <div className="flex gap-3 p-3">
                     <Link to={`/thrift/${l.id}`} className="shrink-0">
-                      <img
+                      <ProtectedPhoto
+                        scope="listing"
+                        id={l.id}
                         src={l.imageUrl}
                         alt=""
                         loading="lazy"
@@ -284,7 +287,9 @@ function WardrobePicker({
               onClick={() => onPick(c)}
               className="text-left rounded-xl overflow-hidden border border-ink/[0.08] hover:border-brand-400 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
             >
-              <img
+              <ProtectedPhoto
+                scope="cloth"
+                id={c.id}
                 src={c.imageUrl}
                 alt=""
                 loading="lazy"

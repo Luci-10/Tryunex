@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { Badge } from "../ui/Chip";
 import { Bookmark, Sparkles } from "../ui/icons";
+import ProtectedPhoto from "../ui/ProtectedPhoto";
 import {
   CONDITION_LABEL,
   CONDITION_TONE,
@@ -33,11 +34,12 @@ export default function ListingCard({
         className="block rounded-card border border-ink/[0.06] bg-white shadow-card overflow-hidden transition-shadow hover:shadow-lift focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2"
       >
         <div className="relative aspect-[4/5] bg-ink/[0.04]">
-          <img
+          <ProtectedPhoto
+            scope="listing"
+            id={listing.id}
             src={listing.imageUrl}
             alt={listing.title}
             loading="lazy"
-            decoding="async"
             className="absolute inset-0 w-full h-full object-cover"
           />
           {unavailable && (
