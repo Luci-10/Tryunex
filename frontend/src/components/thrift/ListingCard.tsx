@@ -37,7 +37,6 @@ export default function ListingCard({
           <ProtectedPhoto
             scope="listing"
             id={listing.id}
-            src={listing.imageUrl}
             alt={listing.title}
             loading="lazy"
             className="absolute inset-0 w-full h-full object-cover"

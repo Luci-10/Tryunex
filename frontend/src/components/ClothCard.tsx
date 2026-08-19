@@ -65,7 +65,6 @@ export default function ClothCard({
         <ProtectedPhoto
           scope="cloth"
           id={cloth.id}
-          src={cloth.imageUrl}
           alt={cloth.name}
           className="w-full h-full object-cover"
         />

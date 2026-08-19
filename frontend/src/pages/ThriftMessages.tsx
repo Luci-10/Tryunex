@@ -70,7 +70,6 @@ export function ThriftMessages() {
                 <ProtectedPhoto
                   scope="listing"
                   id={c.listing.id}
-                  src={c.listing.imageUrl}
                   alt=""
                   loading="lazy"
                   className="w-14 h-16 rounded-xl object-cover bg-ink/[0.04] shrink-0"
@@ -194,7 +193,6 @@ export function ThriftConversation() {
             <ProtectedPhoto
               scope="listing"
               id={detail.listing.id}
-              src={detail.listing.imageUrl}
               alt=""
               className="w-12 h-14 rounded-lg object-cover bg-ink/[0.04] shrink-0"
             />

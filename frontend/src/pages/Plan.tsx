@@ -164,7 +164,6 @@ export default function Plan() {
                     <ProtectedPhoto
                       scope="cloth"
                       id={p.cloth.id}
-                      src={p.cloth.imageUrl}
                       alt={p.cloth.name}
                       className="w-20 h-20 rounded-xl object-cover bg-ink/[0.05]"
                     />

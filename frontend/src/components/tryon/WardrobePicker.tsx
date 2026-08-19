@@ -185,7 +185,6 @@ export default function WardrobePicker({
                     <ProtectedPhoto
                       scope="cloth"
                       id={c.id}
-                      src={c.imageUrl}
                       alt={c.name}
                       loading="lazy"
                       className="w-full aspect-square object-cover bg-ink/[0.04]"

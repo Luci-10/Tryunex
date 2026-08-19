@@ -192,7 +192,6 @@ export default function ClothDetailModal({
               <ProtectedPhoto
                 scope="cloth"
                 id={data.cloth.id}
-                src={data.cloth.imageUrl}
                 alt={data.cloth.name}
                 className="w-full aspect-square object-cover rounded-2xl bg-ink/[0.04]"
               />

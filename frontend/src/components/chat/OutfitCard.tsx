@@ -103,7 +103,6 @@ export default function OutfitCard({
                 <ProtectedPhoto
                   scope="cloth"
                   id={c.id}
-                  src={c.imageUrl}
                   alt={c.name}
                   className={`w-14 h-14 rounded-xl object-cover bg-ink/[0.05] transition-opacity ${
                     off ? "opacity-35" : ""

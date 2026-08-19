@@ -401,7 +401,6 @@ export default function Tryon() {
                     <ProtectedPhoto
                       scope="selfie"
                       id={selfie.id}
-                      src={selfie.imageUrl}
                       alt=""
                       className="absolute inset-0 w-full h-full object-cover opacity-30"
                     />
