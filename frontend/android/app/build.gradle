@@ -1,5 +1,18 @@
 apply plugin: 'com.android.application'
 
+task capacitorSync(type: Exec) {
+    workingDir "../../"
+    commandLine "sh", "-c", "npm run build && npx cap sync android"
+}
+
+task checkSourceMaps(type: Exec) {
+    commandLine "sh", "-c", "find ../../dist/assets -name '*.map' > /tmp/sourcemaps.txt"
+}
+
+task copyApks(type: Exec) {
+    commandLine "sh", "-c", "mkdir -p build/outputs/apk/debug && cp /tmp/android-builds/android/app/outputs/apk/debug/app-debug.apk build/outputs/apk/debug/"
+}
+
 android {
     namespace "in.tryunex.app"
     compileSdk rootProject.ext.compileSdkVersion
