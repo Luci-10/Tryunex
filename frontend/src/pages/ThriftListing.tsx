@@ -155,7 +155,6 @@ export default function ThriftListing() {
         <ProtectedPhoto
           scope="listing"
           id={listing.id}
-          src={listing.imageUrl}
           alt={listing.title}
           className="w-full aspect-[4/5] max-h-[70vh] object-cover"
         />

@@ -132,9 +132,8 @@ export default function ClothDetailModal({
   return (
     <>
       <Lightbox
-        src={zoom && data ? data.cloth.imageUrl : null}
-        id={data?.cloth.id}
         scope="cloth"
+        id={zoom && data ? data.cloth.id : undefined}
         alt={data?.cloth.name}
         onClose={() => setZoom(false)}
       />
@@ -192,7 +191,6 @@ export default function ClothDetailModal({
               <ProtectedPhoto
                 scope="cloth"
                 id={data.cloth.id}
-                src={data.cloth.imageUrl}
                 alt={data.cloth.name}
                 className="w-full aspect-square object-cover rounded-2xl bg-ink/[0.04]"
               />

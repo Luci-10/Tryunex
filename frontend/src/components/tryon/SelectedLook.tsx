@@ -41,7 +41,6 @@ export default function SelectedLook({
             <ProtectedPhoto
               scope="cloth"
               id={c.id}
-              src={c.imageUrl}
               alt={c.name}
               className="w-16 h-16 rounded-xl object-cover bg-ink/[0.05]"
             />
@@ -77,7 +76,6 @@ export default function SelectedLook({
             <ProtectedPhoto
               scope="cloth"
               id={c.id}
-              src={c.imageUrl}
               alt={c.name}
               className="w-12 h-12 rounded-lg object-cover bg-ink/[0.05] shrink-0"
             />

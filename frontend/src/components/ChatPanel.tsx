@@ -188,7 +188,6 @@ export default function ChatPanel() {
                 <ProtectedPhoto
                   scope="cloth"
                   id={attached.id}
-                  src={attached.imageUrl}
                   alt={attached.name}
                   className="w-7 h-7 rounded-full object-cover shrink-0"
                 />

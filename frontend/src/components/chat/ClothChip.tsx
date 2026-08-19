@@ -37,7 +37,6 @@ export default function ClothChip({ cloth }: { cloth: Cloth }) {
         <ProtectedPhoto
           scope="cloth"
           id={cloth.id}
-          src={cloth.imageUrl}
           alt={cloth.name}
           className="w-11 h-11 rounded-lg object-cover bg-ink/[0.05] shrink-0"
         />

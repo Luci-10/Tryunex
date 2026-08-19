@@ -18,7 +18,6 @@ export type Listing = {
   deliveryPreference: Delivery;
   city: string | null;
   status: ListingStatus;
-  imageUrl: string;
   category: string;
   styleTag: StyleTag | null;
   createdAt: string;
@@ -40,7 +39,7 @@ export type ConversationSummary = {
   unread: number;
   lastMessage: string | null;
   lastMessageAt: string;
-  listing: { id: string; title: string; imageUrl: string; pricePaise: number; status: ListingStatus };
+  listing: { id: string; title: string; pricePaise: number; status: ListingStatus };
 };
 
 export type Message = {
@@ -59,7 +58,7 @@ export type ConversationDetail = {
   otherUserId: string;
   closed: boolean;
   closedReason: string | null;
-  listing: { id: string; title: string; imageUrl: string; pricePaise: number; status: ListingStatus };
+  listing: { id: string; title: string; pricePaise: number; status: ListingStatus };
 };
 
 /* ---------------------------------------------------------- presentation */
@@ -134,7 +133,7 @@ export type Sale = {
   role: "buyer" | "seller";
   createdAt: string;
   completedAt: string | null;
-  listing: { title: string; imageUrl: string; pricePaise: number };
+  listing: { id: string; title: string; pricePaise: number };
 };
 
 /** The one line that must appear wherever a sale is confirmed. */
@@ -193,7 +192,6 @@ export function listingAsCloth(l: Listing): Cloth {
     name: l.title,
     category: l.category,
     styleTag: l.styleTag ?? undefined,
-    imageUrl: l.imageUrl,
     status: "clean",
     createdAt: l.createdAt,
   };
@@ -201,7 +199,7 @@ export function listingAsCloth(l: Listing): Cloth {
 
 /** A listing can only be previewed while it is genuinely on the market. */
 export function canTryOn(l: Listing): boolean {
-  return l.status === "active" && Boolean(l.imageUrl) && Boolean(l.sourceClothId);
+  return l.status === "active" && Boolean(l.sourceClothId);
 }
 
 /* ------------------------------------------------------------------ api */

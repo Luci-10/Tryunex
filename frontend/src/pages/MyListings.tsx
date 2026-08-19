@@ -134,7 +134,6 @@ export default function MyListings() {
                       <ProtectedPhoto
                         scope="listing"
                         id={l.id}
-                        src={l.imageUrl}
                         alt=""
                         loading="lazy"
                         className="w-20 h-24 rounded-xl object-cover bg-ink/[0.04]"
@@ -290,7 +289,6 @@ function WardrobePicker({
               <ProtectedPhoto
                 scope="cloth"
                 id={c.id}
-                src={c.imageUrl}
                 alt=""
                 loading="lazy"
                 className="w-full aspect-square object-cover bg-ink/[0.04]"

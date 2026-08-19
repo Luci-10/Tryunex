@@ -141,7 +141,6 @@ export default function Account() {
                       <ProtectedPhoto
                         scope="cloth"
                         id={c.id}
-                        src={c.imageUrl}
                         alt={c.name}
                         className="w-20 h-20 rounded-xl object-cover bg-white"
                       />
