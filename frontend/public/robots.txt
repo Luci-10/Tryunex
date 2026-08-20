@@ -1,0 +1,21 @@
+# TryUnex
+User-agent: *
+Allow: /
+
+# Signed-in surfaces. Nothing here is reachable without a session, but there is
+# no reason for a crawler to spend budget discovering that.
+Disallow: /tryon
+Disallow: /plan
+Disallow: /worn
+Disallow: /history
+Disallow: /account
+Disallow: /settings
+Disallow: /shared
+Disallow: /friends/
+Disallow: /my-listings
+Disallow: /thrift/messages
+Disallow: /thrift/saved
+Disallow: /register
+Disallow: /api/
+
+Sitemap: https://www.tryunex.in/sitemap.xml

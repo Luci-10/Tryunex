@@ -390,7 +390,11 @@ export default function Login() {
             smarter. Your photos stay yours.
           </p>
           <nav aria-label="Footer" className="flex flex-wrap gap-x-4 gap-y-1 justify-center">
+            {/* Plain anchors, not <Link>: /virtual-try-on is a prerendered
+                static page, not a React route, so the router must not
+                intercept it. */}
             {[
+              { to: "/virtual-try-on", label: "Virtual try-on" },
               { to: "/about", label: "About" },
               { to: "/contact", label: "Contact" },
               { to: "/privacy", label: "Privacy" },
