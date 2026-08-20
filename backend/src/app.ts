@@ -125,6 +125,13 @@ export function createApp() {
         database: Boolean(process.env.DATABASE_URL),
         r2: Boolean(process.env.R2_ACCOUNT_ID && process.env.R2_BUCKET),
         razorpay: Boolean(process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET),
+        // "smtp" means mail is signed for our own domain; "gmail" is the
+        // fallback that lands sign-in codes in spam.
+        mail: process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS
+          ? "smtp"
+          : process.env.GMAIL_USER
+            ? "gmail"
+            : "none",
       },
     }),
   );

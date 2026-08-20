@@ -2,19 +2,55 @@ import nodemailer from "nodemailer";
 
 let transporter: nodemailer.Transporter | null = null;
 
+/**
+ * Where mail is sent from.
+ *
+ * Sending transactional mail from a @gmail.com address is why sign-in codes
+ * land in spam: the app is tryunex.in, but the mail claims to come from
+ * gmail.com, so there is no SPF or DKIM record on our own domain vouching for
+ * it. Receiving servers see a service email from a free consumer account with
+ * nothing backing it, which is exactly what a phisher looks like.
+ *
+ * Set SMTP_HOST/SMTP_USER/SMTP_PASS to send through a provider that signs for
+ * tryunex.in instead. Until those exist the Gmail path still works, so this
+ * change is safe to deploy before the DNS records are in place.
+ */
+function smtpConfigured(): boolean {
+  return Boolean(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS);
+}
+
+/** The visible From. A domain address is the entire point of the change. */
+export function mailFrom(): string {
+  return process.env.MAIL_FROM ?? `TryUnex <${process.env.GMAIL_USER}>`;
+}
+
+/** Replies should reach a human, not the unattended sending address. */
+function replyTo(): string | undefined {
+  return process.env.MAIL_REPLY_TO ?? process.env.GMAIL_USER ?? undefined;
+}
+
 function getTransporter() {
   if (transporter) return transporter;
+
+  if (smtpConfigured()) {
+    transporter = nodemailer.createTransport({
+      host: process.env.SMTP_HOST,
+      port: Number(process.env.SMTP_PORT ?? 587),
+      // 587 is STARTTLS, 465 is implicit TLS. Neither is plaintext.
+      secure: Number(process.env.SMTP_PORT ?? 587) === 465,
+      auth: { user: process.env.SMTP_USER!, pass: process.env.SMTP_PASS! },
+    });
+    return transporter;
+  }
+
   const user = process.env.GMAIL_USER;
   const pass = process.env.GMAIL_APP_PASSWORD;
   if (!user || !pass) {
     throw new Error(
-      "Gmail not configured. Set GMAIL_USER and GMAIL_APP_PASSWORD (app password, not your Google password).",
+      "Email not configured. Set SMTP_HOST/SMTP_USER/SMTP_PASS, or GMAIL_USER and GMAIL_APP_PASSWORD.",
     );
   }
-  transporter = nodemailer.createTransport({
-    service: "gmail",
-    auth: { user, pass },
-  });
+  transporter = nodemailer.createTransport({ service: "gmail", auth: { user, pass } });
   return transporter;
 }
 
@@ -29,7 +65,7 @@ export async function sendContactEmail(opts: {
   message: string;
 }) {
   const t = getTransporter();
-  const from = `TryUnex Contact <${process.env.GMAIL_USER}>`;
+  const from = mailFrom();
   const subj = `[Contact] ${opts.subject?.trim() || "New message from " + opts.fromName}`;
   const text = `From: ${opts.fromName} <${opts.fromEmail}>\n\n${opts.message}`;
   const html = `
@@ -64,7 +100,7 @@ function escapeAttr(s: string): string {
 
 export async function sendOtpEmail(to: string, otp: string) {
   const t = getTransporter();
-  const from = `TryUnex <${process.env.GMAIL_USER}>`;
+  const from = mailFrom();
   const text = `Your TryUnex verification code is ${otp}. It expires in 10 minutes. If you didn't request this, you can ignore this email.`;
   const html = `
     <div style="font-family:system-ui,sans-serif;max-width:480px;margin:0 auto;padding:24px;">
@@ -74,5 +110,5 @@ export async function sendOtpEmail(to: string, otp: string) {
       <p style="color:#555;font-size:14px;">It expires in 10 minutes. If you didn't request this, you can ignore this email.</p>
     </div>
   `;
-  await t.sendMail({ from, to, subject: "Your TryUnex code", text, html });
+  await t.sendMail({ from, to, subject: "Your TryUnex code", text, html, replyTo: replyTo() });
 }
