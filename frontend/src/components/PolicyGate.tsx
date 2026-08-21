@@ -223,7 +223,7 @@ export default function PolicyGate() {
       </div>
 
       <p className="text-[12px] text-ink/55 leading-relaxed mt-3 text-center">
-        Questions? Contact our Grievance Officer at{" "}
+        Questions? Please contact our team, at{" "}
         <a href={`mailto:${SUPPORT_EMAIL}`} className="font-semibold text-brand-700">
           {SUPPORT_EMAIL}
         </a>

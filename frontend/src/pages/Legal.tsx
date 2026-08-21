@@ -98,7 +98,7 @@ function LegalPage({
         <div className="rounded-card border border-ink/[0.07] bg-mint/40 p-4 sm:p-5">
           <h2 className="text-[16px] font-bold tracking-tight">Contact &amp; grievances</h2>
           <p className="text-[14.5px] text-ink/75 leading-relaxed mt-2">
-            For privacy questions, support, or grievances, contact our Grievance Officer at{" "}
+            For privacy questions, support, or grievances — please contact our team, at{" "}
             <a
               href={`mailto:${SUPPORT_EMAIL}`}
               className="font-semibold text-brand-700 hover:underline"
@@ -109,7 +109,7 @@ function LegalPage({
           </p>
           <dl className="text-[14px] leading-relaxed mt-3 space-y-1">
             <div className="flex gap-2">
-              <dt className="text-ink/60 shrink-0">Grievance Officer:</dt>
+              <dt className="text-ink/60 shrink-0">Email:</dt>
               <dd>
                 <a href={`mailto:${SUPPORT_EMAIL}`} className="font-medium text-brand-700 hover:underline">
                   {SUPPORT_EMAIL}
@@ -121,9 +121,6 @@ function LegalPage({
               <dd className="font-medium">Mumbai, Maharashtra, India</dd>
             </div>
           </dl>
-          <p className="text-[13px] text-ink/60 leading-relaxed mt-3">
-            TryUnex is operated as an individual proprietorship under the TryUnex brand.
-          </p>
         </div>
 
         <nav aria-label="Other policies" className="flex flex-wrap gap-x-4 gap-y-2 justify-center pb-4">
@@ -453,8 +450,7 @@ export function Terms() {
       intro={
         <p>
           These terms apply when you use TryUnex. By creating an account or using the service you
-          agree to them. TryUnex is operated as an individual proprietorship under the TryUnex
-          brand, based in Mumbai, Maharashtra, India.
+          agree to them. TryUnex is based in Mumbai, Maharashtra, India.
         </p>
       }
       sections={[
