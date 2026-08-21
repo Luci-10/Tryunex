@@ -251,3 +251,11 @@ export const Block = (p: P) => (
     <path d="m5.6 5.6 12.8 12.8" />
   </Svg>
 );
+
+/** Bell — the notifications tray. */
+export const Bell = (p: P) => (
+  <Svg {...p}>
+    <path d="M18 8a6 6 0 1 0-12 0c0 6-2 7-2 7h16s-2-1-2-7" />
+    <path d="M13.7 20a2 2 0 0 1-3.4 0" />
+  </Svg>
+);

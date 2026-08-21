@@ -38,6 +38,7 @@ import {
   transferGarment,
 } from "../services/thriftTransfer.js";
 import { neon } from "@neondatabase/serverless";
+import { notify } from "../services/notifications.js";
 
 const router = Router();
 router.use(requireAuth);
@@ -741,6 +742,17 @@ router.post("/messages/:conversationId", async (req, res) => {
     .set({ updatedAt: new Date() })
     .where(eq(thriftConversations.id, conversation.id));
 
+  // One notification per conversation, refreshed rather than stacked — ten
+  // messages in a thread should not produce ten bells.
+  await notify({
+    userId: otherId,
+    kind: "thrift_message",
+    title: `New message about ${listing.title}`,
+    body: body.length > 90 ? `${body.slice(0, 90)}…` : body,
+    link: `/thrift/messages/${conversation.id}`,
+    dedupeKey: `msg:${conversation.id}:${otherId}`,
+  });
+
   res.status(201).json({
     message: { id: msg.id, body: msg.body, mine: true, createdAt: msg.createdAt, readAt: null },
   });
@@ -924,6 +936,15 @@ router.post("/listings/:id/sell", async (req, res) => {
     .set({ status: "closed", updatedAt: new Date() })
     .where(eq(thriftConversations.listingId, row.id));
 
+  await notify({
+    userId: parse.data.buyerUserId,
+    kind: "thrift_sale_recorded",
+    title: "Confirm your purchase",
+    body: `The seller marked ${row.title} as sold to you. Confirm once you have received it.`,
+    link: `/thrift/${row.id}`,
+    dedupeKey: `sale:${inserted[0].id}`,
+  });
+
   res.status(201).json({ transactionId: inserted[0].id, status: "pending" });
 });
 
@@ -962,6 +983,23 @@ router.post("/transactions/:id/confirm", async (req, res) => {
   if (!transfer.ok) {
     return res.status(409).json({ error: transfer.reason });
   }
+  if (!transfer.alreadyDone) {
+    const [tx] = (await q`
+      SELECT t.seller_user_id, l.title FROM thrift_transactions t
+        JOIN thrift_listings l ON l.id = t.listing_id
+       WHERE t.id = ${req.params.id}::uuid LIMIT 1`) as any[];
+    if (tx) {
+      await notify({
+        userId: tx.seller_user_id,
+        kind: "thrift_sale_completed",
+        title: "Sale complete",
+        body: `${tx.title} has moved to the buyer's wardrobe.`,
+        link: "/my-listings",
+        dedupeKey: `sold:${req.params.id}`,
+      });
+    }
+  }
+
   res.json({
     status: "completed",
     clothId: transfer.newClothId,
