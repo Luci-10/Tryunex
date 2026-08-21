@@ -18,6 +18,7 @@ import mediaRoutes from "./routes/media.js";
 import policyRoutes from "./routes/policy.js";
 import notificationRoutes from "./routes/notifications.js";
 import configRoutes from "./routes/config.js";
+import accountRoutes from "./routes/account.js";
 
 /**
  * Express 4 does not forward a rejected promise from an async handler to the
@@ -149,6 +150,7 @@ export function createApp() {
   app.use("/api/policy", policyRoutes);
   app.use("/api/notifications", notificationRoutes);
   app.use("/api/config", configRoutes);
+  app.use("/api/account", accountRoutes);
   // sharing.ts owns /share/*, /friends/*, /suggestions/* — mounted under /api.
   app.use("/api", sharingRoutes);
 

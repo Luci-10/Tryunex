@@ -112,3 +112,35 @@ export async function sendOtpEmail(to: string, otp: string) {
   `;
   await t.sendMail({ from, to, subject: "Your TryUnex code", text, html, replyTo: replyTo() });
 }
+
+/**
+ * Confirmation code for permanent account deletion.
+ *
+ * Worded so that someone who did *not* ask for this understands it matters and
+ * knows what to do — unlike a sign-in code, ignoring this one is not the whole
+ * story if their session is in someone else's hands.
+ */
+export async function sendAccountDeletionEmail(to: string, otp: string) {
+  const t = getTransporter();
+  const from = mailFrom();
+  const text =
+    `Your TryUnex account deletion code is ${otp}. It expires in 10 minutes.\n\n` +
+    `Entering it permanently deletes your account, your wardrobe and your photos. This cannot be undone.\n\n` +
+    `If you did not request this, do not share the code. Someone may have access to your signed-in device — ` +
+    `sign out of TryUnex everywhere and contact us at ${from}.`;
+  const html = `
+    <div style="font-family:system-ui,sans-serif;max-width:480px;margin:0 auto;padding:24px;">
+      <h2 style="color:#6d28d9;margin:0 0 12px;">TryUnex</h2>
+      <p>Your account deletion code is:</p>
+      <p style="font-size:32px;letter-spacing:8px;font-weight:700;color:#111;margin:16px 0;background:#fef2f2;padding:16px;border-radius:12px;text-align:center;">${otp}</p>
+      <p style="color:#b91c1c;font-size:14px;font-weight:600;">
+        Entering this code permanently deletes your account, your wardrobe and your photos. This cannot be undone.
+      </p>
+      <p style="color:#555;font-size:14px;">
+        It expires in 10 minutes. If you didn't request this, do not share the code — someone may have access to
+        your signed-in device. Sign out of TryUnex everywhere and contact us at ${escapeHtml(from)}.
+      </p>
+    </div>
+  `;
+  await t.sendMail({ from, to, subject: "Confirm deleting your TryUnex account", text, html, replyTo: replyTo() });
+}

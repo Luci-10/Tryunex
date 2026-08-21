@@ -14,7 +14,20 @@ import { SignJWT, jwtVerify, type JWTPayload } from "jose";
 import { createHmac, randomInt, timingSafeEqual } from "node:crypto";
 import type { Request, Response } from "express";
 
-export const OTP_COOKIE = "tryunex_otp";
+/**
+ * What a code authorises. Codes are bound to their purpose, so one emailed to
+ * sign in cannot be turned around and used to delete the account — they are
+ * hashed differently and stored in separate cookies, meaning asking to delete
+ * also cannot clobber a sign-in already in progress.
+ */
+export type OtpPurpose = "signin" | "delete_account";
+
+const COOKIE_NAMES: Record<OtpPurpose, string> = {
+  signin: "tryunex_otp",
+  delete_account: "tryunex_otp_delete",
+};
+
+export const OTP_COOKIE = COOKIE_NAMES.signin;
 const TTL_SECONDS = 10 * 60;
 const MAX_ATTEMPTS = 5;
 
@@ -30,9 +43,13 @@ function secret() {
   return new TextEncoder().encode(s);
 }
 
-function hashOtp(email: string, otp: string): string {
+function hashOtp(email: string, otp: string, purpose: OtpPurpose = "signin"): string {
   // Bind hash to the email so the cookie can't be replayed under a different email.
-  return createHmac("sha256", process.env.JWT_SECRET!).update(`${email}:${otp}`).digest("hex");
+  //
+  // "signin" deliberately keeps the original unprefixed material: changing it
+  // would invalidate every code already in someone's inbox at deploy time.
+  const material = purpose === "signin" ? `${email}:${otp}` : `${purpose}:${email}:${otp}`;
+  return createHmac("sha256", process.env.JWT_SECRET!).update(material).digest("hex");
 }
 
 function constantTimeEqual(a: string, b: string): boolean {
@@ -46,10 +63,15 @@ export function generateOtp(): string {
   return String(randomInt(0, 1_000_000)).padStart(6, "0");
 }
 
-export async function issueOtpCookie(res: Response, email: string, otp: string) {
+export async function issueOtpCookie(
+  res: Response,
+  email: string,
+  otp: string,
+  purpose: OtpPurpose = "signin",
+) {
   const payload: OtpPayload = {
     email,
-    otpHash: hashOtp(email, otp),
+    otpHash: hashOtp(email, otp, purpose),
     attempts: 0,
   };
   const token = await new SignJWT(payload)
@@ -57,7 +79,7 @@ export async function issueOtpCookie(res: Response, email: string, otp: string) 
     .setIssuedAt()
     .setExpirationTime(`${TTL_SECONDS}s`)
     .sign(secret());
-  res.cookie(OTP_COOKIE, token, {
+  res.cookie(COOKIE_NAMES[purpose], token, {
     httpOnly: true,
     sameSite: "none",
     secure: true,
@@ -66,12 +88,15 @@ export async function issueOtpCookie(res: Response, email: string, otp: string) 
   });
 }
 
-export function clearOtpCookie(res: Response) {
-  res.clearCookie(OTP_COOKIE, { path: "/" });
+export function clearOtpCookie(res: Response, purpose: OtpPurpose = "signin") {
+  res.clearCookie(COOKIE_NAMES[purpose], { path: "/" });
 }
 
-export async function readOtpCookie(req: Request): Promise<OtpPayload | null> {
-  const token = req.cookies?.[OTP_COOKIE];
+export async function readOtpCookie(
+  req: Request,
+  purpose: OtpPurpose = "signin",
+): Promise<OtpPayload | null> {
+  const token = req.cookies?.[COOKIE_NAMES[purpose]];
   if (!token) return null;
   try {
     const { payload } = await jwtVerify(token, secret());
@@ -98,8 +123,9 @@ export async function verifyOtpFromCookie(
   res: Response,
   submittedEmail: string,
   submittedOtp: string,
+  purpose: OtpPurpose = "signin",
 ): Promise<OtpCheck> {
-  const payload = await readOtpCookie(req);
+  const payload = await readOtpCookie(req, purpose);
   if (!payload) return { ok: false, reason: "no_request" };
 
   if (payload.email !== submittedEmail.trim().toLowerCase()) {
@@ -107,11 +133,11 @@ export async function verifyOtpFromCookie(
   }
 
   if ((payload.attempts ?? 0) >= MAX_ATTEMPTS) {
-    clearOtpCookie(res);
+    clearOtpCookie(res, purpose);
     return { ok: false, reason: "too_many_attempts" };
   }
 
-  const expectedHash = hashOtp(payload.email, submittedOtp.trim());
+  const expectedHash = hashOtp(payload.email, submittedOtp.trim(), purpose);
   if (constantTimeEqual(expectedHash, payload.otpHash)) {
     return { ok: true };
   }
@@ -119,7 +145,7 @@ export async function verifyOtpFromCookie(
   // Wrong code — re-issue cookie with attempts+1.
   const nextAttempts = (payload.attempts ?? 0) + 1;
   if (nextAttempts >= MAX_ATTEMPTS) {
-    clearOtpCookie(res);
+    clearOtpCookie(res, purpose);
     return { ok: false, reason: "too_many_attempts" };
   }
   // Preserve original exp by signing a fresh token with remaining TTL.
@@ -133,7 +159,7 @@ export async function verifyOtpFromCookie(
     .setIssuedAt()
     .setExpirationTime(`${remainingSec}s`)
     .sign(secret());
-  res.cookie(OTP_COOKIE, newToken, {
+  res.cookie(COOKIE_NAMES[purpose], newToken, {
     httpOnly: true,
     sameSite: "none",
     secure: true,

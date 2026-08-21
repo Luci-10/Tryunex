@@ -408,10 +408,11 @@ export function Privacy() {
                 when the last one is gone.
               </p>
               <p>
-                Account closure is handled by request rather than a self-service button. Email{" "}
-                <Mail /> from your registered address and we will close the account and delete your
-                data within 30 days, apart from records we must keep for legal, accounting, fraud
-                prevention, dispute, or security reasons.
+                You can delete your account yourself from Settings, under Danger zone. It asks for
+                a code sent to your registered email address and then deletes immediately: your
+                profile, wardrobe, try-on photos, Thrift listings and messages are removed, and the
+                stored image files are deleted from our storage provider. It cannot be undone. If
+                you would rather we did it, email <Mail /> from your registered address.
               </p>
               <p>
                 Backups may retain deleted data for a short period before they rotate out. Payment

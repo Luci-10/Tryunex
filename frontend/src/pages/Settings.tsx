@@ -6,6 +6,7 @@ import { getSummary, TIER_LABEL, type BillingSummary } from "../billing";
 import { useOnboarding } from "../tour/OnboardingProvider";
 import { api } from "../api";
 import type { PolicyStatus } from "../components/PolicyGate";
+import DeleteAccount from "../components/DeleteAccount";
 import {
   MOTION_OPTIONS,
   getMotionPref,
@@ -210,6 +211,10 @@ export default function Settings() {
             )}
           </div>
         )}
+      </Group>
+
+      <Group icon={<Info className="w-4 h-4" />} tone="peach" title="Danger zone">
+        <DeleteAccount />
       </Group>
 
       <Group icon={<Info className="w-4 h-4" />} tone="butter" title="App">
