@@ -46,7 +46,10 @@ export default function ClothCard({
         selected ? "border-brand-500 ring-2 ring-brand-500/40" : "border-ink/[0.06]"
       }`}
     >
-      {/* One full-card hit target underneath the overlay controls. */}
+      {/* One full-card hit target. It sits above the artwork and the text —
+          both of which are pointer-events-none — so a tap anywhere on the card
+          opens it. The overlay controls sit higher still and re-enable pointer
+          events for themselves, so Try on and Wear keep working. */}
       {interactive && (
         <button
           type="button"
@@ -57,11 +60,11 @@ export default function ClothCard({
               ? `${selected ? "Deselect" : "Select"} ${cloth.name}`
               : `Open ${cloth.name}`
           }
-          className="absolute inset-0 z-0"
+          className="absolute inset-0 z-[5]"
         />
       )}
 
-      <div className="relative aspect-square bg-ink/[0.04]">
+      <div className="relative aspect-square bg-ink/[0.04] pointer-events-none">
         <ProtectedPhoto
           scope="cloth"
           id={cloth.id}
