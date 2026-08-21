@@ -63,7 +63,8 @@ export default function Tryon() {
   const [cached, setCached] = useState(false);
   const [showingOriginal, setShowingOriginal] = useState(false);
 
-  const [zoom, setZoom] = useState<string | null>(null);
+  // Zoom targets a record now, not a URL — the image is private.
+  const [zoom, setZoom] = useState<{ scope: MediaScope; id: string } | null>(null);
   const [askPhoto, setAskPhoto] = useState(false);
   const [announcement, setAnnouncement] = useState("");
   const [pending, setPending] = useState<{ cloth: Cloth; outcome: AddOutcome } | null>(null);
@@ -320,7 +321,7 @@ export default function Tryon() {
   async function saveLook() {
     if (!result || sharing) return;
     setSharing("download");
-    const r = await downloadLook(result.imageUrl);
+    const r = await downloadLook("tryon", result.id);
     setSharing(null);
     if (r.ok) {
       toast(r.via === "newtab" ? "Opened the image — long-press or right-click to save" : "Saved to your device", {
@@ -334,7 +335,7 @@ export default function Tryon() {
   async function shareResult() {
     if (!result || sharing) return;
     setSharing("share");
-    const r = await shareLook(result.imageUrl);
+    const r = await shareLook("tryon", result.id);
     setSharing(null);
     if (r.ok) {
       if (r.via === "clipboard") {
@@ -364,7 +365,12 @@ export default function Tryon() {
 
   return (
     <PageShell width="wide">
-      <Lightbox src={zoom} alt="Your try-on look" onClose={() => setZoom(null)} />
+      <Lightbox
+        scope={zoom?.scope}
+        id={zoom?.id}
+        alt="Your try-on look"
+        onClose={() => setZoom(null)}
+      />
 
       <div className="flex items-start justify-between gap-3">
         <div>
@@ -444,7 +450,15 @@ export default function Tryon() {
               {heroSrc && !generating && (
                 <button
                   type="button"
-                  onClick={() => setZoom(heroSrc)}
+                  onClick={() =>
+                    setZoom(
+                      result && !showingOriginal
+                        ? { scope: "tryon", id: result.id }
+                        : selfie
+                          ? { scope: "selfie", id: selfie.id }
+                          : null,
+                    )
+                  }
                   aria-label="View full size"
                   className="absolute bottom-3 right-3 inline-flex items-center gap-1.5 h-9 px-3 rounded-full bg-white/95 text-ink text-sm font-medium shadow-card backdrop-blur-sm"
                 >
