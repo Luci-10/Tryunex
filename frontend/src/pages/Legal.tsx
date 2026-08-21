@@ -107,20 +107,6 @@ function LegalPage({
             </a>
             .
           </p>
-          <dl className="text-[14px] leading-relaxed mt-3 space-y-1">
-            <div className="flex gap-2">
-              <dt className="text-ink/60 shrink-0">Email:</dt>
-              <dd>
-                <a href={`mailto:${SUPPORT_EMAIL}`} className="font-medium text-brand-700 hover:underline">
-                  {SUPPORT_EMAIL}
-                </a>
-              </dd>
-            </div>
-            <div className="flex gap-2">
-              <dt className="text-ink/60 shrink-0">Location:</dt>
-              <dd className="font-medium">Mumbai, Maharashtra, India</dd>
-            </div>
-          </dl>
         </div>
 
         <nav aria-label="Other policies" className="flex flex-wrap gap-x-4 gap-y-2 justify-center pb-4">
@@ -450,7 +436,7 @@ export function Terms() {
       intro={
         <p>
           These terms apply when you use TryUnex. By creating an account or using the service you
-          agree to them. TryUnex is based in Mumbai, Maharashtra, India.
+          agree to them.
         </p>
       }
       sections={[
@@ -608,9 +594,9 @@ export function Terms() {
                 , including your rights under Indian consumer law.
               </p>
               <p>
-                These terms are governed by the laws of India. The courts of Mumbai, Maharashtra are
-                the intended forum for disputes, subject to any consumer protection law that gives
-                you the right to bring a claim elsewhere.
+                These terms are governed by the laws of India, and Indian courts are the intended
+                forum for disputes, subject to any consumer protection law that gives you the right
+                to bring a claim elsewhere.
               </p>
               <p>
                 We may update these terms. If a change is significant we will make it visible in the
