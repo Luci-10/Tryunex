@@ -80,9 +80,9 @@ router.get("/", async (req, res) => {
       status: clothes.status,
       createdAt: clothes.createdAt,
       lastWornOn: sql<string | null>`(
-        SELECT MAX(${wearEvents.wornOn})::text
-        FROM ${wearEvents}
-        WHERE ${wearEvents.clothId} = ${clothes.id} AND ${wearEvents.settled} = true
+        SELECT MAX(we.worn_on)::text
+          FROM wear_events we
+         WHERE we.cloth_id = clothes.id AND we.settled = true
       )`,
     })
     .from(clothes)
