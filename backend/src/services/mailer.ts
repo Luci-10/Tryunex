@@ -19,14 +19,24 @@ function smtpConfigured(): boolean {
   return Boolean(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS);
 }
 
+/**
+ * The staffed inbox, and the default for both From and Reply-To.
+ *
+ * Deliberately not GMAIL_USER. That was the previous fallback, which meant a
+ * missing environment variable silently published a personal Gmail address as
+ * the reply address on every sign-in code — visible to every user, and exactly
+ * what the move to a domain address was meant to stop.
+ */
+const SUPPORT_INBOX = "contact@tryunex.in";
+
 /** The visible From. A domain address is the entire point of the change. */
 export function mailFrom(): string {
-  return process.env.MAIL_FROM ?? `TryUnex <${process.env.GMAIL_USER}>`;
+  return process.env.MAIL_FROM ?? `TryUnex <${SUPPORT_INBOX}>`;
 }
 
 /** Replies should reach a human, not the unattended sending address. */
-function replyTo(): string | undefined {
-  return process.env.MAIL_REPLY_TO ?? process.env.GMAIL_USER ?? undefined;
+function replyTo(): string {
+  return process.env.MAIL_REPLY_TO ?? SUPPORT_INBOX;
 }
 
 function getTransporter() {
@@ -57,7 +67,7 @@ function getTransporter() {
 // Where contact-form submissions get delivered: the staffed support inbox.
 // MAIL_REPLY_TO is that inbox by definition, so it is the same address a user
 // gets when they reply to any mail we send.
-const CONTACT_RECIPIENTS = [process.env.MAIL_REPLY_TO ?? "contact@tryunex.in"];
+const CONTACT_RECIPIENTS = [process.env.MAIL_REPLY_TO ?? SUPPORT_INBOX];
 
 export async function sendContactEmail(opts: {
   fromEmail: string;
