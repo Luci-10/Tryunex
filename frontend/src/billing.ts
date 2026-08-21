@@ -16,6 +16,14 @@ export type ChatQuota = {
   resetsAt: string | null;
 };
 
+export type ActivePack = {
+  code: string;
+  name: string;
+  credits: number;
+  purchasedAt: string;
+  expiresAt: string | null;
+};
+
 export type BillingSummary = {
   tier: "free" | "lite" | "plus" | "style";
   subscriptionStatus: string;
@@ -24,6 +32,8 @@ export type BillingSummary = {
   credits: CreditBalance;
   chat: ChatQuota;
   activity: { label: string; amount: number; at: string }[];
+  /** Present only while a purchased pack still has credits left. */
+  activePack: ActivePack | null;
 };
 
 export type Catalogue = {
@@ -52,6 +62,37 @@ export const getCatalogue = () => api.get<Catalogue>("/billing/products");
 export const TIER_LABEL: Record<string, string> = {
   free: "Free", lite: "Lite", plus: "Plus", style: "Style",
 };
+
+/**
+ * What to call the plan someone is on, wherever it is shown.
+ *
+ * A subscription wins: it renews, so it describes the account for as long as
+ * it lasts. A pack is named only while its credits are unspent — once they run
+ * out the pack is history, not a plan. Falling back to Free is the honest
+ * answer when neither applies.
+ */
+export function planName(summary: BillingSummary): string {
+  if (summary.tier !== "free") return `${TIER_LABEL[summary.tier] ?? summary.tier} plan`;
+  if (summary.activePack) return summary.activePack.name;
+  return "Free plan";
+}
+
+/** The line under the plan name: what is left, and until when. */
+export function planDetail(summary: BillingSummary): string | null {
+  if (summary.tier !== "free") {
+    if (!summary.renewsAt) return null;
+    return `Renews ${new Date(summary.renewsAt).toLocaleDateString(undefined, {
+      day: "numeric", month: "short",
+    })}`;
+  }
+  const pack = summary.activePack;
+  if (!pack) return null;
+  const left = `${pack.credits} credit${pack.credits === 1 ? "" : "s"} left`;
+  if (!pack.expiresAt) return left;
+  return `${left} · expires ${new Date(pack.expiresAt).toLocaleDateString(undefined, {
+    day: "numeric", month: "short",
+  })}`;
+}
 
 /** Loads Razorpay's checkout script once, on demand. */
 let checkoutPromise: Promise<boolean> | null = null;

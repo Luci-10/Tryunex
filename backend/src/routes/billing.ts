@@ -10,6 +10,7 @@ import {
   ensureBillingSchema,
   ensureProfile,
   getBalance,
+  getActivePack,
   getChatQuota,
   grantCredits,
   grantFreeMonthlyCredit,
@@ -197,11 +198,27 @@ router.get("/summary", async (req, res) => {
   const userId = req.userId!;
   const profile = await ensureProfile(userId);
   await grantFreeMonthlyCredit(userId);
-  const [balance, quota, activity] = await Promise.all([
+  const [balance, quota, activity, pack] = await Promise.all([
     getBalance(userId),
     getChatQuota(userId),
     recentActivity(userId),
+    getActivePack(userId),
   ]);
+
+  // A pack is worth naming only while its credits are actually left. The pack
+  // bucket is what is still unspent after free and subscription credits, so it
+  // going to zero is exactly "the pack is exhausted".
+  const activePack =
+    pack && balance.pack > 0
+      ? {
+          code: pack.code,
+          name: findPack(pack.code)?.name ?? "Credit pack",
+          credits: balance.pack,
+          purchasedAt: pack.purchasedAt,
+          expiresAt: pack.expiresAt,
+        }
+      : null;
+
   res.json({
     tier: profile.currentTier,
     subscriptionStatus: profile.subscriptionStatus,
@@ -210,6 +227,7 @@ router.get("/summary", async (req, res) => {
     credits: balance,
     chat: quota,
     activity,
+    activePack,
   });
 });
 

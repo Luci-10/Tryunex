@@ -547,3 +547,39 @@ export async function claimWebhookEvent(eventId: string, eventType: string): Pro
     RETURNING event_id`) as any[];
   return rows.length > 0;
 }
+
+export type ActivePack = {
+  code: string;
+  purchasedAt: string;
+  expiresAt: string | null;
+};
+
+/**
+ * The pack a user is currently spending, or null.
+ *
+ * "Currently spending" is decided by getBalance's pack bucket, not by this
+ * query: spending is applied free → subscription → pack, so pack credits are
+ * the last to go and a positive bucket means the purchase is genuinely still
+ * in use. This only answers *which* pack, by taking the most recent unexpired
+ * purchase — the one those remaining credits belong to.
+ */
+export async function getActivePack(userId: string): Promise<ActivePack | null> {
+  await ensureBillingSchema();
+  const q = sql();
+  const rows = (await q`
+    SELECT product_code, created_at, expires_at
+      FROM credit_ledger
+     WHERE user_id = ${userId}
+       AND type = 'pack_purchase_grant'
+       AND product_code IS NOT NULL
+       AND (expires_at IS NULL OR expires_at > now())
+     ORDER BY created_at DESC
+     LIMIT 1`) as any[];
+  const row = rows[0];
+  if (!row) return null;
+  return {
+    code: String(row.product_code),
+    purchasedAt: row.created_at,
+    expiresAt: row.expires_at ?? null,
+  };
+}

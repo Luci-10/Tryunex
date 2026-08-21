@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import PageShell, { PageTitle } from "../components/PageShell";
 import { useAuth } from "../auth";
-import { getSummary, TIER_LABEL, type BillingSummary } from "../billing";
+import { getSummary, type BillingSummary, planName } from "../billing";
 import { useOnboarding } from "../tour/OnboardingProvider";
 import { api } from "../api";
 import type { PolicyStatus } from "../components/PolicyGate";
@@ -129,7 +129,7 @@ export default function Settings() {
       <Group icon={<Sparkles className="w-4 h-4" />} tone="mint" title="Plan & credits">
         {billing && (
           <dl className="px-4 py-3 flex gap-6">
-            <Fact label="Plan" value={TIER_LABEL[billing.tier] ?? "Free"} capitalize />
+            <Fact label="Plan" value={planName(billing)} />
             <Fact label="Credits left" value={String(billing.credits.total)} />
             {billing.renewsAt && (
               <Fact

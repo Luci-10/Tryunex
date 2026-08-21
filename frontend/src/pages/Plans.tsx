@@ -9,14 +9,7 @@ import { ErrorBanner } from "../components/ui/Field";
 import { useToast } from "../components/ui/Toast";
 import { useAuth } from "../auth";
 import { Check, Sparkles } from "../components/ui/icons";
-import {
-  getCatalogue,
-  getSummary,
-  startCheckout,
-  TIER_LABEL,
-  type BillingSummary,
-  type Catalogue,
-} from "../billing";
+import { getCatalogue, getSummary, startCheckout, type BillingSummary, type Catalogue, planName, planDetail } from "../billing";
 
 function dateLabel(iso: string | null) {
   if (!iso) return null;
@@ -149,9 +142,10 @@ export default function Plans() {
         <div className="flex items-start justify-between gap-3">
           <div>
             <p className="text-[12px] uppercase tracking-wider text-ink/55">Current plan</p>
-            <p className="text-[19px] font-bold tracking-tight mt-0.5">
-              {TIER_LABEL[summary.tier] ?? "Free"}
-            </p>
+            <p className="text-[19px] font-bold tracking-tight mt-0.5">{planName(summary)}</p>
+            {planDetail(summary) && (
+              <p className="text-[12.5px] text-ink/60 mt-0.5">{planDetail(summary)}</p>
+            )}
           </div>
           <div className="text-right">
             <p className="text-[12px] uppercase tracking-wider text-ink/55">Credits left</p>

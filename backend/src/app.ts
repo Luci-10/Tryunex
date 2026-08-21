@@ -106,12 +106,18 @@ export function createApp() {
     }),
   );
 
-  // Billing mounts first: its webhook needs the raw body for signature
-  // verification, so it must not pass through express.json().
+  // Cookies first, and deliberately before billing: cookie-parser reads
+  // headers and never touches the body, so it does not disturb the webhook,
+  // while requireAuth on the billing router cannot work without it. Mounted
+  // after billing — as it was — every authed billing route answered 401,
+  // because req.cookies was still undefined by the time it ran.
+  app.use(cookieParser());
+
+  // Billing mounts before the JSON parser: its webhook needs the raw body for
+  // signature verification, so it must not pass through express.json().
   app.use("/api/billing", billingRoutes);
 
   app.use(express.json({ limit: "1mb" }));
-  app.use(cookieParser());
 
   // Booleans only — never a value, a length, or a prefix. Enough to tell
   // "the env var never reached this deployment" apart from "the key is wrong",
