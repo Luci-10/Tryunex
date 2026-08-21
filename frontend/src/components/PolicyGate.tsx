@@ -4,6 +4,7 @@ import { api } from "../api";
 import { useAuth } from "../auth";
 import Button from "./ui/Button";
 import { useSignOut } from "./ProfileMenu";
+import { SUPPORT_EMAIL } from "../pages/Legal";
 
 export type PolicyStatus = { version: string; accepted: boolean; acceptedAt: string | null };
 
@@ -222,9 +223,9 @@ export default function PolicyGate() {
       </div>
 
       <p className="text-[12px] text-ink/55 leading-relaxed mt-3 text-center">
-        Questions? Contact our Grievance Officer, Shubham Sheshank, at{" "}
-        <a href="mailto:tryunex8@gmail.com" className="font-semibold text-brand-700">
-          tryunex8@gmail.com
+        Questions? Contact our Grievance Officer at{" "}
+        <a href={`mailto:${SUPPORT_EMAIL}`} className="font-semibold text-brand-700">
+          {SUPPORT_EMAIL}
         </a>
         .
       </p>

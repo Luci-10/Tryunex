@@ -54,9 +54,10 @@ function getTransporter() {
   return transporter;
 }
 
-// Where contact-form submissions get delivered. Always includes the founder's
-// inbox + the brand inbox (GMAIL_USER).
-const CONTACT_RECIPIENTS = [process.env.GMAIL_USER, "shubhamsheshank63@gmail.com"];
+// Where contact-form submissions get delivered: the staffed support inbox.
+// MAIL_REPLY_TO is that inbox by definition, so it is the same address a user
+// gets when they reply to any mail we send.
+const CONTACT_RECIPIENTS = [process.env.MAIL_REPLY_TO ?? "contact@tryunex.in"];
 
 export async function sendContactEmail(opts: {
   fromEmail: string;

@@ -1,6 +1,6 @@
 // Contact-form endpoint. Requires login so we know the sender's email +
 // name without trusting client-provided values. Emails go to the team
-// inbox (GMAIL_USER) + shubhamsheshank63@gmail.com.
+// support inbox (contact@tryunex.in, or MAIL_REPLY_TO if set).
 import { Router } from "express";
 import { z } from "zod";
 import { eq } from "drizzle-orm";
