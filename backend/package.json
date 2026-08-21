@@ -17,7 +17,8 @@
     "verify:policy": "node --env-file=.env scripts/verify-policy.mjs",
     "verify:age": "node --env-file=.env scripts/verify-age.mjs",
     "verify:transfer": "node --env-file=.env scripts/verify-thrift-transfer.mjs",
-    "verify:notifications": "node --env-file=.env scripts/verify-notifications.mjs"
+    "verify:notifications": "node --env-file=.env scripts/verify-notifications.mjs",
+    "verify:wear": "node --env-file=.env scripts/verify-wear.mjs"
   },
   "dependencies": {
     "@google/genai": "^2.7.0",

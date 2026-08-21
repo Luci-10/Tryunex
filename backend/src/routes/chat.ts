@@ -38,9 +38,9 @@ async function buildWardrobeContext(userId: string): Promise<string> {
       // Same subquery the clothes list uses, so "what haven't I worn lately"
       // is answerable from real data instead of guesswork.
       lastWornOn: sql<string | null>`(
-        SELECT MAX(${wearEvents.wornOn})::text
-        FROM ${wearEvents}
-        WHERE ${wearEvents.clothId} = ${clothes.id} AND ${wearEvents.settled} = true
+        SELECT MAX(we.worn_on)::text
+          FROM wear_events we
+         WHERE we.cloth_id = clothes.id AND we.settled = true
       )`,
     })
     .from(clothes)
