@@ -3,6 +3,7 @@ import { NavLink, useLocation } from "react-router-dom";
 import { useAuth } from "../auth";
 import useMediaQuery from "../useMediaQuery";
 import { ProfileDropdown, ProfileSheet, PROFILE_ROUTES } from "./ProfileMenu";
+import NotificationBell from "./NotificationBell";
 import { Calendar, ChevronDown, Shirt, Sparkles, Tag } from "./ui/icons";
 
 type Item = { to: string; label: string; icon: typeof Shirt; end?: boolean };
@@ -102,7 +103,9 @@ export function AppHeader() {
         </nav>
 
         {user && (
-          <div className="ml-auto relative shrink-0">
+          <div className="ml-auto flex items-center gap-0.5 shrink-0">
+            <NotificationBell />
+            <div className="relative shrink-0">
             <button
               ref={triggerRef}
               type="button"
@@ -136,6 +139,7 @@ export function AppHeader() {
             ) : (
               <ProfileSheet open={open} onClose={() => setOpen(false)} />
             )}
+            </div>
           </div>
         )}
       </div>

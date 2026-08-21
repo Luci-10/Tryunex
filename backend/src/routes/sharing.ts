@@ -4,6 +4,7 @@ import { db } from "../db/client.js";
 import { clothes, shareCodes, shares, suggestions, users, wearEvents } from "../db/schema.js";
 import { and, asc, desc, eq, gte, inArray, notInArray } from "drizzle-orm";
 import { requireAuth } from "../services/auth.js";
+import { notify } from "../services/notifications.js";
 import { settlePastPlans } from "../services/plans.js";
 import { randomBytes } from "node:crypto";
 
@@ -107,6 +108,21 @@ router.post("/share/redeem", async (req, res) => {
     });
   }
   await db.update(shareCodes).set({ used: true }).where(eq(shareCodes.id, sc.id));
+
+  const [viewer] = await db
+    .select({ name: users.name })
+    .from(users)
+    .where(eq(users.id, req.userId!))
+    .limit(1);
+  await notify({
+    userId: sc.ownerId,
+    kind: "wardrobe_shared",
+    title: "Your wardrobe has a new viewer",
+    body: `${viewer?.name ?? "Someone"} accepted your share invite.`,
+    link: "/shared",
+    dedupeKey: `share:${sc.ownerId}:${req.userId}`,
+  });
+
   res.json({ ok: true, ownerId: sc.ownerId });
 });
 
@@ -267,6 +283,22 @@ router.post("/friends/:ownerId/suggest", async (req, res) => {
     note: parse.data.note ?? null,
     forDate: parse.data.forDate ?? null,
   });
+
+  const [from] = await db
+    .select({ name: users.name })
+    .from(users)
+    .where(eq(users.id, req.userId!))
+    .limit(1);
+  await notify({
+    userId: ownerId,
+    kind: "outfit_suggested",
+    title: "A friend suggested a look",
+    body: `${from?.name ?? "Someone"} put together an outfit from your wardrobe.`,
+    link: "/account",
+    // Deliberately per-suggestion: each one is a separate thing to look at.
+    dedupeKey: `suggest:${ownerId}:${req.userId}:${Date.now()}`,
+  });
+
   res.json({ ok: true });
 });
 
