@@ -12,7 +12,6 @@
     "@capacitor-community/media": "^8.0.0",
     "@capacitor/android": "^7.6.5",
     "@capacitor/camera": "^7.0.5",
-    "@capacitor/cli": "^7.6.5",
     "@capacitor/core": "^7.6.5",
     "@capacitor/ios": "^7.6.8",
     "@capacitor/keyboard": "^7.0.6",
@@ -21,6 +20,7 @@
     "react-router-dom": "^7.18.2"
   },
   "devDependencies": {
+    "@capacitor/cli": "^7.6.5",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^4.3.4",
