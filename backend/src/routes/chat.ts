@@ -5,6 +5,8 @@
 // Why Gemini Flash 2.5: $0.10/M input + $0.40/M output, ~92% cheaper than
 // Claude Haiku for the same chat-assistant use case, generous free tier.
 import { Router } from "express";
+import { ensureThriftSchema } from "../services/thrift.js";
+import { neon } from "@neondatabase/serverless";
 import { z } from "zod";
 import { GoogleGenAI } from "@google/genai";
 import { desc, eq, sql } from "drizzle-orm";
@@ -70,6 +72,11 @@ async function buildWardrobeContext(userId: string): Promise<string> {
   return lines.join("\n");
 }
 
+/** Raw driver, named apart from drizzle's own `sql` tag. */
+function rawSql() {
+  return neon(process.env.DATABASE_URL!);
+}
+
 const SYSTEM_BASE = `You are TryUnex, the user's personal wardrobe stylist. You help them pick outfits, plan what to wear, and get more out of the clothes they already own.
 
 Voice:
@@ -84,6 +91,9 @@ Hard rules:
 - Prefer items marked "clean" for anything the user might wear now. If the best option is "worn", say so plainly and offer the closest clean alternative.
 - If the wardrobe genuinely lacks something the request needs, say that honestly and suggest the nearest thing they do own.
 - Don't claim anything has been saved, planned or scheduled. The user does that themselves from the cards you produce.
+- The wardrobe comes first. Only reach for Thrift when what they own genuinely cannot answer the request, and say plainly why their own clothes fall short before offering one.
+- Never mix a Thrift piece into an outfit card. Those are built from clothes they already own.
+- Thrift items belong to other people and may sell at any time. Suggest, never promise.
 
 Recommending a complete outfit (2-3 garments that go together):
 Emit exactly one line in this format, on its own line, and nothing else on that line:
@@ -98,7 +108,52 @@ Mentioning a single garment (not a full outfit):
 Put it on its own line as:
 [cloth: <id>]
 
+Pointing at something on Thrift (only when the wardrobe cannot answer the request):
+Put it on its own line as:
+[thrift: <id>]
+- Copy the id exactly from the Thrift list.
+- At most two per reply, and only after saying what their own clothes are missing.
+
 If you are only answering a question and recommending nothing, just answer in plain prose.`;
+
+/**
+ * Pieces other members are selling that the user could actually buy.
+ *
+ * Kept deliberately small. The stylist's job is to work with what someone
+ * owns; Thrift is a suggestion of last resort, for when the wardrobe genuinely
+ * lacks something. Feeding it the whole marketplace would tempt it to shop
+ * instead of style, and would crowd out the wardrobe it is supposed to know.
+ *
+ * Blocked accounts are excluded in both directions, and a member's own
+ * listings never come back — being sold your own jacket is not advice.
+ */
+async function buildThriftContext(userId: string): Promise<string> {
+  await ensureThriftSchema();
+  const q = rawSql();
+  const rows = (await q`
+    SELECT l.id, l.title, l.category, l.style_tag, l.size, l.condition, l.price_paise, l.city
+      FROM thrift_listings l
+     WHERE l.status = 'active'
+       AND l.seller_user_id <> ${userId}
+       AND NOT EXISTS (
+         SELECT 1 FROM thrift_blocks b
+          WHERE (b.blocker_user_id = ${userId} AND b.blocked_user_id = l.seller_user_id)
+             OR (b.blocker_user_id = l.seller_user_id AND b.blocked_user_id = ${userId})
+       )
+     ORDER BY l.created_at DESC
+     LIMIT 40`) as any[];
+
+  if (rows.length === 0) return "\n\nThrift has nothing listed right now.";
+
+  const lines = rows.map((r) => {
+    const price = `₹${Math.round(Number(r.price_paise) / 100)}`;
+    const bits = [r.category, r.style_tag, `size ${r.size}`, String(r.condition).replace(/_/g, " "), price, r.city]
+      .filter(Boolean)
+      .join(", ");
+    return `- ${r.title} (${bits}) [thrift id ${r.id}]`;
+  });
+  return `\n\nOn Thrift, other members are currently selling:\n${lines.join("\n")}`;
+}
 
 router.post("/", async (req, res) => {
   const parse = z
@@ -128,7 +183,10 @@ router.post("/", async (req, res) => {
   if (!parse.success) return res.status(400).json({ error: "Invalid input" });
 
   const userId = req.userId!;
-  const wardrobe = await buildWardrobeContext(userId);
+  const [wardrobe, thrift] = await Promise.all([
+    buildWardrobeContext(userId),
+    buildThriftContext(userId),
+  ]);
 
   let attachedNote = "";
   if (parse.data.attachedClothId) {
@@ -195,7 +253,7 @@ router.post("/", async (req, res) => {
       model: "gemini-2.5-flash",
       contents,
       config: {
-        systemInstruction: SYSTEM_BASE + "\n\n" + wardrobe + attachedNote + contextNote,
+        systemInstruction: SYSTEM_BASE + "\n\n" + wardrobe + thrift + attachedNote + contextNote,
         maxOutputTokens: 1024,
       },
     });

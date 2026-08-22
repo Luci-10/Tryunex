@@ -12,6 +12,7 @@ import { parseAssistant } from "./chat/parse";
 import { useKeyboardInset } from "../keyboard";
 import OutfitCard, { OutfitCardSkeleton } from "./chat/OutfitCard";
 import ClothChip from "./chat/ClothChip";
+import ThriftChip from "./chat/ThriftChip";
 import StyleContextBar from "./chat/StyleContextBar";
 import ProtectedPhoto from "./ui/ProtectedPhoto";
 
@@ -447,6 +448,8 @@ function AssistantTurn({
               );
             if (s.type === "outfit-pending") return <OutfitCardSkeleton key={i} />;
             if (s.type === "outfit") return <OutfitCard key={i} outfit={s.outfit} wardrobe={map} />;
+            // A Thrift listing is not in the wardrobe map — it loads itself.
+            if (s.type === "thrift") return <ThriftChip key={i} id={s.id} />;
             const cloth = map.get(s.id);
             // An id we can't resolve is dropped rather than shown as noise.
             return cloth ? <ClothChip key={i} cloth={cloth} /> : null;

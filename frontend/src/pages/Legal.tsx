@@ -252,6 +252,12 @@ export function Privacy() {
                 and we copy the result into our own storage immediately.
               </p>
               <p>
+                The styling chat runs on <strong className="text-ink">Google Gemini</strong>. When
+                you ask it something, it is told what is in your wardrobe — names, categories,
+                style tags and when each piece was last worn — and, if anything is listed on
+                Thrift, the public details of those listings. Your photos are not sent to it.
+              </p>
+              <p>
                 <strong className="text-ink">
                   We do not use your photos, wardrobe images, or generated results to train our own
                   AI models.
@@ -283,6 +289,7 @@ export function Privacy() {
                 <L>Cloudflare R2 — image storage.</L>
                 <L>Vercel — application hosting and infrastructure.</L>
                 <L>FAL AI — virtual try-on generation.</L>
+                <L>Google (Gemini) — the AI styling chat.</L>
                 <L>Razorpay — payment processing.</L>
                 <L>An email provider — sign-in codes and support mail.</L>
               </ul>

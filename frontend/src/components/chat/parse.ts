@@ -7,6 +7,7 @@ export type Outfit = { title: string; clothIds: string[]; why?: string };
 export type Segment =
   | { type: "text"; value: string }
   | { type: "cloth"; id: string }
+  | { type: "thrift"; id: string }
   | { type: "outfit"; outfit: Outfit }
   /** An outfit block that hasn't finished streaming — render a skeleton. */
   | { type: "outfit-pending" };
@@ -16,6 +17,8 @@ const OUTFIT_CLOSE = "[[/outfit]]";
 
 // `[cloth: <id>]` as emitted by the system prompt, tolerant of stray spaces.
 const CLOTH_TOKEN = /\[cloth:\s*([^\]\s]+)\s*\]/g;
+// `[thrift: <id>]` — a piece another member is selling, not one they own.
+const THRIFT_TOKEN = /\[thrift:\s*([^\]\s]+)\s*\]/g;
 
 function parseOutfit(raw: string): Outfit | null {
   try {
@@ -38,14 +41,21 @@ function pushText(out: Segment[], value: string) {
   if (value.trim()) out.push({ type: "text", value });
 }
 
-/** Splits the text on `[cloth: id]` tokens. */
+/**
+ * Splits the text on `[cloth: id]` and `[thrift: id]` tokens.
+ *
+ * One pass over both, so a reply that mentions something they own and
+ * something for sale keeps them in the order the model wrote them.
+ */
 function pushWithClothTokens(out: Segment[], text: string) {
-  const re = new RegExp(CLOTH_TOKEN.source, "g");
+  const re = new RegExp(`${CLOTH_TOKEN.source}|${THRIFT_TOKEN.source}`, "g");
   let last = 0;
   let m: RegExpExecArray | null;
   while ((m = re.exec(text)) !== null) {
     pushText(out, text.slice(last, m.index));
-    out.push({ type: "cloth", id: m[1] });
+    // Group 1 is a wardrobe id, group 2 a listing id — only one ever matches.
+    if (m[1]) out.push({ type: "cloth", id: m[1] });
+    else if (m[2]) out.push({ type: "thrift", id: m[2] });
     last = m.index + m[0].length;
   }
   pushText(out, text.slice(last));
