@@ -1,4 +1,5 @@
 import { Navigate, Route, Routes } from "react-router-dom";
+import { Analytics } from "@vercel/analytics/react";
 import { useAuth } from "./auth";
 import { ChatProvider } from "./chat";
 import { TryOnProvider } from "./tryon";
@@ -94,6 +95,7 @@ export default function App() {
           </TryOnProvider>
         </ChatProvider>
       </ConfirmProvider>
+      <Analytics />
     </ToastProvider>
   );
 }
