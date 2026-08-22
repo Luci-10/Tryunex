@@ -50,9 +50,11 @@ router.post("/start", async (req, res) => {
   // Checked before anything is sent, and phrased without revealing whether
   // the address has an account — the unauthenticated answer here must not
   // become a way to test who is registered.
-  const limited =
-    overRateLimit("otp:email", email, PER_EMAIL_MAX, PER_EMAIL_WINDOW_MS) ||
-    overRateLimit("otp:ip", clientIp(req), PER_IP_MAX, PER_IP_WINDOW_MS);
+  const [emailOver, ipOver] = await Promise.all([
+    overRateLimit("otp:email", email, PER_EMAIL_MAX, PER_EMAIL_WINDOW_MS),
+    overRateLimit("otp:ip", clientIp(req), PER_IP_MAX, PER_IP_WINDOW_MS),
+  ]);
+  const limited = emailOver || ipOver;
   if (limited) {
     return res
       .status(429)

@@ -1,45 +1,81 @@
 import type { Request } from "express";
+import { neon } from "@neondatabase/serverless";
+
+function sql() {
+  return neon(process.env.DATABASE_URL!);
+}
 
 /**
- * A small fixed-window counter, kept in memory.
+ * A fixed-window counter shared by every instance.
  *
- * On serverless this is per-instance, so it is a speed bump rather than a
- * guarantee: a determined attacker spread across enough cold starts gets more
- * than the stated ceiling. It still removes the cheap version of the attack,
- * which is one script hammering one endpoint, and that is what the abuse it
- * guards against actually looks like.
+ * The in-memory version this replaces counted per process, which on serverless
+ * means per instance — six requests in a row were spread across enough of them
+ * that a limit of five never triggered in production. Anything meant to stop
+ * abuse has to count somewhere all the instances can see, so it counts here.
+ *
+ * One statement: the insert either creates the window or bumps it, and returns
+ * the running total, so two requests arriving together cannot both read a
+ * stale count and both decide they are under the ceiling.
  */
-type Entry = { count: number; resetAt: number };
-const buckets = new Map<string, Map<string, Entry>>();
+let ready: Promise<void> | null = null;
 
-export function overRateLimit(bucket: string, key: string, max: number, windowMs: number): boolean {
-  let map = buckets.get(bucket);
-  if (!map) {
-    map = new Map();
-    buckets.set(bucket, map);
-  }
-  const now = Date.now();
-  const entry = map.get(key);
-  if (!entry || now > entry.resetAt) {
-    map.set(key, { count: 1, resetAt: now + windowMs });
+export function ensureRateLimitSchema(): Promise<void> {
+  if (ready) return ready;
+  ready = (async () => {
+    const q = sql();
+    await q`CREATE TABLE IF NOT EXISTS "rate_limits" (
+      "bucket" text NOT NULL,
+      "window_start" bigint NOT NULL,
+      "count" integer NOT NULL DEFAULT 0,
+      PRIMARY KEY ("bucket", "window_start")
+    )`;
+    // Old windows are dead weight; this lets a sweep find them cheaply.
+    await q`CREATE INDEX IF NOT EXISTS "rate_limits_window_idx" ON "rate_limits" ("window_start")`;
+  })().catch((err) => {
+    ready = null;
+    throw err;
+  });
+  return ready;
+}
+
+export async function overRateLimit(
+  bucket: string,
+  key: string,
+  max: number,
+  windowMs: number,
+): Promise<boolean> {
+  try {
+    await ensureRateLimitSchema();
+    const q = sql();
+    const windowStart = Math.floor(Date.now() / windowMs);
+    const rows = (await q`
+      INSERT INTO rate_limits (bucket, window_start, count)
+      VALUES (${`${bucket}:${key}`}, ${windowStart}, 1)
+      ON CONFLICT (bucket, window_start)
+      DO UPDATE SET count = rate_limits.count + 1
+      RETURNING count`) as Array<{ count: number }>;
+
+    // Housekeeping, rarely, so old windows do not accumulate forever.
+    if (Math.random() < 0.01) {
+      const cutoff = windowStart - Math.ceil((24 * 60 * 60 * 1000) / windowMs);
+      await q`DELETE FROM rate_limits WHERE window_start < ${cutoff}`;
+    }
+    return Number(rows[0]?.count ?? 0) > max;
+  } catch (err) {
+    // A limiter that breaks must not take sign-in down with it. Log and allow:
+    // the failure mode of "not counting" is far better than "nobody can log in".
+    console.error("[rateLimit] counter unavailable, allowing request:", err);
     return false;
   }
-  entry.count += 1;
-  // Opportunistic cleanup so a long-lived instance cannot grow without bound.
-  if (map.size > 5000) {
-    for (const [k, v] of map) if (now > v.resetAt) map.delete(k);
-  }
-  return entry.count > max;
 }
 
 /**
  * The caller's address, as far as it can be trusted.
  *
- * Express is not configured to trust proxies, and deliberately so: turning
- * that on wholesale would let a caller name their own address through
- * x-forwarded-for and sidestep any per-address limit. Vercel sets its own
- * headers that a client cannot forge, so those are preferred, and the
- * left-most forwarded entry is the last resort rather than the first choice.
+ * Express is deliberately not trusting proxies wholesale — that would let a
+ * caller name their own address through x-forwarded-for and mint a fresh
+ * bucket at will. Vercel sets headers a client cannot forge, so those come
+ * first, and the left-most forwarded entry is the last resort.
  */
 export function clientIp(req: Request): string {
   const vercel = req.headers["x-vercel-forwarded-for"];
@@ -54,7 +90,8 @@ export function clientIp(req: Request): string {
   return req.socket?.remoteAddress ?? "unknown";
 }
 
-/** Only for tests: forget everything counted so far. */
-export function resetRateLimits() {
-  buckets.clear();
+/** Only for tests: clear every counted window. */
+export async function resetRateLimits() {
+  await ensureRateLimitSchema();
+  await sql()`DELETE FROM rate_limits`;
 }
