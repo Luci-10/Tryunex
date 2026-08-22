@@ -118,3 +118,26 @@ export function verifyWebhookSignature(rawBody: string, signature: string): bool
   const expected = createHmac("sha256", secret).update(rawBody).digest("hex");
   return safeEqual(expected, signature);
 }
+
+/**
+ * What Razorpay will actually charge for a plan, in paise.
+ *
+ * A Razorpay plan's amount is fixed when the plan is created and cannot be
+ * edited afterwards, so the price in our catalogue is only ever a label for
+ * subscriptions. If the two drift apart the app advertises one figure and the
+ * customer is billed another, which is a dispute waiting to happen — so the
+ * subscription route asks before it sells.
+ */
+export async function planAmountPaise(planId: string): Promise<number | null> {
+  try {
+    const res = await fetch(`https://api.razorpay.com/v1/plans/${encodeURIComponent(planId)}`, {
+      headers: { authorization: authHeader() },
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!res.ok) return null;
+    const body = (await res.json()) as { item?: { amount?: number } };
+    return typeof body.item?.amount === "number" ? body.item.amount : null;
+  } catch {
+    return null;
+  }
+}

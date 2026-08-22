@@ -32,13 +32,13 @@ export type Plan = {
 
 export const PACKS: Pack[] = [
   { code: "starter", kind: "pack", name: "Starter pack", credits: 3, amountPaise: 2900 },
-  { code: "mid", kind: "pack", name: "Mid pack", credits: 6, amountPaise: 5200 },
-  { code: "bulk", kind: "pack", name: "Bulk pack", credits: 10, amountPaise: 7900, badge: "Best value" },
+  { code: "mid", kind: "pack", name: "Mid pack", credits: 6, amountPaise: 5900 },
+  { code: "bulk", kind: "pack", name: "Bulk pack", credits: 10, amountPaise: 8900, badge: "Best value" },
 ];
 
 export const PLANS: Plan[] = [
-  { code: "lite", kind: "subscription", name: "Lite", creditsPerMonth: 7, amountPaise: 5500, razorpayPlanIdEnv: "RAZORPAY_PLAN_LITE_ID" },
-  { code: "plus", kind: "subscription", name: "Plus", creditsPerMonth: 14, amountPaise: 9900, razorpayPlanIdEnv: "RAZORPAY_PLAN_PLUS_ID", badge: "Most popular" },
+  { code: "lite", kind: "subscription", name: "Lite", creditsPerMonth: 7, amountPaise: 5900, razorpayPlanIdEnv: "RAZORPAY_PLAN_LITE_ID" },
+  { code: "plus", kind: "subscription", name: "Plus", creditsPerMonth: 14, amountPaise: 11900, razorpayPlanIdEnv: "RAZORPAY_PLAN_PLUS_ID", badge: "Most popular" },
   { code: "style", kind: "subscription", name: "Style", creditsPerMonth: 30, amountPaise: 19900, razorpayPlanIdEnv: "RAZORPAY_PLAN_STYLE_ID" },
 ];
 
