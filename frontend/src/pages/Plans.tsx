@@ -9,6 +9,7 @@ import { ErrorBanner } from "../components/ui/Field";
 import { useToast } from "../components/ui/Toast";
 import { useAuth } from "../auth";
 import { Check, Sparkles } from "../components/ui/icons";
+import { isNativeApp } from "../platform";
 import { getCatalogue, getSummary, startCheckout, type BillingSummary, type Catalogue, planName, planDetail } from "../billing";
 
 function dateLabel(iso: string | null) {
@@ -21,6 +22,15 @@ function dateLabel(iso: string | null) {
 }
 
 export default function Plans() {
+  /*
+   * Both stores require digital goods bought inside an app to go through
+   * their own billing, so the app shows what you have and what a plan
+   * includes, and offers no way to buy. Deliberately no explanation of where
+   * to buy instead: pointing elsewhere is the specific thing the rule
+   * forbids, and a rejection costs a review cycle.
+   */
+  const canPurchaseHere = !isNativeApp();
+
   const { user } = useAuth();
   const { toast } = useToast();
   const [summary, setSummary] = useState<BillingSummary | null>(null);
@@ -191,6 +201,7 @@ export default function Plans() {
       )}
 
       {/* -------------------------------------------------------- packs */}
+      {canPurchaseHere && (
       <section className="space-y-3">
         <SectionHeading title="Need a few more looks?" hint="One-off top-ups." as="h2" />
         <div className="space-y-2">
@@ -224,8 +235,10 @@ export default function Plans() {
         </div>
         <p className="text-[11.5px] text-ink/60">All prices include GST.</p>
       </section>
+      )}
 
       {/* ------------------------------------------------ subscriptions */}
+      {canPurchaseHere && (
       <section className="space-y-3">
         <SectionHeading title="Get more Try-on every month" hint="Includes unlimited chat." as="h2" />
         <div className="space-y-2">
@@ -295,6 +308,7 @@ export default function Plans() {
           </ErrorBanner>
         )}
       </section>
+      )}
 
       {/* ------------------------------------------------ explanations */}
       <section className="space-y-3">
