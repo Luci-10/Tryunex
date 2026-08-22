@@ -16,6 +16,8 @@ export type Pack = {
   name: string;
   credits: number;
   amountPaise: number;
+  /** Pre-discount figure, shown struck through beside the price. */
+  listAmountPaise?: number;
   badge?: string;
 };
 
@@ -25,21 +27,23 @@ export type Plan = {
   name: string;
   creditsPerMonth: number;
   amountPaise: number;
+  /** Pre-discount figure, shown struck through beside the price. */
+  listAmountPaise?: number;
   /** Razorpay plan id env var, created in the dashboard. */
   razorpayPlanIdEnv: string;
   badge?: string;
 };
 
 export const PACKS: Pack[] = [
-  { code: "starter", kind: "pack", name: "Starter pack", credits: 3, amountPaise: 2900 },
-  { code: "mid", kind: "pack", name: "Mid pack", credits: 6, amountPaise: 5900 },
-  { code: "bulk", kind: "pack", name: "Bulk pack", credits: 10, amountPaise: 8900, badge: "Best value" },
+  { code: "starter", kind: "pack", name: "Starter pack", credits: 3, amountPaise: 2900, listAmountPaise: 3900 },
+  { code: "mid", kind: "pack", name: "Mid pack", credits: 6, amountPaise: 5900, listAmountPaise: 7900 },
+  { code: "bulk", kind: "pack", name: "Bulk pack", credits: 10, amountPaise: 8900, listAmountPaise: 11900, badge: "Best value" },
 ];
 
 export const PLANS: Plan[] = [
-  { code: "lite", kind: "subscription", name: "Lite", creditsPerMonth: 7, amountPaise: 5900, razorpayPlanIdEnv: "RAZORPAY_PLAN_LITE_ID" },
-  { code: "plus", kind: "subscription", name: "Plus", creditsPerMonth: 14, amountPaise: 11900, razorpayPlanIdEnv: "RAZORPAY_PLAN_PLUS_ID", badge: "Most popular" },
-  { code: "style", kind: "subscription", name: "Style", creditsPerMonth: 30, amountPaise: 19900, razorpayPlanIdEnv: "RAZORPAY_PLAN_STYLE_ID" },
+  { code: "lite", kind: "subscription", name: "Lite", creditsPerMonth: 7, amountPaise: 5900, listAmountPaise: 7900, razorpayPlanIdEnv: "RAZORPAY_PLAN_LITE_ID" },
+  { code: "plus", kind: "subscription", name: "Plus", creditsPerMonth: 14, amountPaise: 11900, listAmountPaise: 15900, razorpayPlanIdEnv: "RAZORPAY_PLAN_PLUS_ID", badge: "Most popular" },
+  { code: "style", kind: "subscription", name: "Style", creditsPerMonth: 30, amountPaise: 19900, listAmountPaise: 26900, razorpayPlanIdEnv: "RAZORPAY_PLAN_STYLE_ID" },
 ];
 
 export function findPack(code: string): Pack | undefined {
@@ -82,6 +86,8 @@ export function customerCatalogue() {
       credits: p.credits,
       amountPaise: p.amountPaise,
       priceLabel: `₹${(p.amountPaise / 100).toFixed(0)}`,
+      // Display only. The amount charged is always amountPaise.
+      listPriceLabel: p.listAmountPaise ? `₹${(p.listAmountPaise / 100).toFixed(0)}` : null,
       badge: p.badge ?? null,
       note: "Never expires",
       blurb: PACK_BLURB[p.code],
@@ -94,6 +100,8 @@ export function customerCatalogue() {
       creditsPerMonth: p.creditsPerMonth,
       amountPaise: p.amountPaise,
       priceLabel: `₹${(p.amountPaise / 100).toFixed(0)}`,
+      // Display only. The amount charged is always amountPaise.
+      listPriceLabel: p.listAmountPaise ? `₹${(p.listAmountPaise / 100).toFixed(0)}` : null,
       badge: p.badge ?? null,
       blurb: PLAN_BLURB[p.code],
       creditLine: `${p.creditsPerMonth} plan credits + 1 free monthly credit`,
