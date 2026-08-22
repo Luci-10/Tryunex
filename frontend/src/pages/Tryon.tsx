@@ -16,6 +16,7 @@ import SelectedLook from "../components/tryon/SelectedLook";
 import { Calendar, Camera, Download, Refresh, Share, Sparkles, Zoom } from "../components/ui/icons";
 import ProtectedPhoto, { type MediaScope } from "../components/ui/ProtectedPhoto";
 import { api, type Cloth } from "../api";
+import { isNativeApp } from "../platform";
 import { useTryOn, roleOf, ROLE_OPTIONS, SLOT_LABEL, type AddOutcome, type Role } from "../tryon";
 import { hasPhotoConsent, grantPhotoConsent } from "../photoConsent";
 import { nativePickerAvailable, pickPhotoNatively, type PickSource } from "../photoPicker";
@@ -41,6 +42,7 @@ const PHOTO_GUIDANCE =
   "For the best preview, use a clear, front-facing photo in fitted clothing so the AI can read the garment fit and body outline.";
 
 export default function Tryon() {
+  const canPurchaseHere = !isNativeApp();
   const { selection, select, commit, clear, locked, setLocked, roles, setRole } = useTryOn();
   const { toast } = useToast();
   const confirm = useConfirm();
@@ -831,10 +833,19 @@ export default function Tryon() {
         title="Not enough Try-on credits"
         footer={
           <div className="space-y-2">
-            <Button block size="lg" onClick={() => nav("/plans")}>
-              Buy credits
-            </Button>
-            <Button block variant="secondary" onClick={() => nav("/plans")}>
+            {/* Inside the app there is nothing to buy here, so the prompt
+                offers the plan details rather than a purchase. */}
+            {canPurchaseHere && (
+              <Button block size="lg" onClick={() => nav("/plans")}>
+                Buy credits
+              </Button>
+            )}
+            <Button
+              block
+              size={canPurchaseHere ? "md" : "lg"}
+              variant={canPurchaseHere ? "secondary" : "primary"}
+              onClick={() => nav("/plans")}
+            >
               View plans
             </Button>
             <Button block variant="quiet" onClick={() => setOutOfCredits(false)}>
