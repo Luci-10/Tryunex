@@ -30,7 +30,7 @@
     "drizzle-orm": "^0.36.4",
     "express": "^4.21.1",
     "jose": "^5.9.6",
-    "nodemailer": "^8.0.9",
+    "nodemailer": "^9.0.5",
     "sharp": "^0.35.3",
     "undici": "^7.29.0",
     "zod": "^3.23.8"
@@ -40,7 +40,7 @@
     "@types/cors": "^2.8.17",
     "@types/express": "^5.0.0",
     "@types/node": "^22.9.0",
-    "@types/nodemailer": "^6.4.16",
+    "@types/nodemailer": "^8.0.1",
     "@types/pg": "^8.20.0",
     "drizzle-kit": "^0.28.1",
     "pg": "^8.21.0",
