@@ -229,7 +229,8 @@ router.get("/friends/:ownerId/wardrobe", async (req, res) => {
         name: clothes.name,
         category: clothes.category,
       styleTag: clothes.styleTag,
-        imageUrl: clothes.imageUrl,
+        // Deliberately no image path: this response goes to somebody who is
+        // not the owner, and the object location embeds the owner's id.
         status: clothes.status,
       },
     })
@@ -360,10 +361,10 @@ router.get("/suggestions", async (req, res) => {
   const allIds = Array.from(
     new Set(rows.flatMap((r) => r.clothIds.split(",").filter(Boolean))),
   );
-  const clothMap = new Map<string, { id: string; name: string; imageUrl: string }>();
+  const clothMap = new Map<string, { id: string; name: string }>();
   if (allIds.length) {
     const cs = await db
-      .select({ id: clothes.id, name: clothes.name, imageUrl: clothes.imageUrl })
+      .select({ id: clothes.id, name: clothes.name })
       .from(clothes)
       .where(inArray(clothes.id, allIds));
     cs.forEach((c) => clothMap.set(c.id, c));
