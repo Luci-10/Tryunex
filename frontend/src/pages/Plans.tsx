@@ -219,7 +219,14 @@ export default function Plans() {
                 <p className="text-[12px] text-ink/60">{p.chatNote}</p>
               </div>
               <div className="text-right shrink-0">
-                <p className="text-[17px] font-bold">{p.priceLabel}</p>
+                <p className="text-[17px] font-bold">
+                  {p.listPriceLabel && (
+                    <span className="text-[12.5px] font-medium text-ink/45 line-through mr-1.5">
+                      {p.listPriceLabel}
+                    </span>
+                  )}
+                  {p.priceLabel}
+                </p>
                 <Button
                   size="sm"
                   className="mt-1"
@@ -262,6 +269,11 @@ export default function Plans() {
                   </div>
                   <div className="text-right shrink-0">
                     <p className="text-[17px] font-bold">
+                      {p.listPriceLabel && (
+                        <span className="text-[12.5px] font-medium text-ink/45 line-through mr-1.5">
+                          {p.listPriceLabel}
+                        </span>
+                      )}
                       {p.priceLabel}
                       <span className="text-[12px] font-normal text-ink/55">/mo</span>
                     </p>

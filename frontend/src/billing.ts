@@ -46,12 +46,12 @@ export type Catalogue = {
   };
   packs: {
     code: string; name: string; credits: number; amountPaise: number;
-    priceLabel: string; badge: string | null; note: string;
+    priceLabel: string; listPriceLabel: string | null; badge: string | null; note: string;
     blurb: string; chatNote: string;
   }[];
   plans: {
     code: string; name: string; creditsPerMonth: number; amountPaise: number;
-    priceLabel: string; badge: string | null;
+    priceLabel: string; listPriceLabel: string | null; badge: string | null;
     blurb: string; creditLine: string; chatNote: string; expiryNote: string;
   }[];
 };
