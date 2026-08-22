@@ -201,7 +201,6 @@ export default function Plans() {
       )}
 
       {/* -------------------------------------------------------- packs */}
-      {canPurchaseHere && (
       <section className="space-y-3">
         <SectionHeading title="Need a few more looks?" hint="One-off top-ups." as="h2" />
         <div className="space-y-2">
@@ -227,25 +226,25 @@ export default function Plans() {
                   )}
                   {p.priceLabel}
                 </p>
-                <Button
-                  size="sm"
-                  className="mt-1"
-                  loading={busyCode === p.code}
-                  disabled={!catalogue.configured || Boolean(busyCode)}
-                  onClick={() => buy("pack", p.code)}
-                >
-                  Buy
-                </Button>
+                {canPurchaseHere && (
+                  <Button
+                    size="sm"
+                    className="mt-1"
+                    loading={busyCode === p.code}
+                    disabled={!catalogue.configured || Boolean(busyCode)}
+                    onClick={() => buy("pack", p.code)}
+                  >
+                    Buy
+                  </Button>
+                )}
               </div>
             </div>
           ))}
         </div>
         <p className="text-[11.5px] text-ink/60">All prices include GST.</p>
       </section>
-      )}
 
       {/* ------------------------------------------------ subscriptions */}
-      {canPurchaseHere && (
       <section className="space-y-3">
         <SectionHeading title="Get more Try-on every month" hint="Includes unlimited chat." as="h2" />
         <div className="space-y-2">
@@ -277,16 +276,18 @@ export default function Plans() {
                       {p.priceLabel}
                       <span className="text-[12px] font-normal text-ink/55">/mo</span>
                     </p>
-                    <Button
-                      size="sm"
-                      variant={active ? "secondary" : "primary"}
-                      className="mt-1"
-                      loading={busyCode === p.code}
-                      disabled={!catalogue.configured || active || Boolean(busyCode)}
-                      onClick={() => buy("subscription", p.code)}
-                    >
-                      {active ? "Active" : "Subscribe"}
-                    </Button>
+                    {(canPurchaseHere || active) && (
+                      <Button
+                        size="sm"
+                        variant={active ? "secondary" : "primary"}
+                        className="mt-1"
+                        loading={busyCode === p.code}
+                        disabled={!canPurchaseHere || !catalogue.configured || active || Boolean(busyCode)}
+                        onClick={() => buy("subscription", p.code)}
+                      >
+                        {active ? "Active" : "Subscribe"}
+                      </Button>
+                    )}
                   </div>
                 </div>
                 <ul className="mt-2.5 space-y-1">
@@ -320,7 +321,6 @@ export default function Plans() {
           </ErrorBanner>
         )}
       </section>
-      )}
 
       {/* ------------------------------------------------ explanations */}
       <section className="space-y-3">
