@@ -45,11 +45,18 @@ router.post("/upload-url", async (req, res) => {
 
 // GET /clothes?status=clean|worn — also includes lastWornOn per cloth
 // (most recent past wear_event) so the wardrobe grid can show "X days ago".
+//
 // Clothes with an active plan (unsettled wear_event for today / future) are
-// hidden — they're committed, shouldn't be re-selectable.
+// hidden from the clean list — they are committed, and offering them again
+// invites planning the same shirt twice.
+//
+// ?includePlanned=1 turns that off. Try-on asks for it: seeing yourself in
+// the outfit you have planned for Saturday is the reason to plan at all, and
+// a try-on commits nothing, so there is nothing to double-book.
 router.get("/", async (req, res) => {
   await settlePastPlans(req.userId!);
   const status = req.query.status === "worn" ? "worn" : req.query.status === "clean" ? "clean" : null;
+  const includePlanned = req.query.includePlanned === "1" || req.query.includePlanned === "true";
   const today = todayStr();
   const plannedClothIds = db
     .select({ id: wearEvents.clothId })
@@ -66,7 +73,7 @@ router.get("/", async (req, res) => {
     : eq(clothes.userId, req.userId!);
   // Only hide planned clothes from the clean/wardrobe list — worn/all
   // queries can still surface them.
-  const where = status === "clean"
+  const where = status === "clean" && !includePlanned
     ? and(baseWhere, notInArray(clothes.id, plannedClothIds))
     : baseWhere;
   const rows = await db
@@ -345,6 +352,18 @@ router.post("/plan", async (req, res) => {
   if (parse.data.date < todayStr()) {
     return res.status(400).json({ error: "Can't plan for a past date" });
   }
+
+  // Only your own garments. Without this the ids are taken on trust, and a
+  // plan built from someone else's ids then lists their garment names back
+  // through /clothes/plans, which joins on the cloth rather than the owner.
+  const owned = await db
+    .select({ id: clothes.id })
+    .from(clothes)
+    .where(and(eq(clothes.userId, req.userId!), inArray(clothes.id, parse.data.ids)));
+  if (owned.length !== parse.data.ids.length) {
+    return res.status(404).json({ error: "Some of those pieces aren't in your wardrobe" });
+  }
+
   await db.insert(wearEvents).values(
     parse.data.ids.map((cid) => ({
       clothId: cid,

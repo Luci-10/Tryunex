@@ -13,7 +13,7 @@ import { useToast } from "../components/ui/Toast";
 import { useConfirm } from "../components/ui/Confirm";
 import WardrobePicker, { type PickerItem } from "../components/tryon/WardrobePicker";
 import SelectedLook from "../components/tryon/SelectedLook";
-import { Camera, Download, Refresh, Share, Sparkles, Zoom } from "../components/ui/icons";
+import { Calendar, Camera, Download, Refresh, Share, Sparkles, Zoom } from "../components/ui/icons";
 import ProtectedPhoto, { type MediaScope } from "../components/ui/ProtectedPhoto";
 import { api, type Cloth } from "../api";
 import { useTryOn, roleOf, ROLE_OPTIONS, SLOT_LABEL, type AddOutcome, type Role } from "../tryon";
@@ -61,6 +61,9 @@ export default function Tryon() {
   const [result, setResult] = useState<Result | null>(null);
   const [resultOf, setResultOf] = useState<Cloth[]>([]);
   const [cached, setCached] = useState(false);
+  const [planOpen, setPlanOpen] = useState(false);
+  const [planDate, setPlanDate] = useState("");
+  const [planning, setPlanning] = useState(false);
   const [showingOriginal, setShowingOriginal] = useState(false);
 
   // Zoom targets a record now, not a URL — the image is private.
@@ -85,7 +88,9 @@ export default function Tryon() {
     try {
       const [s, mine, shares] = await Promise.all([
         api.get<{ selfie: Selfie | null }>("/tryon/selfie"),
-        api.get<{ clothes: Cloth[] }>("/clothes?status=clean"),
+        // includePlanned: seeing yourself in Saturday's outfit is the whole
+        // point of having planned it, and a try-on commits nothing.
+        api.get<{ clothes: Cloth[] }>("/clothes?status=clean&includePlanned=1"),
         api
           .get<{ shares: { ownerId: string; ownerName: string; allowTryon: boolean }[] }>(
             "/share/i-can-see",
@@ -318,6 +323,35 @@ export default function Tryon() {
     wardrobeRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
+  /**
+   * Plan the outfit currently on screen.
+   *
+   * The look you have just judged is exactly the thing worth committing to a
+   * day, and until now that meant remembering the pieces and rebuilding the
+   * same combination on the Plan page.
+   */
+  async function planThisOutfit(date: string) {
+    if (selection.length === 0 || planning) return;
+    setPlanning(true);
+    try {
+      await api.post("/clothes/plan", { ids: selection.map((c) => c.id), date });
+      setPlanOpen(false);
+      const when = new Date(date + "T00:00:00").toLocaleDateString(undefined, {
+        weekday: "long",
+        day: "numeric",
+        month: "short",
+      });
+      toast(`Planned for ${when}`, {
+        tone: "success",
+        action: { label: "View plans", onClick: () => nav("/plan") },
+      });
+    } catch (err: any) {
+      toast(err?.message ?? "Could not plan that outfit", { tone: "error" });
+    } finally {
+      setPlanning(false);
+    }
+  }
+
   async function saveLook() {
     if (!result || sharing) return;
     setSharing("download");
@@ -371,6 +405,66 @@ export default function Tryon() {
 
   return (
     <PageShell width="wide">
+      <Sheet
+        open={planOpen}
+        onClose={() => !planning && setPlanOpen(false)}
+        title="Plan this outfit"
+        description={`${selection.length} piece${selection.length === 1 ? "" : "s"} · pick the day you'll wear it`}
+        dismissible={!planning}
+        footer={
+          <div className="flex gap-2">
+            <Button variant="secondary" block onClick={() => setPlanOpen(false)} disabled={planning}>
+              Cancel
+            </Button>
+            <Button block loading={planning} disabled={planning || !planDate} onClick={() => planThisOutfit(planDate)}>
+              Plan it
+            </Button>
+          </div>
+        }
+      >
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-2">
+            {[
+              { label: "Today", days: 0 },
+              { label: "Tomorrow", days: 1 },
+            ].map((o) => {
+              const d = new Date();
+              d.setDate(d.getDate() + o.days);
+              const iso = d.toISOString().slice(0, 10);
+              const active = planDate === iso;
+              return (
+                <button
+                  key={o.label}
+                  type="button"
+                  onClick={() => setPlanDate(iso)}
+                  className={`h-11 rounded-xl border text-[14px] font-medium transition-colors ${
+                    active
+                      ? "border-brand-400 bg-lilac/50 text-brand-700"
+                      : "border-ink/12 hover:bg-ink/[0.03]"
+                  }`}
+                >
+                  {o.label}
+                </button>
+              );
+            })}
+          </div>
+          <label className="block">
+            <span className="text-[13px] font-medium text-ink/75">Or choose a date</span>
+            <input
+              type="date"
+              value={planDate}
+              min={new Date().toISOString().slice(0, 10)}
+              onChange={(e) => setPlanDate(e.target.value)}
+              className="mt-1 w-full h-11 bg-white border border-ink/12 rounded-xl px-3.5 text-[16px]"
+            />
+          </label>
+          <p className="text-[12.5px] text-ink/60 leading-relaxed">
+            Planned pieces move out of your wardrobe list until the day arrives, and turn
+            themselves worn once it passes.
+          </p>
+        </div>
+      </Sheet>
+
       <Lightbox
         scope={zoom?.scope}
         id={zoom?.id}
@@ -531,6 +625,17 @@ export default function Tryon() {
                   </Button>
                   <Button variant="secondary" onClick={() => setShowingOriginal((v) => !v)}>
                     {showingOriginal ? "Show the look" : "Show original"}
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    onClick={() => {
+                      setPlanDate(new Date().toISOString().slice(0, 10));
+                      setPlanOpen(true);
+                    }}
+                    disabled={generating || selection.length === 0}
+                    leading={<Calendar className="w-4 h-4" />}
+                  >
+                    Plan this outfit
                   </Button>
                   <Button variant="quiet" onClick={goToWardrobe} disabled={generating}>
                     Edit outfit
