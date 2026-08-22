@@ -108,7 +108,11 @@ export default function Sheet({
   // and squash the sheet into the header's own 56px box.
   return createPortal(
     <div
-      className="fixed inset-0 z-40 flex items-end sm:items-center justify-center bg-ink/40 backdrop-blur-[2px] animate-fade-in"
+      // Above the chat panel (z-50). A sheet is a modal: whatever opened it,
+      // including the chat's own "New chat" confirmation, has to be able to
+      // answer it. Below toasts (60) and the lightbox (70), which belong on
+      // top of a sheet, and below the policy gate (95), which outranks all.
+      className="fixed inset-0 z-[55] flex items-end sm:items-center justify-center bg-ink/40 backdrop-blur-[2px] animate-fade-in"
       onMouseDown={(e) => {
         if (dismissible && e.target === e.currentTarget) onClose();
       }}
