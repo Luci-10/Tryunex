@@ -11,6 +11,7 @@ import {
   clearOtpCookie,
 } from "../services/otp.js";
 import { sendOtpEmail } from "../services/mailer.js";
+import { overRateLimit, clientIp } from "../services/rateLimit.js";
 import {
   signSessionToken,
   signPendingToken,
@@ -25,11 +26,38 @@ import {
 
 const router = Router();
 
+/**
+ * Ceilings on sending sign-in codes.
+ *
+ * Without them anyone can make TryUnex email any address, repeatedly: an
+ * inbox flooded from our domain, our sending quota spent, and the spam
+ * complaints that follow undo the domain reputation the codes depend on.
+ *
+ * Two ceilings, because either alone is trivial to sidestep — one address from
+ * many machines, or many addresses from one.
+ */
+const PER_EMAIL_MAX = 5;
+const PER_EMAIL_WINDOW_MS = 15 * 60 * 1000;
+const PER_IP_MAX = 20;
+const PER_IP_WINDOW_MS = 60 * 60 * 1000;
+
 // POST /auth/start { email }
 router.post("/start", async (req, res) => {
   const parse = z.object({ email: z.string().email() }).safeParse(req.body);
   if (!parse.success) return res.status(400).json({ error: "Invalid email" });
   const email = parse.data.email.trim().toLowerCase();
+
+  // Checked before anything is sent, and phrased without revealing whether
+  // the address has an account — the unauthenticated answer here must not
+  // become a way to test who is registered.
+  const limited =
+    overRateLimit("otp:email", email, PER_EMAIL_MAX, PER_EMAIL_WINDOW_MS) ||
+    overRateLimit("otp:ip", clientIp(req), PER_IP_MAX, PER_IP_WINDOW_MS);
+  if (limited) {
+    return res
+      .status(429)
+      .json({ error: "Too many codes requested. Wait a few minutes and try again." });
+  }
 
   const otp = generateOtp();
   await issueOtpCookie(res, email, otp);
