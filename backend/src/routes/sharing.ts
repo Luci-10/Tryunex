@@ -208,8 +208,19 @@ router.get("/friends/:ownerId/wardrobe", async (req, res) => {
         gte(wearEvents.wornOn, todayStr()),
       ),
     );
+  // Columns named explicitly rather than select-all: this response goes to
+  // somebody who is not the owner, and the stored image path embeds the
+  // owner's account id. The viewer reads pictures through the media route by
+  // garment id, so the path was never needed here.
   const items = await db
-    .select()
+    .select({
+      id: clothes.id,
+      name: clothes.name,
+      category: clothes.category,
+      styleTag: clothes.styleTag,
+      status: clothes.status,
+      createdAt: clothes.createdAt,
+    })
     .from(clothes)
     .where(
       and(
