@@ -12,7 +12,6 @@ type Row = {
   clothId: string;
   wornOn: string;
   clothName: string;
-  clothImage: string;
   category: string;
 };
 
@@ -104,7 +103,6 @@ export default function History() {
                     <ProtectedPhoto
                       scope="cloth"
                       id={i.clothId}
-                      src={i.clothImage}
                       alt={i.clothName}
                       loading="lazy"
                       className="w-full aspect-square object-cover bg-ink/[0.04]"

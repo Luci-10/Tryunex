@@ -62,7 +62,7 @@ export default function WardrobeFilters({
             onChange={(e) => onSearch(e.target.value)}
             placeholder="Search your wardrobe"
             aria-label="Search your wardrobe"
-            className="w-full h-11 bg-white border border-ink/12 rounded-full pl-10 pr-10 text-[15px] placeholder:text-ink/55 focus:border-brand-400"
+            className="w-full h-11 bg-white border border-ink/12 rounded-full pl-10 pr-10 text-[16px] placeholder:text-ink/55 focus:border-brand-400"
           />
           {search && (
             <button

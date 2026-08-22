@@ -15,7 +15,9 @@ router.get("/", async (req, res) => {
       wornOn: wearEvents.wornOn,
       createdAt: wearEvents.createdAt,
       clothName: clothes.name,
-      clothImage: clothes.imageUrl,
+      // No image path here: the client reads the picture through the media
+      // route by cloth id, so shipping the storage location adds nothing but
+      // a way to learn where objects live.
       category: clothes.category,
       styleTag: clothes.styleTag,
     })
