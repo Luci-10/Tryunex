@@ -7,3 +7,6 @@ project(':capacitor-community-media').projectDir = new File('../../node_modules/
 
 include ':capacitor-camera'
 project(':capacitor-camera').projectDir = new File('../../node_modules/@capacitor/camera/android')
+
+include ':capacitor-keyboard'
+project(':capacitor-keyboard').projectDir = new File('../../node_modules/@capacitor/keyboard/android')

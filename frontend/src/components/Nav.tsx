@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useKeyboardOpen } from "../keyboard";
 import { NavLink, useLocation } from "react-router-dom";
 import { useAuth } from "../auth";
 import useMediaQuery from "../useMediaQuery";
@@ -150,12 +151,15 @@ export function AppHeader() {
 /** Bottom tab bar — phones only, three destinations, nothing else. */
 export function MobileNav() {
   const { user } = useAuth();
-  if (!user) return null;
+  const keyboardOpen = useKeyboardOpen();
+  // Out of the way while typing: it would otherwise be pushed up above the
+  // keyboard and cover the field the person is filling in.
+  if (!user || keyboardOpen) return null;
 
   return (
     <nav
       aria-label="Primary"
-      className="md:hidden fixed inset-x-0 bottom-0 z-30 bg-white/92 backdrop-blur-md border-t border-ink/[0.07] pb-safe"
+      className="md:hidden fixed inset-x-0 bottom-0 z-30 bg-white border-t border-ink/[0.07] pb-safe"
     >
       <ul className="flex items-stretch">
         {PRIMARY_NAV.map((t) => (

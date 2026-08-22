@@ -18,6 +18,7 @@ def capacitor_pods
   pod 'CapacitorCordova', :path => '../../../node_modules/@capacitor/ios'
   pod 'CapacitorCommunityMedia', :path => '../../../node_modules/@capacitor-community/media'
   pod 'CapacitorCamera', :path => '../../../node_modules/@capacitor/camera'
+  pod 'CapacitorKeyboard', :path => '../../../node_modules/@capacitor/keyboard'
 end
 
 target 'App' do
