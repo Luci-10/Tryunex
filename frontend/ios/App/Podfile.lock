@@ -3,26 +3,41 @@ PODS:
     - CapacitorCordova
   - CapacitorCamera (7.0.5):
     - Capacitor
+  - CapacitorCommunityMedia (8.0.0):
+    - Capacitor
+    - SDWebImage
   - CapacitorCordova (7.6.8)
+  - SDWebImage (5.21.7):
+    - SDWebImage/Core (= 5.21.7)
+  - SDWebImage/Core (5.21.7)
 
 DEPENDENCIES:
   - "Capacitor (from `../../../node_modules/@capacitor/ios`)"
   - "CapacitorCamera (from `../../../node_modules/@capacitor/camera`)"
+  - "CapacitorCommunityMedia (from `../../../node_modules/@capacitor-community/media`)"
   - "CapacitorCordova (from `../../../node_modules/@capacitor/ios`)"
+
+SPEC REPOS:
+  trunk:
+    - SDWebImage
 
 EXTERNAL SOURCES:
   Capacitor:
     :path: "../../../node_modules/@capacitor/ios"
   CapacitorCamera:
     :path: "../../../node_modules/@capacitor/camera"
+  CapacitorCommunityMedia:
+    :path: "../../../node_modules/@capacitor-community/media"
   CapacitorCordova:
     :path: "../../../node_modules/@capacitor/ios"
 
 SPEC CHECKSUMS:
   Capacitor: ff6bf01336ac353098378828aff465095a89e459
   CapacitorCamera: 9e952270be355797f769aa835bb7643a96c871fe
+  CapacitorCommunityMedia: 66bbd85d51776a3cf5321657469134c0a80d3f3f
   CapacitorCordova: e61ee8c40101b8cd011d0224261606a290c082cf
+  SDWebImage: e9fc87c1aab89a8ab1bbd74eba378c6f53be8abf
 
-PODFILE CHECKSUM: 7834ea56b232d16b02eb87e2a40bd87369a7c7c0
+PODFILE CHECKSUM: 9bfa8a362705c80a59e4b6f55fe85b93ae1b7eed
 
 COCOAPODS: 1.17.0

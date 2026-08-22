@@ -324,9 +324,15 @@ export default function Tryon() {
     const r = await downloadLook("tryon", result.id);
     setSharing(null);
     if (r.ok) {
-      toast(r.via === "newtab" ? "Opened the image — long-press or right-click to save" : "Saved to your device", {
-        tone: "success",
-      });
+      const said =
+        r.via === "newtab"
+          ? "Opened the image — long-press or right-click to save"
+          : r.via === "gallery"
+            ? "Saved to your photos"
+            : r.via === "share"
+              ? "Shared"
+              : "Saved to your device";
+      toast(said, { tone: "success" });
     } else if (!("cancelled" in r)) {
       toast(r.message, { tone: "error" });
     }
