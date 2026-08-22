@@ -2,20 +2,38 @@ import { useEffect, useState } from "react";
 import { isNativeApp } from "./platform";
 
 /**
- * Whether the on-screen keyboard is up, inside the app.
+ * How much of the screen the on-screen keyboard is covering, in pixels.
+ * Zero when it is down, and always zero outside the app.
  *
- * The bottom tab bar is fixed to the bottom of the viewport, and iOS shrinks
- * the web view when the keyboard appears — so the bar rides up and sits above
- * the keyboard, which reads as the page moving on its own. Hiding it while
- * typing is what the platform's own apps do, and it gives the field more room.
+ * Capacitor's default is to resize the whole web view when the keyboard
+ * appears. That changes what `vh` and `height: 100%` mean, so the entire
+ * layout is recalculated twice per keystroke session — and iOS does not
+ * reliably restore the old size afterwards, which leaves the page taller than
+ * the screen and everything fixed to the bottom sitting in the wrong place.
  *
- * Both the "will" and "did" events are used because the pair differs by
- * platform: iOS fires the "will" variants ahead of the animation, Android is
- * reliable only on "did". Listening to both means the bar goes at the earliest
- * moment either platform can tell us.
+ * The app therefore turns resizing off (see capacitor.config.ts) and moves the
+ * few things that genuinely need to clear the keyboard by this much instead.
+ * Nothing else in the layout notices the keyboard at all.
  */
-export function useKeyboardOpen(): boolean {
-  const [open, setOpen] = useState(false);
+/**
+ * With the web view no longer resizing, a field partway down the page can end
+ * up behind the keyboard — the platform would normally have scrolled it into
+ * view as a side effect of shrinking. Do it explicitly instead.
+ *
+ * Only in-flow fields need this. Anything fixed to the bottom is offset by the
+ * keyboard height directly and is already clear of it.
+ */
+function bringFocusedFieldIntoView() {
+  const el = document.activeElement as HTMLElement | null;
+  if (!el || !el.matches?.("input, textarea, [contenteditable]")) return;
+  if (el.closest("[data-keyboard-offset]")) return;
+  // After the frame in which the keyboard height lands, so the scroll lands
+  // against the final layout rather than the one being replaced.
+  requestAnimationFrame(() => el.scrollIntoView({ block: "center", behavior: "smooth" }));
+}
+
+export function useKeyboardInset(): number {
+  const [inset, setInset] = useState(0);
 
   useEffect(() => {
     if (!isNativeApp()) return;
@@ -27,20 +45,28 @@ export function useKeyboardOpen(): boolean {
       try {
         const { Keyboard } = await import("@capacitor/keyboard");
         const handles = await Promise.all([
-          Keyboard.addListener("keyboardWillShow", () => setOpen(true)),
-          Keyboard.addListener("keyboardDidShow", () => setOpen(true)),
-          Keyboard.addListener("keyboardWillHide", () => setOpen(false)),
-          Keyboard.addListener("keyboardDidHide", () => setOpen(false)),
+          // iOS reports "will" ahead of the animation; Android is only
+          // dependable on "did". Listening to both means we react at the
+          // earliest moment either platform can tell us.
+          Keyboard.addListener("keyboardWillShow", (i) => {
+            setInset(i.keyboardHeight);
+            bringFocusedFieldIntoView();
+          }),
+          Keyboard.addListener("keyboardDidShow", (i) => {
+            setInset(i.keyboardHeight);
+            bringFocusedFieldIntoView();
+          }),
+          Keyboard.addListener("keyboardWillHide", () => setInset(0)),
+          Keyboard.addListener("keyboardDidHide", () => setInset(0)),
         ]);
-        // Unmounted while the plugin was loading: drop them immediately.
         if (cancelled) {
           handles.forEach((h) => h.remove());
           return;
         }
         remove = () => handles.forEach((h) => h.remove());
       } catch {
-        // No keyboard plugin on this platform. The bar simply stays put,
-        // which is the behaviour everywhere except the app anyway.
+        // No keyboard plugin here: the layout simply never reacts, which is
+        // the correct behaviour everywhere except the app.
       }
     })();
 
@@ -50,5 +76,10 @@ export function useKeyboardOpen(): boolean {
     };
   }, []);
 
-  return open;
+  return inset;
+}
+
+/** Convenience for the places that only care whether it is up. */
+export function useKeyboardOpen(): boolean {
+  return useKeyboardInset() > 0;
 }

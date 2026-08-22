@@ -9,6 +9,7 @@ import { Input } from "./ui/Field";
 import { useConfirm } from "./ui/Confirm";
 import { Check, Close, Copy, More, Refresh, Send, Shirt, Sparkles } from "./ui/icons";
 import { parseAssistant } from "./chat/parse";
+import { useKeyboardInset } from "../keyboard";
 import OutfitCard, { OutfitCardSkeleton } from "./chat/OutfitCard";
 import ClothChip from "./chat/ClothChip";
 import StyleContextBar from "./chat/StyleContextBar";
@@ -29,6 +30,7 @@ const ATTACHED_STARTERS = [
 ];
 
 export default function ChatPanel() {
+  const keyboardInset = useKeyboardInset();
   const { open, attached, messages, streaming, busy, closeChat, setAttached, send, stop, clear, retry } =
     useChat();
   const confirm = useConfirm();
@@ -121,6 +123,10 @@ export default function ChatPanel() {
         role="dialog"
         aria-modal="false"
         aria-label="Ask TryUnex"
+        data-keyboard-offset
+        // Sits directly on the keyboard rather than behind it. Set inline
+        // because it is a live pixel value, and only ever non-zero in the app.
+        style={keyboardInset ? { bottom: keyboardInset } : undefined}
         className="fixed z-50 inset-x-0 bottom-0 md:inset-auto md:bottom-6 md:right-6 md:w-[26rem]"
       >
         <div className="bg-white rounded-t-sheet md:rounded-sheet border border-ink/[0.07] shadow-lift flex flex-col h-[82dvh] md:h-[min(38rem,80vh)] overflow-hidden animate-sheet-up">
