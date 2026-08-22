@@ -92,7 +92,7 @@ export default function WardrobePicker({
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search garments"
             aria-label="Search garments"
-            className="w-full h-11 bg-white border border-ink/12 rounded-full pl-10 pr-10 text-[15px] placeholder:text-ink/40 focus:border-brand-400"
+            className="w-full h-11 bg-white border border-ink/12 rounded-full pl-10 pr-10 text-[16px] placeholder:text-ink/40 focus:border-brand-400"
           />
           {query && (
             <button

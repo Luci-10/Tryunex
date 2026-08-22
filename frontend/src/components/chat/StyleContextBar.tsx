@@ -82,7 +82,7 @@ export default function StyleContextBar() {
                 min={today}
                 value={styleContext.date ?? ""}
                 onChange={(e) => setStyleContext({ ...styleContext, date: e.target.value || undefined })}
-                className="w-full h-9 border border-ink/12 rounded-lg px-2 text-[12px] bg-white"
+                className="w-full h-9 border border-ink/12 rounded-lg px-2 text-[16px] bg-white"
               />
             </label>
             <label className="flex-1 min-w-0">
@@ -96,7 +96,7 @@ export default function StyleContextBar() {
                 onChange={(e) =>
                   setStyleContext({ ...styleContext, weather: e.target.value || undefined })
                 }
-                className="w-full h-9 border border-ink/12 rounded-lg px-2 text-[12px] bg-white placeholder:text-ink/35"
+                className="w-full h-9 border border-ink/12 rounded-lg px-2 text-[16px] bg-white placeholder:text-ink/35"
               />
             </label>
           </div>

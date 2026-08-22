@@ -6,8 +6,14 @@ import {
   type TextareaHTMLAttributes,
 } from "react";
 
+/*
+ * 16px, not 15px, and not by accident: iOS zooms the page in when a text field
+ * smaller than 16px takes focus, and does not reliably zoom back out. A page
+ * left zoomed is wider than the screen — it scrolls sideways and the fixed tab
+ * bar appears to drift. Typing a garment name was enough to trigger it.
+ */
 const BASE =
-  "w-full bg-white border border-ink/12 rounded-xl px-3.5 text-[15px] placeholder:text-ink/55 " +
+  "w-full bg-white border border-ink/12 rounded-xl px-3.5 text-[16px] placeholder:text-ink/55 " +
   "transition-colors focus:border-brand-400 disabled:bg-ink/[0.04] disabled:text-ink/65";
 
 export function Label({ children, hint }: { children: ReactNode; hint?: string }) {
