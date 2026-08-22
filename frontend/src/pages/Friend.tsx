@@ -21,7 +21,7 @@ type Permission = "view" | "suggest" | "edit";
 type PlanEntry = {
   id: string;
   wornOn: string;
-  cloth: { id: string; name: string; category: string; imageUrl: string; status: "clean" | "worn" };
+  cloth: { id: string; name: string; category: string; status: "clean" | "worn" };
 };
 
 type FriendData = {

@@ -16,32 +16,22 @@ import {
 import { sendAccountDeletionEmail } from "../services/mailer.js";
 import { deleteAccount, previewDeletion } from "../services/accountDeletion.js";
 import { metric } from "../services/metrics.js";
+import { overRateLimit } from "../services/rateLimit.js";
 
 const router = Router();
 router.use(requireAuth);
 
 /**
- * A ceiling on deletion codes, so a hijacked session cannot be used to bury
- * the real owner's inbox in warnings — the mail is alarming by design, and a
- * flood of it is its own kind of harm.
+ * A ceiling on deletion codes, so a hijacked session cannot bury the real
+ * owner's inbox in warnings — the mail is alarming by design, and a flood of
+ * it is its own kind of harm.
+ *
+ * Counted in the database rather than in memory: on serverless each instance
+ * has its own memory, so a per-process counter spreads across enough instances
+ * to never reach its own ceiling.
  */
 const MAX_REQUESTS = 5;
 const WINDOW_MS = 60 * 60 * 1000;
-const requests = new Map<string, { count: number; resetAt: number }>();
-
-function overLimit(userId: string): boolean {
-  const now = Date.now();
-  const entry = requests.get(userId);
-  if (!entry || now > entry.resetAt) {
-    requests.set(userId, { count: 1, resetAt: now + WINDOW_MS });
-    return false;
-  }
-  entry.count += 1;
-  if (requests.size > 5000) {
-    for (const [k, v] of requests) if (now > v.resetAt) requests.delete(k);
-  }
-  return entry.count > MAX_REQUESTS;
-}
 
 // GET /account/deletion-preview -> what deleting would destroy.
 router.get("/deletion-preview", async (req, res) => {
@@ -53,7 +43,7 @@ router.post("/delete/start", async (req, res) => {
   const user = await loadUser(req.userId!);
   if (!user) return res.status(404).json({ error: "Account not found" });
 
-  if (overLimit(req.userId!)) {
+  if (await overRateLimit("account:delete", req.userId!, MAX_REQUESTS, WINDOW_MS)) {
     return res.status(429).json({ error: "Too many attempts. Try again later." });
   }
 
