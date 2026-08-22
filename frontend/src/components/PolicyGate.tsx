@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useLocation } from "react-router-dom";
 import { createPortal } from "react-dom";
 import { api } from "../api";
 import { useAuth } from "../auth";
@@ -7,6 +8,16 @@ import { useSignOut } from "./ProfileMenu";
 import { SUPPORT_EMAIL } from "../pages/Legal";
 
 export type PolicyStatus = { version: string; accepted: boolean; acceptedAt: string | null };
+
+/**
+ * The pages the gate must never cover.
+ *
+ * It asks people to agree to these documents, so it cannot be what stops them
+ * reading them. Standing down here also releases the scroll lock, which is
+ * what made the pages appear stuck: the text was there, behind a panel, on a
+ * body that could not scroll.
+ */
+const READABLE_WHILE_BLOCKED = ["/terms", "/privacy", "/refunds"];
 
 type Load = { state: "loading" } | { state: "error" } | { state: "ready"; status: PolicyStatus };
 
@@ -55,8 +66,10 @@ export default function PolicyGate() {
   }, [user, fetchStatus]);
 
   // Signed out: the landing page is public, so nothing to gate.
+  const { pathname } = useLocation();
+  const reading = READABLE_WHILE_BLOCKED.includes(pathname);
   const blocking =
-    Boolean(user) && (load.state !== "ready" || !load.status.accepted);
+    Boolean(user) && !reading && (load.state !== "ready" || !load.status.accepted);
 
   // Scroll lock, focus, and a Back-button trap while blocking.
   useEffect(() => {
