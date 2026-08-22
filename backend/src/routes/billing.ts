@@ -1,6 +1,6 @@
 // Billing: catalogue, checkout creation, verification, and the webhook that
 // is the actual source of truth for granting credits.
-import { Router, raw } from "express";
+import { Router, raw, json } from "express";
 import { z } from "zod";
 import { neon } from "@neondatabase/serverless";
 import { requireAuth } from "../services/auth.js";
@@ -20,6 +20,7 @@ import {
   createCustomer,
   createOrder,
   createSubscription,
+  planAmountPaise,
   publicKeyId,
   razorpayConfigured,
   verifyPaymentSignature,
@@ -188,6 +189,14 @@ router.post("/webhook", raw({ type: "*/*" }), async (req, res) => {
 });
 
 /* ------------------------------------------------------ authed endpoints */
+
+// JSON parsing starts here, deliberately after the webhook above, which needs
+// the raw bytes to check its signature. This router is mounted before the
+// app-wide parser for that reason, which until now left these routes relying
+// on the host runtime to have parsed the body for them — true on Vercel,
+// false anywhere else, so the same request succeeded in production and failed
+// locally. Parsing it here makes the two behave alike.
+router.use(json({ limit: "1mb" }));
 router.use(requireAuth);
 
 router.get("/products", async (_req, res) => {
@@ -268,6 +277,21 @@ router.post("/create-subscription", async (req, res) => {
   const planId = planIdFromEnv(plan);
   if (!planId) {
     return res.status(503).json({ error: `${plan.name} is not available yet` });
+  }
+
+  // Never sell at a price we are not going to charge. A Razorpay plan's
+  // amount is fixed at creation, so raising a price in the catalogue without
+  // creating a new plan would advertise the new figure and bill the old one.
+  const charged = await planAmountPaise(planId);
+  if (charged === null) {
+    return res.status(503).json({ error: "Couldn't reach the payment provider. Try again shortly." });
+  }
+  if (charged !== plan.amountPaise) {
+    console.error(
+      `[billing] price mismatch for ${plan.code}: catalogue ${plan.amountPaise}, Razorpay plan ${charged}`,
+    );
+    metric("payment_failed", { kind: "subscription", code: plan.code, reason: "price_mismatch" });
+    return res.status(503).json({ error: `${plan.name} is being updated. Try again shortly.` });
   }
 
   await ensureBillingSchema();
