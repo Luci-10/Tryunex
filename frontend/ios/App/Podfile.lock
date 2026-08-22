@@ -1,0 +1,49 @@
+PODS:
+  - Capacitor (7.6.8):
+    - CapacitorCordova
+  - CapacitorCamera (7.0.5):
+    - Capacitor
+  - CapacitorCommunityMedia (8.0.0):
+    - Capacitor
+    - SDWebImage
+  - CapacitorCordova (7.6.8)
+  - CapacitorKeyboard (7.0.6):
+    - Capacitor
+  - SDWebImage (5.21.7):
+    - SDWebImage/Core (= 5.21.7)
+  - SDWebImage/Core (5.21.7)
+
+DEPENDENCIES:
+  - "Capacitor (from `../../../node_modules/@capacitor/ios`)"
+  - "CapacitorCamera (from `../../../node_modules/@capacitor/camera`)"
+  - "CapacitorCommunityMedia (from `../../../node_modules/@capacitor-community/media`)"
+  - "CapacitorCordova (from `../../../node_modules/@capacitor/ios`)"
+  - "CapacitorKeyboard (from `../../../node_modules/@capacitor/keyboard`)"
+
+SPEC REPOS:
+  trunk:
+    - SDWebImage
+
+EXTERNAL SOURCES:
+  Capacitor:
+    :path: "../../../node_modules/@capacitor/ios"
+  CapacitorCamera:
+    :path: "../../../node_modules/@capacitor/camera"
+  CapacitorCommunityMedia:
+    :path: "../../../node_modules/@capacitor-community/media"
+  CapacitorCordova:
+    :path: "../../../node_modules/@capacitor/ios"
+  CapacitorKeyboard:
+    :path: "../../../node_modules/@capacitor/keyboard"
+
+SPEC CHECKSUMS:
+  Capacitor: ff6bf01336ac353098378828aff465095a89e459
+  CapacitorCamera: 9e952270be355797f769aa835bb7643a96c871fe
+  CapacitorCommunityMedia: 66bbd85d51776a3cf5321657469134c0a80d3f3f
+  CapacitorCordova: e61ee8c40101b8cd011d0224261606a290c082cf
+  CapacitorKeyboard: a2e0869edd229490ce36aed2549c0d6b95e27ee8
+  SDWebImage: e9fc87c1aab89a8ab1bbd74eba378c6f53be8abf
+
+PODFILE CHECKSUM: 33d97ab4b315c0a98a66960e20fe328e17ad695e
+
+COCOAPODS: 1.17.0
